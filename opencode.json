@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "comsol": {
+      "type": "local",
+      "command": ["python", "-m", "src.server"],
+      "enabled": true,
+      "environment": {
+        "HF_ENDPOINT": "https://hf-mirror.com"
+      },
+      "timeout": 30000
+    }
+  }
+}
