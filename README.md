@@ -6,7 +6,9 @@ English | [中文](README_CN.md)
 
 ## Star History
 
-![Star History](assets/star-history.svg)
+[![GitHub stars](https://img.shields.io/github/stars/wjc9011/COMSOL_Multiphysics_MCP?style=social)](https://github.com/wjc9011/COMSOL_Multiphysics_MCP/stargazers)
+
+[![Star History Chart](https://starchart.cc/wjc9011/COMSOL_Multiphysics_MCP.svg)](https://starchart.cc/wjc9011/COMSOL_Multiphysics_MCP)
 
 ## Project Goal
 
