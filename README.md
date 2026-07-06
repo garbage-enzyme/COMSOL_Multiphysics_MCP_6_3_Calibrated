@@ -104,11 +104,7 @@ Start COMSOL Multiphysics first (MCP bridges via MPh/JPype), then point your MCP
 
 This fork tracks `wjc9011/COMSOL_Multiphysics_MCP` and is intended as a **6.3 compatibility patch**, not a feature fork. The upstream README (`README.md` in the original repo, preserved here as `README_upstream.md` if needed) describes the broader feature set, knowledge base, and 5.x workflows that this fork inherits unchanged.
 
-If you're running on **6.3 standalone** and the upstream tools throw `No matching overloads`, `Operation_cannot_be_created_in_this_context`, or `'ComponentGeomListClient' object is not subscriptable` — use this fork.
-
-## Known gaps
-
-- `geometry_get_boundaries` returns `nBoundaries` / `nDomains` but **not per-boundary coordinates or normals**, and still throws `'ComponentGeomListClient' object is not subscriptable` (`_get_geometry_node` uses subscript access on `comp.geom()`). Workaround: identify boundary numbers with a `Box` selection by coordinate.
+If you're running on **6.3 standalone** and the upstream tools throw `No matching overloads`, `Operation_cannot_be_created_in_this_context`, or `'ComponentGeomListClient' object is not subscriptable` — use this fork. The last error is fixed here: `geometry_get_boundaries` now returns per-boundary `normal` + `center` + whole-geometry `bounding_box` (via `faceNormal`/`faceX`/`edgeNormal`/`edgeX` on the parameter midpoint), so you can identify which boundary is which face directly (e.g. z=0 face has normal `[0,0,-1]`) — no manual `Box` selection needed.
 
 ## License
 

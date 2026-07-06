@@ -104,11 +104,7 @@ python scripts/build_knowledge_base.py
 
 本 Fork 跟踪 `wjc9011/COMSOL_Multiphysics_MCP`，定位是 **6.3 兼容性补丁**，不是功能 Fork。上游 README（原仓库的 `README.md`，本 Fork 保留为 `README_upstream.md` / `README_CN_upstream.md`）描述了更完整的功能集、知识库、5.x 工作流，本 Fork 原样继承。
 
-如果你在 **6.3 standalone** 下用上游工具报 `No matching overloads`、`Operation_cannot_be_created_in_this_context`、或 `'ComponentGeomListClient' object is not subscriptable` —— 请用本 Fork。
-
-## 已知缺口
-
-- `geometry_get_boundaries` 返回 `nBoundaries` / `nDomains`，但**不返回每个边界的坐标或法向**，且仍报 `'ComponentGeomListClient' object is not subscriptable`（`_get_geometry_node` 对 `comp.geom()` 用了下标访问）。变通：用 `Box` selection 按坐标识别边界编号。
+如果你在 **6.3 standalone** 下用上游工具报 `No matching overloads`、`Operation_cannot_be_created_in_this_context`、或 `'ComponentGeomListClient' object is not subscriptable` —— 请用本 Fork。最后一个错在本 Fork 已修复：`geometry_get_boundaries` 现在返回每个边界的 `normal`（法向）+ `center`（中心坐标）+ 整体 `bounding_box`（通过参数中点调 `faceNormal`/`faceX`/`edgeNormal`/`edgeX`），可直接判断哪个边界是哪个面（如 z=0 面法向 `[0,0,-1]`），无需手动建 `Box` selection。
 
 ## 许可证
 
