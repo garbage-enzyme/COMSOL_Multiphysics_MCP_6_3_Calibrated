@@ -502,13 +502,14 @@ def register_physics_tools(mcp: FastMCP) -> None:
             feat = physics_java.feature().create(tag, feature_type, sdim)
             feat.selection().set([int(d) for d in domain_selection])
 
+            set_failures = []
             for prop_name, prop_value in properties.items():
                 try:
                     feat.set(prop_name, prop_value)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    set_failures.append(f"{prop_name}: {exc}")
 
-            return {
+            result = {
                 "success": True,
                 "domain_feature": {
                     "tag": tag,
@@ -519,6 +520,12 @@ def register_physics_tools(mcp: FastMCP) -> None:
                     "sdim": sdim,
                 }
             }
+            if set_failures:
+                result["warning"] = (
+                    "Some property sets failed (property names may be wrong "
+                    f"for this feature type): {set_failures}"
+                )
+            return result
         except Exception as e:
             return {"success": False, "error": f"Failed to add domain feature: {str(e)}"}
 
@@ -609,18 +616,29 @@ def register_physics_tools(mcp: FastMCP) -> None:
         physics_name: str,
         material_name: str,
         domain_selection: Optional[Sequence[int]] = None,
+        properties: Optional[dict] = None,
         model_name: Optional[str] = None
     ) -> dict:
         """
         Assign a material to physics domains.
 
         This tool tries to add the material from COMSOL's built-in library
-        if it's not already in the model.
+        if it's not already in the model. If ``properties`` is provided those
+        values are written into the material's Basic property group (tag
+        ``def``) so domain features with ``materialType=from_mat`` will use
+        them.
+
+        Recognised property names (Heat Transfer / Electrostatics):
+        - "thermalconductivity": e.g. "130[W/(m*K)]"
+        - "density":              e.g. "2329[kg/m^3]"
+        - "heatcapacity":         e.g. "700[J/(kg*K)]"
+        - "relpermittivity":      e.g. "2.1"   (Electrostatics)
 
         Args:
             physics_name: Name of the physics interface
             material_name: Name of the material (e.g. "Silicon", "Steel AISI 4340", "Copper")
             domain_selection: Domain numbers (default: all domains for this physics)
+            properties: Optional dict of Basic material properties to write
             model_name: Model name (default: current model)
 
         Returns:
@@ -657,14 +675,42 @@ def register_physics_tools(mcp: FastMCP) -> None:
             if domain_selection:
                 mat_node.selection().set([int(d) for d in domain_selection])
 
-            return {
+            set_warnings = []
+            if properties:
+                try:
+                    grp = mat_node.propertyGroup("def")
+                except Exception as exc:
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Material '{tag}' has no 'def' property group to "
+                            f"write physical properties into: {exc}"
+                        ),
+                    }
+                for prop_name, prop_value in properties.items():
+                    try:
+                        # vector/scalar form: COMSOL accepts a single-element
+                        # string array for scalar-anisotropic prop names.
+                        grp.set(prop_name, [prop_value])
+                    except Exception:
+                        try:
+                            grp.set(prop_name, prop_value)
+                        except Exception as exc:
+                            set_warnings.append(f"{prop_name}: {exc}")
+
+            result = {
                 "success": True,
                 "material": material_name,
                 "physics": physics_name,
                 "domain_selection": list(domain_selection) if domain_selection else "all",
                 "message": f"Material '{material_name}' assigned to physics '{physics_name}'",
-                "warning": "Material node has no physical properties. Set properties manually in COMSOL GUI.",
             }
+            if set_warnings:
+                result["warning"] = (
+                    "Some material property sets failed (check property "
+                    f"names): {set_warnings}"
+                )
+            return result
         except Exception as e:
             return {"success": False, "error": f"Failed to set material: {str(e)}"}
     

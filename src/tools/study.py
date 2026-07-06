@@ -1,6 +1,6 @@
 """Study and solving tools for COMSOL MCP Server."""
 
-from typing import Optional
+from typing import Optional, Sequence
 from mcp.server.fastmcp import FastMCP
 
 from .session import session_manager
@@ -84,6 +84,8 @@ def register_study_tools(mcp: FastMCP) -> None:
     def study_create(
         study_type: str = "Stationary",
         study_name: Optional[str] = None,
+        time_list: Optional[Sequence] = None,
+        time_unit: str = "s",
         model_name: Optional[str] = None
     ) -> dict:
         """
@@ -91,14 +93,19 @@ def register_study_tools(mcp: FastMCP) -> None:
 
         Common study types:
         - "Stationary": Stationary study (most common for electrostatics, structural)
-        - "TimeDependent": Time-dependent study
+        - "Transient": Time-dependent study (also accepts "TimeDependent"/"time")
         - "Eigenfrequency": Eigenfrequency analysis
-        - "Frequency": Frequency domain study
+        - "FrequencyDomain": Frequency domain study (also accepts "Frequency")
         - "Perturbation": Perturbation study
 
         Args:
             study_type: Type of study to create
             study_name: Optional name/tag for the study
+            time_list: For Transient studies, the list of output times.
+                Elements are numbers expressed in ``time_unit`` (default s).
+                Typical usage for ns simulation: ``time_list=[0,0.1e-9,1e-9]``
+                or ``time_list=[0,1,10]`` with ``time_unit="ns"``.
+            time_unit: Unit string for ``time_list`` (default "s")
             model_name: Model name (default: current model)
 
         Returns:
@@ -117,28 +124,55 @@ def register_study_tools(mcp: FastMCP) -> None:
             study_tag = study_name or f"std{existing_studies + 1}"
 
             # clientapi (mph 1.3+ standalone) requires the FULL step-type name
-            # (e.g. "Stationary", "TimeDependent"), NOT the short tag ("stat").
-            # Direct-Model API used the short form, but clientapi rejects it with
-            # "Operation_cannot_be_created_in_this_context".
+            # (e.g. "Stationary", "Transient"), NOT the short tag ("stat").
+            # Direct-Model API used the short form, but clientapi rejects it
+            # with "Operation_cannot_be_created_in_this_context".  Note that
+            # the *real* tag for a time-dependent study step is "Transient"
+            # (NOT "TimeDependent"); the historical alias is normalised here.
             SHORT_TO_FULL = {
                 "stat": "Stationary",
-                "time": "TimeDependent",
+                "time": "Transient",
+                "timedependent": "Transient",
+                "transient": "Transient",
                 "eig": "Eigenfrequency",
-                "freq": "Frequency",
+                "freq": "FrequencyDomain",
+                "frequency": "FrequencyDomain",
                 "pert": "Perturbation",
             }
-            step_type = SHORT_TO_FULL.get(study_type, study_type)
+            step_type = SHORT_TO_FULL.get(study_type.lower(), study_type)
 
             study = jm.study().create(study_tag)
             study.create("step1", step_type)
 
-            return {
+            tlist_warning = None
+            if step_type == "Transient" and time_list is not None:
+                try:
+                    step = study.feature("step1")
+                    tlist_str = " ".join(
+                        f"{float(t)}[{time_unit}]" for t in time_list
+                    )
+                    step.set("tlist", tlist_str)
+                except Exception as exc:
+                    tlist_warning = (
+                        f"Study created but failed to set tlist: {exc}"
+                    )
+
+            result = {
                 "success": True,
                 "study": study_tag,
                 "type": study_type,
                 "step_type": step_type,
                 "model": model.name(),
             }
+            if step_type == "Transient" and time_list is None:
+                result["warning"] = (
+                    "Transient study created without time_list. Set it via "
+                    "study_create(time_list=...) or the COMSOL GUI before "
+                    "solving."
+                )
+            if tlist_warning:
+                result["warning"] = tlist_warning
+            return result
         except Exception as e:
             return {"success": False, "error": f"Failed to create study: {str(e)}"}
     
