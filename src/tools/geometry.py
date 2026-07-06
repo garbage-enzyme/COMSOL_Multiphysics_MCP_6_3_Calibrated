@@ -24,10 +24,13 @@ def _get_geometry_node(model, geometry_name: Optional[str], component_name: str 
             if geom is None:
                 return None, f"Geometry '{geometry_name}' not found in component '{component_name}'."
         else:
-            geoms = list(comp.geom())
-            if not geoms:
+            # clientapi: ComponentGeomListClient supports neither list() nor
+            # subscripting; iterate via tags() and get(tag).
+            geoms = comp.geom()
+            if geoms.size() == 0:
                 return None, "No geometry sequences found. Create one first with geometry_create."
-            geom = geoms[0]
+            tags = list(geoms.tags())
+            geom = geoms.get(tags[0])
         
         return geom, None
     except Exception as e:

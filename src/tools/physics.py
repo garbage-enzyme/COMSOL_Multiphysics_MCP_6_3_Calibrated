@@ -1,6 +1,7 @@
 """Physics tools for COMSOL MCP Server."""
 
 from typing import Optional, Sequence
+import jpype
 from mcp.server.fastmcp import FastMCP
 
 from .session import session_manager
@@ -823,41 +824,82 @@ def register_physics_tools(mcp: FastMCP) -> None:
             }
 
         try:
+            import jpype as _jpype
             jm = model.java
 
             comp = jm.component(component_name)
             if comp is None:
                 return {"success": False, "error": f"Component '{component_name}' not found."}
 
+            geom_list = comp.geom()
+            if geom_list.size() == 0:
+                return {"success": False, "error": "No geometries in component."}
             geom_tag = geometry_name
             if not geom_tag:
-                geoms = comp.geom()
-                if geoms.size() == 0:
-                    return {"success": False, "error": "No geometries in component."}
-                geom_tag = geoms[0].tag()
-
+                # clientapi: list is not subscriptable; use tags().
+                tags = list(geom_list.tags())
+                geom_tag = tags[0]
             geom = comp.geom(geom_tag)
             geom.run()
 
             nboundary = geom.getNBoundaries()
             ndomain = geom.getNDomains()
+            sdim = int(geom.getSDim())
+
+            # Whole-geometry bounding box [xmin,xmax,ymin,ymax,zmin,zmax].
+            try:
+                bbox = [float(x) for x in geom.getBoundingBox()]
+            except Exception:
+                bbox = None
 
             boundaries = []
-            for i in range(1, nboundary + 1):
-                try:
-                    bd_info = {"boundary_number": i}
-                    boundaries.append(bd_info)
-                except Exception:
-                    boundaries.append({"boundary_number": i, "error": "Could not get info"})
+            if sdim == 3:
+                for i in range(1, nboundary + 1):
+                    info = {"boundary_number": i}
+                    try:
+                        pr = list(geom.faceParamRange(i))
+                        u_mid = (float(pr[0]) + float(pr[1])) / 2.0
+                        v_mid = (float(pr[2]) + float(pr[3])) / 2.0
+                        pp = _jpype.JArray(_jpype.JArray(_jpype.JDouble))(1)
+                        pp[0] = _jpype.JArray(_jpype.JDouble)([u_mid, v_mid])
+                        normal = list(geom.faceNormal(i, pp)[0])
+                        center = list(geom.faceX(i, pp)[0])
+                        info["normal"] = [float(n) for n in normal]
+                        info["center"] = [float(c) for c in center]
+                    except Exception as e:
+                        info["error"] = f"Could not get face info: {str(e)[:80]}"
+                    boundaries.append(info)
+            elif sdim == 2:
+                for i in range(1, nboundary + 1):
+                    info = {"boundary_number": i}
+                    try:
+                        pr = list(geom.edgeParamRange(i))
+                        u_mid = (float(pr[0]) + float(pr[1])) / 2.0
+                        pp = _jpype.JArray(_jpype.JDouble)([u_mid])
+                        normal = list(geom.edgeNormal(i, pp)[0])
+                        center = list(geom.edgeX(i, pp)[0])
+                        info["normal"] = [float(n) for n in normal]
+                        info["center"] = [float(c) for c in center]
+                    except Exception as e:
+                        info["error"] = f"Could not get edge info: {str(e)[:80]}"
+                    boundaries.append(info)
+            else:
+                for i in range(1, nboundary + 1):
+                    boundaries.append({"boundary_number": i})
 
-            return {
+            result = {
                 "success": True,
                 "geometry": geom_tag,
+                "space_dimension": sdim,
                 "total_boundaries": nboundary,
                 "total_domains": ndomain,
                 "boundaries": boundaries,
-                "hint": "Use boundary_number to set boundary conditions with physics_configure_boundary",
+                "hint": "Use 'normal' to identify faces (e.g. z=0 face has normal [0,0,-1]); "
+                        "use 'center' to confirm by coordinate. Then set BCs via physics_configure_boundary.",
             }
+            if bbox is not None:
+                result["bounding_box"] = bbox
+            return result
         except Exception as e:
             return {"success": False, "error": f"Failed to get boundaries: {str(e)}"}
     
