@@ -1,5 +1,7 @@
 # COMSOL MCP Server — 6.3 ClientAPI Calibrated Fork
 
+English | [中文](README_CN.md)
+
 [![GitHub stars](https://img.shields.io/github/stars/garbage-enzyme/COMSOL_Multiphysics_MCP_6_3_Calibrated?style=social)](https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_3_Calibrated/stargazers)
 
 > **Fork of [wjc9011/COMSOL_Multiphysics_MCP](https://github.com/wjc9011/COMSOL_Multiphysics_MCP).**

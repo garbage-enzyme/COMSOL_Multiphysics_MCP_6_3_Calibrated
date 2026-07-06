@@ -1,101 +1,92 @@
-# COMSOL MCP Server
-
-基于 MCP 协议的 COMSOL Multiphysics 仿真自动化服务器，支持 AI 代理（如 Claude）直接控制 COMSOL 进行多物理场仿真。
+# COMSOL MCP Server — 6.3 ClientAPI 适配 Fork
 
 [English](README.md) | 中文
 
-## ⭐ Star History
+[![GitHub stars](https://img.shields.io/github/stars/garbage-enzyme/COMSOL_Multiphysics_MCP_6_3_Calibrated?style=social)](https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_3_Calibrated/stargazers)
 
-[![GitHub stars](https://img.shields.io/github/stars/wjc9011/COMSOL_Multiphysics_MCP?style=social)](https://github.com/wjc9011/COMSOL_Multiphysics_MCP/stargazers)
+> **本仓库是 [wjc9011/COMSOL_Multiphysics_MCP](https://github.com/wjc9011/COMSOL_Multiphysics_MCP) 的 Fork。**
+> 本分支为 **COMSOL 6.3 + MPh 1.3.1 standalone 模式**（`clientapi` 包装层）校准 MCP server 工具。上游代码面向直接的 `com.comsol.model.Model` API，在 6.3 standalone 下会运行时报错。
 
-[![Star History Chart](https://starchart.cc/wjc9011/COMSOL_Multiphysics_MCP.svg)](https://starchart.cc/wjc9011/COMSOL_Multiphysics_MCP)
+## 为什么要有这个 Fork
 
-## 🎯 项目目标
+在 `mph.Client(cores=...)`（MPh 1.3+ standalone）下，`model.java` 返回的是 `com.comsol.clientapi.impl.ModelClient` —— 真实 model 外面的**包装层**。每一次 `component()` / `physics()` / `geom()` 调用返回的都是 `*Client` 类，其方法重载与上游代码所写的直接 `com.comsol.model.*` API 不同。结果：6.3 standalone 下大部分 geometry/physics/study/mesh 工具运行时失败。
 
-构建完整的 COMSOL MCP Server，使 AI 代理能够通过 MCP 协议执行多物理场仿真：
+本 Fork 修复了 `src/tools/` 下所有已知的 clientapi 不匹配，并补了两个缺失的工具。已通过 MCP 端到端验证：平行板电容器返回 **C = 1.8593794414 pF**，与理论值（1.8593794407 pF，误差 4 × 10⁻¹⁰ pF）一致。
 
-1. **模型管理** - 创建、加载、保存、版本控制
-2. **几何建模** - 长方体、圆柱、球体、布尔运算
-3. **物理场配置** - 传热、流体、静电、固体力学
-4. **网格与求解** - 自动网格划分、稳态/瞬态研究
-5. **结果可视化** - 表达式求值、导出图表
-6. **知识库集成** - 内置物理指南 + PDF 语义搜索
+> ⚠️ **来源说明：** 本 Fork 的代码改动由 AI 助手（opencode + glm-5.2）在人工指导下完成，随后通过 MCP 工具接口端到端验证。详细改动分解见 `git log`。
 
-## 📋 系统要求
+## 改了什么
 
-| 组件 | 要求 |
-|------|------|
-| COMSOL Multiphysics | 5.x 或 6.x 版本 |
-| Python | 3.10+（**不要使用 Microsoft Store 版本**） |
-| Java 运行时 | MPh/COMSOL 需要 |
+所有修复都位于 `src/tools/`，针对 `clientapi` 包装类。按文件汇总：
 
-## 🚀 安装步骤
+### `model.py`
+- `list_components`：用 `tags()` 遍历组件，而不是 int 索引 —— `ModelEntityListClient.get` 只接受 String tag。
+
+### `geometry.py`
+- 5 处 `len(geom.feature())` → `geom.feature().size()` —— clientapi 的 list 不支持 `len()`。
+- 涉及 `add_block`、`add_cylinder`、`add_sphere`、`add_rectangle`、`boolean_difference`。
+
+### `physics.py`
+- 新增 helper `_first_component(jm)` 与 `_component_sdim(comp)` —— `getSDim()` 返回 int，而 physics `create` 需要的是 **String**。
+- 所有 `comp.get(int)` → `tags()` 遍历。
+- `physics().create(tag, type, sdim_string)` —— **三参数**，第三个是形如 `"3"` 的 String。两参数会报"物理场接口不支持空间维度: 0维"；第三参数传 int 会报 "No matching overloads"。
+- `geometry_get_boundaries`：`getNboundary()` → `getNBoundaries()`，`getNdomain()` → `getNDomains()`（clientapi 中首字母大写）。
+- `physics_add_electrostatics`：新增 `relpermittivity` + `domain_numbers` 参数。传入时自动创建 `ChargeConservation` feature + 材料节点 —— 必须这么做，因为 **6.3 的 Electrostatics 默认 domain feature 是 `fsp1` (FreeSpace)，用真空 ε₀，忽略材料的 `relpermittivity`**。
+- 新增通用工具 `physics_add_domain_feature`（ChargeConservation / LinearElasticMaterial / Solid 等）。
+
+### `study.py`
+- Study step type 用**完整名**（`Stationary` / `TimeDependent` / `Eigenfrequency` / `Frequency` / `Perturbation`），通过 `SHORT_TO_FULL` 映射。短名（`stat` / `time` / `eig` / `freq` / `pert`）在直接 Model API 下可用，但在 clientapi 下报 `Operation_cannot_be_created_in_this_context`。
+
+### `mesh.py`
+- 新增 `mesh_sequence_create` 工具。COMSOL **不会**自动创建 mesh 序列 —— 上游的 `mesh_create` 只能 run 已有序列。新工具做 `comp.mesh().create()` + `feature().create('FreeTet')` + `run()`，并通过 `getNumElem()` / `getNumVertex()`（clientapi，非 `getElement().size()`）报告单元数。
+
+### 仓库清理
+- 新增 `.gitignore`：`__pycache__/`、`*.pyc`、`opencode.json`（机器相关路径）、`knowledge_base/`（可重建）、`*.mph`。
+- 不再跟踪 `opencode.json` 和 `knowledge_base/chroma.sqlite3` —— 二者均为本地专属 / 可重建。
+
+## 验证
+
+`test_e2e_cap.py` 与 `test_study_mesh.py` 是独立验证脚本（直接驱动 `mph.Client`，不走 MCP 层）。同一 recipe 也在重启 opencode 加载新代码后，通过 MCP 工具接口端到端复跑：
+
+| 步骤 | MCP 工具 |
+| --- | --- |
+| 建模型 + 3D 组件 | `model_create` → `model_create_component(3D)` |
+| 几何：10mm × 10mm × 1mm 块 | `geometry_create(3D)` → `geometry_add_block([0.01,0.01,0.001])` → `geometry_build` |
+| 静电场，ε_r = 2.1 | `physics_add_electrostatics(relpermittivity=2.1, domain_numbers=[1])` |
+| 边界条件：Ground @ z=0 (bnd 3)，V=1V @ z=1mm (bnd 4) | `physics_configure_boundary(Ground,[3])`，`physics_configure_boundary(ElectricPotential,[4],{V0:'1[V]'})` |
+| 网格 | `mesh_sequence_create(FreeTet, build=True)` → 约 1663 单元 |
+| 求解 | `study_create(Stationary)` → `study_solve` |
+| 电容 | `results_global_evaluate('2*es.intWe/(1[V])^2','pF')` |
+
+**结果：** `1.8593794414 pF`，理论值 `ε₀·ε_r·L²/d = 1.8593794407 pF` —— 误差 4 × 10⁻¹⁰ pF。
+
+### 6.3 专属避坑（源码注释中有）
+
+1. **Electrostatics `fsp1` FreeSpace 陷阱** —— 默认 domain feature 用真空 ε₀，忽略材料 `relpermittivity`。必须加一个 `ChargeConservation` feature（`materialType='from_mat'`）+ 一个材料节点（`propertyGroup('def').set('relpermittivity', ...)`）。
+2. **Block 边界编号不是 1–6 ↔ −x/+x/−y/+y/−z/+z。** 对于 `Block size [0.01,0.01,0.001] pos [0,0,0]`：**bnd 3 = z=0 面，bnd 4 = z=0.001 面**；1/2/5/6 是侧面。用 `Box` selection（`condition='inside'`）按坐标确认。
+3. **`Terminal` feature 的 `V0` 没正确约束电压**（V0=1V 时实测 ΔV ≈ 0.16 V）。电容验证请用 `ElectricPotential` 边界条件。
+4. **表达式语法：** clientapi 下 `1[V]^2` 是语法错误 —— 必须写成 `(1[V])^2`。
+5. **mph 1.3.1 的 `Model` 没有 `.study()` 方法** —— 用 `model.java.study('std1').run()`。
+
+## 环境要求
+
+- **COMSOL Multiphysics 6.3**（本 Fork 为 6.3 standalone 校准；5.x 经直接 API 仍可用，但不是重点）
+- **Python 3.10+**（不要用 Windows Store 版）
+- **Java 运行时** —— 6.3 自带 Temurin Java 11，JPype 直接可用。（5.6 自带 Java 8，JPype 需要 Java 9+ 垫片 —— 不在本 Fork 范围内。）
+- **MPh 1.3.1**，加 `mcp`、`pydantic`。PDF 搜索可选：`pymupdf`、`chromadb`、`sentence-transformers`。
+
+## 安装
 
 ```bash
-# 1. 克隆仓库
-git clone https://github.com/wjc9011/COMSOL_Multiphysics_MCP.git
-cd COMSOL_Multiphysics_MCP
-
-# 2. 安装依赖
+git clone https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_3_Calibrated.git
+cd COMSOL_Multiphysics_MCP_6_3_Calibrated
 python -m pip install -e .
-
-# 3. 测试服务器
-python -m src.server
-```
-
-### 构建 PDF 知识库（可选）
-
-```bash
-# 安装额外依赖
+# 可选：PDF 知识库
 pip install pymupdf chromadb sentence-transformers
-
-# 构建知识库
 python scripts/build_knowledge_base.py
-
-# 检查状态
-python scripts/build_knowledge_base.py --status
 ```
 
-## ⚙️ 配置方法
-
-### 方法一：Claude Desktop 配置
-
-编辑 `%APPDATA%\Claude\claude_desktop_config.json`（Windows）或 `~/Library/Application Support/Claude/claude_desktop_config.json`（macOS）：
-
-```json
-{
-  "mcpServers": {
-    "comsol": {
-      "command": "python",
-      "args": ["-m", "src.server"],
-      "cwd": "/path/to/COMSOL_Multiphysics_MCP"
-    }
-  }
-}
-```
-
-### 方法二：Claude Code 配置
-
-在项目根目录创建 `.mcp.json`：
-
-```json
-{
-  "mcpServers": {
-    "comsol": {
-      "command": "python",
-      "args": ["-m", "src.server"],
-      "cwd": "/path/to/COMSOL_Multiphysics_MCP",
-      "env": {
-        "JAVA_HOME": "/path/to/java"
-      }
-    }
-  }
-}
-```
-
-### 方法三：opencode 配置
-
-在项目根目录创建 `opencode.json`：
+先启动 COMSOL Multiphysics（MCP 通过 MPh/JPype 桥接），然后把 MCP 客户端（opencode / Claude Desktop）指向 server：
 
 ```json
 {
@@ -103,273 +94,22 @@ python scripts/build_knowledge_base.py --status
   "mcp": {
     "comsol": {
       "type": "local",
-      "command": ["python", "-m", "src.server"],
-      "enabled": true,
-      "environment": {
-        "HF_ENDPOINT": "https://hf-mirror.com"
-      },
-      "timeout": 30000
+      "command": ["python", "-m", "src.server"]
     }
   }
 }
 ```
 
-## 📁 代码结构
+## 与上游的关系
 
-```
-COMSOL_Multiphysics_MCP/
-├── src/
-│   ├── server.py                    # MCP 服务器入口
-│   ├── tools/
-│   │   ├── session.py               # COMSOL 会话管理
-│   │   ├── model.py                 # 模型 CRUD + 版本控制
-│   │   ├── parameters.py            # 参数管理 + 参数扫描
-│   │   ├── geometry.py              # 几何创建（长方体/圆柱/球）
-│   │   ├── physics.py               # 物理场接口 + 边界条件
-│   │   ├── mesh.py                  # 网格生成
-│   │   ├── study.py                 # 研究创建 + 求解（同步/异步）
-│   │   └── results.py               # 结果求值 + 导出
-│   ├── resources/
-│   │   └── model_resources.py       # MCP 资源（模型树、参数）
-│   ├── knowledge/
-│   │   ├── embedded.py              # 内置物理指南 + 故障排除
-│   │   ├── retriever.py             # PDF 向量搜索
-│   │   └── pdf_processor.py         # PDF 分块 + 嵌入
-│   ├── async_handler/
-│   │   └── solver.py                # 异步求解 + 进度追踪
-│   └── utils/
-│       └── versioning.py            # 模型版本路径管理
-├── scripts/
-│   └── build_knowledge_base.py      # 构建 PDF 向量数据库
-├── client_script/                   # 独立建模脚本（示例）
-└── comsol_models/                   # 保存的模型（结构化）
-```
+本 Fork 跟踪 `wjc9011/COMSOL_Multiphysics_MCP`，定位是 **6.3 兼容性补丁**，不是功能 Fork。上游 README（原仓库的 `README.md`，本 Fork 保留为 `README_upstream.md` / `README_CN_upstream.md`）描述了更完整的功能集、知识库、5.x 工作流，本 Fork 原样继承。
 
-## 🛠️ 可用工具（80+ 个）
+如果你在 **6.3 standalone** 下用上游工具报 `No matching overloads`、`Operation_cannot_be_created_in_this_context`、或 `'ComponentGeomListClient' object is not subscriptable` —— 请用本 Fork。
 
-### 会话管理（4 个）
+## 已知缺口
 
-| 工具 | 说明 |
-|------|------|
-| `comsol_start` | 启动本地 COMSOL 客户端 |
-| `comsol_connect` | 连接远程服务器 |
-| `comsol_disconnect` | 清除会话 |
-| `comsol_status` | 获取会话信息 |
+- `geometry_get_boundaries` 返回 `nBoundaries` / `nDomains`，但**不返回每个边界的坐标或法向**，且仍报 `'ComponentGeomListClient' object is not subscriptable`（`_get_geometry_node` 对 `comp.geom()` 用了下标访问）。变通：用 `Box` selection 按坐标识别边界编号。
 
-### 模型管理（9 个）
+## 许可证
 
-| 工具 | 说明 |
-|------|------|
-| `model_load` | 加载 .mph 文件 |
-| `model_create` | 创建空模型 |
-| `model_create_component` | 创建组件（支持 2D/3D） |
-| `model_save` | 保存到文件 |
-| `model_save_version` | 带时间戳保存 |
-| `model_list` | 列出已加载模型 |
-| `model_set_current` | 设置当前模型 |
-| `model_clone` | 克隆模型 |
-| `model_inspect` | 获取模型结构 |
-
-### 参数管理（5 个）
-
-| 工具 | 说明 |
-|------|------|
-| `param_get` | 获取参数值 |
-| `param_set` | 设置参数 |
-| `param_list` | 列出所有参数 |
-| `param_sweep_setup` | 设置参数扫描 |
-| `param_description` | 获取/设置参数描述 |
-
-### 几何建模（14 个）
-
-| 工具 | 说明 |
-|------|------|
-| `geometry_list` | 列出几何序列 |
-| `geometry_create` | 创建几何序列 |
-| `geometry_add_feature` | 添加通用特征 |
-| `geometry_add_block` | 添加长方体 |
-| `geometry_add_cylinder` | 添加圆柱体 |
-| `geometry_add_sphere` | 添加球体 |
-| `geometry_add_rectangle` | 添加 2D 矩形 |
-| `geometry_add_circle` | 添加 2D 圆形 |
-| `geometry_boolean_union` | 布尔并集 |
-| `geometry_boolean_difference` | 布尔差集 |
-| `geometry_import` | 导入 CAD 文件 |
-| `geometry_build` | 构建几何 |
-| `geometry_list_features` | 列出特征 |
-| `geometry_get_boundaries` | 获取边界编号 |
-
-### 物理场配置（16 个）
-
-| 工具 | 说明 |
-|------|------|
-| `physics_list` | 列出物理场接口 |
-| `physics_get_available` | 可用物理场类型 |
-| `physics_add` | 添加通用物理场 |
-| `physics_add_electrostatics` | 添加静电场 |
-| `physics_add_solid_mechanics` | 添加固体力学 |
-| `physics_add_heat_transfer` | 添加传热 |
-| `physics_add_laminar_flow` | 添加层流 |
-| `physics_configure_boundary` | 配置边界条件 |
-| `physics_set_material` | 分配材料 |
-| `physics_list_features` | 列出物理场特征 |
-| `physics_remove` | 删除物理场 |
-| `multiphysics_add` | 添加多物理场耦合 |
-| `physics_interactive_setup_heat` | 交互式传热设置 |
-| `physics_setup_heat_boundaries` | 配置传热边界 |
-| `physics_interactive_setup_flow` | 交互式流体设置 |
-| `physics_boundary_selection` | 通用边界设置 |
-
-### 网格划分（3 个）
-
-| 工具 | 说明 |
-|------|------|
-| `mesh_list` | 列出网格序列 |
-| `mesh_create` | 生成网格 |
-| `mesh_info` | 获取网格统计 |
-
-### 研究与求解（9 个）
-
-| 工具 | 说明 |
-|------|------|
-| `study_list` | 列出研究 |
-| `study_create` | 创建研究（稳态/瞬态/特征频率） |
-| `study_solve` | 同步求解 |
-| `study_solve_async` | 后台求解 |
-| `study_get_progress` | 获取进度 |
-| `study_cancel` | 取消求解 |
-| `study_wait` | 等待完成 |
-| `solutions_list` | 列出解 |
-| `datasets_list` | 列出数据集 |
-
-### 结果后处理（8 个）
-
-| 工具 | 说明 |
-|------|------|
-| `results_evaluate` | 求值表达式 |
-| `results_global_evaluate` | 求值标量 |
-| `results_inner_values` | 获取时间步 |
-| `results_outer_values` | 获取扫描值 |
-| `results_export_data` | 导出数据 |
-| `results_export_image` | 导出图像 |
-| `results_exports_list` | 列出导出节点 |
-| `results_plots_list` | 列出绘图节点 |
-
-### 知识库（8 个）
-
-| 工具 | 说明 |
-|------|------|
-| `docs_get` | 获取文档 |
-| `docs_list` | 列出可用文档 |
-| `physics_get_guide` | 物理场快速指南 |
-| `troubleshoot` | 故障排除帮助 |
-| `modeling_best_practices` | 最佳实践 |
-| `pdf_search` | 搜索 PDF 文档 |
-| `pdf_search_status` | PDF 搜索状态 |
-| `pdf_list_modules` | 列出 PDF 模块 |
-
-## 📚 使用示例
-
-### 示例 1：芯片热分析（TSV）
-
-3D 热分析：含硅通孔（TSV）的硅芯片。
-
-**几何**: 60×60×5 µm 芯片，5 µm 直径 TSV 孔，10×10 µm 热源
-
-```python
-# 主要步骤：
-# 1. 创建芯片块和 TSV 圆柱
-# 2. 布尔差集（从芯片减去 TSV）
-# 3. 添加硅材料（k=130 W/m·K）
-# 4. 添加传热物理场
-# 5. 设置顶部热通量，底部固定温度
-# 6. 求解并评估温度分布
-```
-
-**脚本**: `client_script/create_chip_tsv_final.py`
-
-### 示例 2：微混合器流体仿真
-
-微流控通道中的 3D 层流仿真。
-
-**几何**: 600×100×50 µm 矩形通道
-
-```python
-# 主要步骤：
-# 1. 创建矩形通道块
-# 2. 添加水材料（ρ=1000 kg/m³，μ=0.001 Pa·s）
-# 3. 添加层流物理场
-# 4. 设置入口速度（1 mm/s），出口压力
-# 5. 添加稀物质传递用于混合分析
-# 6. 求解并评估速度分布
-```
-
-**脚本**: `client_script/create_micromixer_auto.py`
-
-## 📝 关键技术说明
-
-### mph 库 API 模式
-
-```python
-# 通过属性访问 Java 模型（不是可调用对象）
-jm = model.java  # 不是 model.java()
-
-# 创建组件（第三个参数为维度）
-comp = jm.component().create('comp1', True, 3)  # 3 = 3D
-
-# 创建 3D 几何
-geom = comp.geom().create('geom1', 3)
-
-# 创建物理场
-physics = comp.physics().create('ht', 'HeatTransfer', 'geom1')
-
-# 创建边界条件
-bc = physics.create('bc1', 'HeatFlux')
-bc.selection().set([1, 2, 3])
-bc.set('q0', '1e6[W/m^2]')
-```
-
-### 边界条件属性名
-
-| 物理场 | 条件类型 | 属性名 |
-|--------|----------|--------|
-| 传热 | HeatFlux | `q0` |
-| 传热 | Temperature | `T0` |
-| 传热 | ConvectiveHeatFlux | `h`，`Text` |
-| 层流 | InletBoundary | `U0` |
-| 层流 | OutletBoundary | `p0` |
-| 固体力学 | Fixed | 无额外属性 |
-| 固体力学 | BoundaryLoad | `Fx`，`Fy`，`Fz` |
-
-### 离线嵌入模型
-
-PDF 搜索支持离线操作，使用本地 HuggingFace 缓存：
-
-```bash
-# 国内用户设置镜像
-export HF_ENDPOINT=https://hf-mirror.com
-```
-
-## 🔧 开发状态
-
-| 阶段 | 描述 | 状态 |
-|------|------|------|
-| 1 | 基础框架 + 会话 + 模型管理 | ✅ 完成 |
-| 2 | 参数 + 求解 + 结果 | ✅ 完成 |
-| 3 | 几何 + 物理场 + 网格 | ✅ 完成 |
-| 4 | 内置知识库 + 工具文档 | ✅ 完成 |
-| 5 | PDF 向量检索 | ✅ 完成 |
-| 6 | 集成测试 | 🔄 进行中 |
-
-## 📊 MCP 资源
-
-| URI | 说明 |
-|-----|------|
-| `comsol://session/info` | 会话信息 |
-| `comsol://model/{name}/tree` | 模型树结构 |
-| `comsol://model/{name}/parameters` | 模型参数 |
-| `comsol://model/{name}/physics` | 物理场接口 |
-
-## 📄 许可证
-
-MIT
+继承上游许可证。详见原仓库。
