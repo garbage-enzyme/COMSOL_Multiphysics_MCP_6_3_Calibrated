@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Default paths
 DEFAULT_PDF_DIR = Path(__file__).parent.parent.parent / "pdf"
-DEFAULT_DB_DIR = Path(__file__).parent.parent.parent / "knowledge_base"
+DEFAULT_DB_DIR = Path(__file__).parent.parent.parent / "knowledge_base_v2"
 
 # Embedding model - use HF mirror for China if needed
 HF_MIRROR = "https://hf-mirror.com"
