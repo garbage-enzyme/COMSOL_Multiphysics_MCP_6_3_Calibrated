@@ -8,6 +8,7 @@ from .physics import register_physics_tools
 from .mesh import register_mesh_tools
 from .study import register_study_tools
 from .results import register_results_tools
+from .mim_patch import register_mim_patch_tools
 
 __all__ = [
     "register_session_tools",
@@ -18,4 +19,5 @@ __all__ = [
     "register_mesh_tools",
     "register_study_tools",
     "register_results_tools",
+    "register_mim_patch_tools",
 ]
