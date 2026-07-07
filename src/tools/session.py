@@ -1,5 +1,6 @@
 """Session management tools for COMSOL MCP Server."""
 
+import threading
 from typing import Optional
 from mcp.server import Server
 from mcp.server.fastmcp import FastMCP
@@ -14,6 +15,15 @@ class SessionManager:
     _client: Optional[mph.Client] = None
     _models: dict[str, mph.Model] = {}
     _current_model: Optional[str] = None
+    # Background-start state — comsol_start spawns a daemon thread to run
+    # mph.Client() (which blocks for tens of seconds while the JVM and COMSOL
+    # back-end come up) and returns immediately so the MCP call does not time
+    # out. Poll comsol_status to know when the client is ready.
+    _starting: bool = False
+    _start_thread: Optional[threading.Thread] = None
+    _start_error: Optional[str] = None
+    _start_message: str = ""
+    _start_lock: threading.Lock = threading.Lock()
     
     def __new__(cls):
         if cls._instance is None:
@@ -37,7 +47,8 @@ class SessionManager:
         return self._models.copy()
     
     def start(self, cores: Optional[int] = None, version: Optional[str] = None, products: Optional[list[str]] = None) -> dict:
-        """Start a COMSOL client session."""
+        """Start a COMSOL client session (non-blocking)."""
+        # Already connected — clear and reuse.
         if self._client is not None:
             try:
                 self._client.clear()
@@ -50,36 +61,70 @@ class SessionManager:
                     "standalone": self._client.standalone,
                     "message": "Cleared existing session and ready."
                 }
-            except Exception as e:
+            except Exception:
                 self._client = None
                 self._models.clear()
                 self._current_model = None
-        if self._client is None:
-            try:
-                if mph_session.client is not None:
-                    self._client = mph_session.client
-                    return {
-                        "success": True,
-                        "version": self._client.version,
-                        "cores": self._client.cores,
-                        "standalone": self._client.standalone,
-                        "message": "Reused existing client from MPh session."
-                    }
-            except Exception:
-                pass
-            try:
-                kwargs = {"cores": cores, "version": version}
-                if products:
-                    kwargs["products"] = products
-                self._client = mph.Client(**{k: v for k, v in kwargs.items() if v is not None})
+
+        # A background start is in flight — tell caller to poll status.
+        with self._start_lock:
+            if self._starting:
                 return {
                     "success": True,
-                    "version": self._client.version,
-                    "cores": self._client.cores,
-                    "standalone": self._client.standalone,
+                    "starting": True,
+                    "message": self._start_message or "COMSOL is still starting. Poll comsol_status."
                 }
-            except Exception as e:
-                return {"success": False, "error": str(e)}
+            # Claim the starting flag for this call.
+            self._starting = True
+            self._start_error = None
+            self._start_message = "Starting COMSOL client in background..."
+
+        # If a previous start attempt failed, the thread is done; just spawn
+        # a fresh one. If a previous attempt succeeded, _client would be set
+        # and we'd have returned above.
+        kwargs = {"cores": cores, "version": version}
+        if products:
+            kwargs["products"] = products
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+
+        self._start_thread = threading.Thread(
+            target=self._start_worker,
+            args=(kwargs,),
+            name="comsol-start",
+            daemon=True,
+        )
+        self._start_thread.start()
+
+        return {
+            "success": True,
+            "starting": True,
+            "message": (
+                "COMSOL is starting in the background (JVM + back-end). "
+                "This takes 30-90s. Poll comsol_status until 'connected' is true; "
+                "do NOT retry comsol_start."
+            )
+        }
+
+    def _start_worker(self, kwargs: dict) -> None:
+        """Runs mph.Client() in a daemon thread. Sets _client on success."""
+        try:
+            # Reuse an MPh session client if one happens to exist.
+            client = None
+            try:
+                if mph_session.client is not None:
+                    client = mph_session.client
+            except Exception:
+                pass
+            if client is None:
+                client = mph.Client(**kwargs)
+            self._client = client
+            self._start_message = "Client ready."
+        except Exception as e:
+            self._start_error = str(e)
+            self._start_message = f"Start failed: {e}"
+        finally:
+            with self._start_lock:
+                self._starting = False
     
     def connect(self, port: int, host: str = "localhost") -> dict:
         """Connect to a remote COMSOL server."""
@@ -113,6 +158,11 @@ class SessionManager:
     
     def disconnect(self) -> dict:
         """Disconnect and clear the session."""
+        # Cancel any in-flight background start state.
+        with self._start_lock:
+            self._starting = False
+            self._start_error = None
+            self._start_message = ""
         if self._client is None:
             return {"success": True, "message": "No active session."}
         try:
@@ -135,6 +185,21 @@ class SessionManager:
     
     def get_status(self) -> dict:
         """Get current session status."""
+        # Background start in flight and not yet ready.
+        if self._client is None and self._starting:
+            return {
+                "connected": False,
+                "starting": True,
+                "message": self._start_message or "COMSOL is starting in background. Poll again shortly."
+            }
+        # Previous background start failed.
+        if self._client is None and self._start_error:
+            return {
+                "connected": False,
+                "starting": False,
+                "error": self._start_error,
+                "message": self._start_message,
+            }
         if self._client is None:
             return {
                 "connected": False,
@@ -203,6 +268,14 @@ def register_session_tools(mcp: FastMCP) -> None:
     def comsol_start(cores: Optional[int] = None, version: Optional[str] = None, products: Optional[list[str]] = None) -> dict:
         """
         Start a local COMSOL client session.
+
+        Non-blocking: spawns a daemon thread that runs mph.Client() (which
+        blocks for 30-90s while the JVM and COMSOL back-end initialise). This
+        tool returns immediately with ``{"starting": True}`` so the MCP call
+        does not time out. Poll ``comsol_status`` until ``connected`` is true
+        before calling any other COMSOL tool. Do NOT retry ``comsol_start``
+        while a start is in flight — the second call will just report
+        ``starting`` and reuse the same background thread.
         
         Args:
             cores: Number of processor cores to use (default: all available)
