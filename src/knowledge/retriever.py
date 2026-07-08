@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Default paths
 DEFAULT_PDF_DIR = Path(__file__).parent.parent.parent / "pdf"
-DEFAULT_DB_DIR = Path(__file__).parent.parent.parent / "knowledge_base_v2"
+DEFAULT_DB_DIR = Path("D:/comsol_kb_v2")
 
 # Embedding model - use HF mirror for China if needed
 HF_MIRROR = "https://hf-mirror.com"
@@ -289,11 +289,20 @@ _retriever: Optional[VectorRetriever] = None
 
 
 def get_retriever() -> VectorRetriever:
-    """Get the global retriever instance."""
+    """Get the global retriever instance with default paths."""
     global _retriever
     if _retriever is None:
         _retriever = VectorRetriever()
     return _retriever
+
+
+def get_retriever_with_opts(pdf_dir: str | Path | None = None,
+                            db_dir: str | Path | None = None) -> VectorRetriever:
+    """Get a retriever with optional custom paths (never cached)."""
+    return VectorRetriever(
+        pdf_dir=pdf_dir or DEFAULT_PDF_DIR,
+        db_dir=db_dir or DEFAULT_DB_DIR,
+    )
 
 
 def search_docs(query: str, n_results: int = 5, 
