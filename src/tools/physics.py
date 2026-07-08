@@ -215,7 +215,7 @@ def register_physics_tools(mcp: FastMCP) -> None:
         """
         Add Electrostatics physics interface for electric field analysis.
 
-        In COMSOL 6.3 the Electrostatics interface defaults to a FreeSpace
+        In COMSOL 6.3+/6.4 the Electrostatics interface defaults to a FreeSpace
         domain feature that uses vacuum permittivity and IGNORES material
         relpermittivity. To model a dielectric, pass relpermittivity (e.g. 2.1)
         and this tool will automatically create a ChargeConservation feature
@@ -290,9 +290,9 @@ def register_physics_tools(mcp: FastMCP) -> None:
                     "tag": "es",
                     "domain_selection": domain_selection,
                     "charge_conservation": ccn_info,
-                    "note": ("ChargeConservation+material created (6.3 default FreeSpace would ignore eps_r)."
+                    "note": ("ChargeConservation+material created (6.3+/6.4 default FreeSpace would ignore eps_r)."
                              if ccn_info else
-                             "No relpermittivity given: 6.3 default FreeSpace uses vacuum eps0. Pass relpermittivity to model a dielectric."),
+                             "No relpermittivity given: 6.3+/6.4 default FreeSpace uses vacuum eps0. Pass relpermittivity to model a dielectric."),
                 }
             }
         except Exception as e:
@@ -451,7 +451,7 @@ def register_physics_tools(mcp: FastMCP) -> None:
         """
         Add a domain feature (e.g. ChargeConservation) to a physics interface.
 
-        In COMSOL 6.3 several physics interfaces ship with a default domain
+        In COMSOL 6.3+/6.4 several physics interfaces ship with a default domain
         feature that ignores material properties. For Electrostatics the
         default is FreeSpace (fsp1, vacuum eps0); to use a dielectric you must
         add a ChargeConservation feature:

@@ -1,15 +1,15 @@
-# COMSOL MCP Server — 6.3 ClientAPI Calibrated Fork
+# COMSOL MCP Server — 6.4+ ClientAPI Calibrated Fork
 
 English | [中文](README_CN.md)
 
-[![GitHub stars](https://img.shields.io/github/stars/garbage-enzyme/COMSOL_Multiphysics_MCP_6_3_Calibrated?style=social)](https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_3_Calibrated/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated?style=social)](https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated/stargazers)
 
 > **Fork of [wjc9011/COMSOL_Multiphysics_MCP](https://github.com/wjc9011/COMSOL_Multiphysics_MCP).**
-> This branch calibrates the MCP server tools for **COMSOL 6.3 + MPh 1.3.1 standalone mode** (the `clientapi` wrapper layer). The upstream code targets the direct `com.comsol.model.Model` API and breaks on 6.3 standalone.
+> This branch calibrates the MCP server tools for **COMSOL 6.4+ with MPh 1.3.1 standalone mode** (the `clientapi` wrapper layer). It also documents and uses COMSOL 6.4+ solver capabilities such as the cuDSS GPU-accelerated direct solver. The upstream code targets the direct `com.comsol.model.Model` API and breaks on standalone clientapi.
 
 ## Why this fork exists
 
-Under `mph.Client(cores=...)` (MPh 1.3+ standalone), `model.java` returns `com.comsol.clientapi.impl.ModelClient` — a **wrapper** around the real model. Every `component()` / `physics()` / `geom()` call returns a `*Client` class whose method overloads differ from the direct `com.comsol.model.*` API the upstream code was written against. Result: most geometry/physics/study/mesh tools fail at runtime on 6.3.
+Under `mph.Client(cores=...)` (MPh 1.3+ standalone), `model.java` returns `com.comsol.clientapi.impl.ModelClient` — a **wrapper** around the real model. Every `component()` / `physics()` / `geom()` call returns a `*Client` class whose method overloads differ from the direct `com.comsol.model.*` API the upstream code was written against. Result: most geometry/physics/study/mesh tools fail at runtime on standalone clientapi.
 
 This fork fixes all known clientapi mismatches in `src/tools/` and adds two missing tools. End-to-end verified via MCP: a parallel-plate capacitor returns **C = 1.8593794414 pF**, matching theory (1.8593794407 pF, err 4e-10 pF).
 
@@ -31,7 +31,7 @@ All fixes live in `src/tools/` and target the `clientapi` wrappers. Summary by f
 - All `comp.get(int)` → `tags()` iteration.
 - `physics().create(tag, type, sdim_string)` — **three args**, third is a String like `"3"`. Two-arg form fails with "物理场接口不支持空间维度: 0维"; int third arg fails with "No matching overloads".
 - `geometry_get_boundaries`: `getNboundary()` → `getNBoundaries()`, `getNdomain()` → `getNDomains()` (capitalized in clientapi).
-- `physics_add_electrostatics`: new `relpermittivity` + `domain_numbers` params. When given, auto-creates a `ChargeConservation` feature + material node — required because **6.3's default Electrostatics domain feature is `fsp1` (FreeSpace) which uses vacuum ε₀ and ignores material `relpermittivity`**.
+- `physics_add_electrostatics`: new `relpermittivity` + `domain_numbers` params. When given, auto-creates a `ChargeConservation` feature + material node — required because **COMSOL 6.3+/6.4's default Electrostatics domain feature is `fsp1` (FreeSpace) which uses vacuum ε₀ and ignores material `relpermittivity`**.
 - New generic `physics_add_domain_feature` tool (ChargeConservation / LinearElasticMaterial / Solid, …).
 
 ### `study.py`
@@ -60,7 +60,7 @@ All fixes live in `src/tools/` and target the `clientapi` wrappers. Summary by f
 
 **Result:** `1.8593794414 pF` vs theory `ε₀·ε_r·L²/d = 1.8593794407 pF` — error 4 × 10⁻¹⁰ pF.
 
-### 6.3-specific gotchas (documented in source comments)
+### 6.3+/6.4 clientapi gotchas (documented in source comments)
 
 1. **Electrostatics `fsp1` FreeSpace trap** — default domain feature uses vacuum ε₀ and ignores material `relpermittivity`. Must add a `ChargeConservation` feature (`materialType='from_mat'`) plus a material node with `propertyGroup('def').set('relpermittivity', ...)`.
 2. **Block boundary numbering is NOT 1–6 ↔ −x/+x/−y/+y/−z/+z.** For `Block size [0.01,0.01,0.001] pos [0,0,0]`: **bnd 3 = z=0 face, bnd 4 = z=0.001 face**; 1/2/5/6 are side faces. Identify by coordinate with a `Box` selection (`condition='inside'`).
@@ -70,16 +70,16 @@ All fixes live in `src/tools/` and target the `clientapi` wrappers. Summary by f
 
 ## Requirements
 
-- **COMSOL Multiphysics 6.3** (this fork is calibrated for 6.3 standalone; 5.x should still work via the direct API but is not the focus)
+- **COMSOL Multiphysics 6.4 or newer**. This fork targets COMSOL 6.4+ standalone clientapi because current workflows may use 6.4+ solver features such as **cuDSS** GPU-accelerated direct solving.
 - **Python 3.10+** (not the Windows Store build)
-- **Java runtime** — 6.3 ships Temurin Java 11, JPype works directly. (5.6 ships Java 8, which needs a Java 9+ shim for JPype — not this fork's concern.)
+- **Java runtime** — COMSOL 6.4 ships Java 21, and JPype works directly in the verified setup. Older COMSOL/Java combinations are not this fork's focus.
 - **MPh 1.3.1**, plus `mcp`, `pydantic`. Optional for PDF search: `pymupdf`, `chromadb`, `sentence-transformers`.
 
 ## Installation
 
 ```bash
-git clone https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_3_Calibrated.git
-cd COMSOL_Multiphysics_MCP_6_3_Calibrated
+git clone https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated.git
+cd COMSOL_Multiphysics_MCP_6_4_Calibrated
 python -m pip install -e .
 # Optional: PDF knowledge base
 pip install pymupdf chromadb sentence-transformers
@@ -102,9 +102,9 @@ Start COMSOL Multiphysics first (MCP bridges via MPh/JPype), then point your MCP
 
 ## Relationship to upstream
 
-This fork tracks `wjc9011/COMSOL_Multiphysics_MCP` and is intended as a **6.3 compatibility patch**, not a feature fork. The upstream README (`README.md` in the original repo, preserved here as `README_upstream.md` if needed) describes the broader feature set, knowledge base, and 5.x workflows that this fork inherits unchanged.
+This fork tracks `wjc9011/COMSOL_Multiphysics_MCP` and is intended as a **6.4+ standalone clientapi compatibility fork**, not a general feature fork. The upstream README (`README.md` in the original repo, preserved here as `README_upstream.md` if needed) describes the broader feature set, knowledge base, and 5.x workflows that this fork inherits unchanged.
 
-If you're running on **6.3 standalone** and the upstream tools throw `No matching overloads`, `Operation_cannot_be_created_in_this_context`, or `'ComponentGeomListClient' object is not subscriptable` — use this fork. The last error is fixed here: `geometry_get_boundaries` now returns per-boundary `normal` + `center` + whole-geometry `bounding_box` (via `faceNormal`/`faceX`/`edgeNormal`/`edgeX` on the parameter midpoint), so you can identify which boundary is which face directly (e.g. z=0 face has normal `[0,0,-1]`) — no manual `Box` selection needed.
+If you're running on **6.4+ standalone** and the upstream tools throw `No matching overloads`, `Operation_cannot_be_created_in_this_context`, or `'ComponentGeomListClient' object is not subscriptable` — use this fork. The last error is fixed here: `geometry_get_boundaries` now returns per-boundary `normal` + `center` + whole-geometry `bounding_box` (via `faceNormal`/`faceX`/`edgeNormal`/`edgeX` on the parameter midpoint), so you can identify which boundary is which face directly (e.g. z=0 face has normal `[0,0,-1]`) — no manual `Box` selection needed.
 
 ## License
 

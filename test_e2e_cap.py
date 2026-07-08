@@ -2,7 +2,7 @@
 import mph
 import jpype
 
-client = mph.Client(version='6.3')
+client = mph.Client(version='6.4')
 m = client.create('ParallelPlateCap')
 jm = m.java
 

@@ -1,15 +1,15 @@
-# COMSOL MCP Server — 6.3 ClientAPI 适配 Fork
+# COMSOL MCP Server — 6.4+ ClientAPI 适配 Fork
 
 [English](README.md) | 中文
 
-[![GitHub stars](https://img.shields.io/github/stars/garbage-enzyme/COMSOL_Multiphysics_MCP_6_3_Calibrated?style=social)](https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_3_Calibrated/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated?style=social)](https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated/stargazers)
 
 > **本仓库是 [wjc9011/COMSOL_Multiphysics_MCP](https://github.com/wjc9011/COMSOL_Multiphysics_MCP) 的 Fork。**
-> 本分支为 **COMSOL 6.3 + MPh 1.3.1 standalone 模式**（`clientapi` 包装层）校准 MCP server 工具。上游代码面向直接的 `com.comsol.model.Model` API，在 6.3 standalone 下会运行时报错。
+> 本分支为 **COMSOL 6.4+ 及 MPh 1.3.1 standalone 模式**（`clientapi` 包装层）校准 MCP server 工具，并记录/使用 COMSOL 6.4+ 的求解器能力，例如 cuDSS GPU 加速直接求解器。上游代码面向直接的 `com.comsol.model.Model` API，在 standalone clientapi 下会运行时报错。
 
 ## 为什么要有这个 Fork
 
-在 `mph.Client(cores=...)`（MPh 1.3+ standalone）下，`model.java` 返回的是 `com.comsol.clientapi.impl.ModelClient` —— 真实 model 外面的**包装层**。每一次 `component()` / `physics()` / `geom()` 调用返回的都是 `*Client` 类，其方法重载与上游代码所写的直接 `com.comsol.model.*` API 不同。结果：6.3 standalone 下大部分 geometry/physics/study/mesh 工具运行时失败。
+在 `mph.Client(cores=...)`（MPh 1.3+ standalone）下，`model.java` 返回的是 `com.comsol.clientapi.impl.ModelClient` —— 真实 model 外面的**包装层**。每一次 `component()` / `physics()` / `geom()` 调用返回的都是 `*Client` 类，其方法重载与上游代码所写的直接 `com.comsol.model.*` API 不同。结果：standalone clientapi 下大部分 geometry/physics/study/mesh 工具运行时失败。
 
 本 Fork 修复了 `src/tools/` 下所有已知的 clientapi 不匹配，并补了两个缺失的工具。已通过 MCP 端到端验证：平行板电容器返回 **C = 1.8593794414 pF**，与理论值（1.8593794407 pF，误差 4 × 10⁻¹⁰ pF）一致。
 
@@ -31,7 +31,7 @@
 - 所有 `comp.get(int)` → `tags()` 遍历。
 - `physics().create(tag, type, sdim_string)` —— **三参数**，第三个是形如 `"3"` 的 String。两参数会报"物理场接口不支持空间维度: 0维"；第三参数传 int 会报 "No matching overloads"。
 - `geometry_get_boundaries`：`getNboundary()` → `getNBoundaries()`，`getNdomain()` → `getNDomains()`（clientapi 中首字母大写）。
-- `physics_add_electrostatics`：新增 `relpermittivity` + `domain_numbers` 参数。传入时自动创建 `ChargeConservation` feature + 材料节点 —— 必须这么做，因为 **6.3 的 Electrostatics 默认 domain feature 是 `fsp1` (FreeSpace)，用真空 ε₀，忽略材料的 `relpermittivity`**。
+- `physics_add_electrostatics`：新增 `relpermittivity` + `domain_numbers` 参数。传入时自动创建 `ChargeConservation` feature + 材料节点 —— 必须这么做，因为 **COMSOL 6.3+/6.4 的 Electrostatics 默认 domain feature 是 `fsp1` (FreeSpace)，用真空 ε₀，忽略材料的 `relpermittivity`**。
 - 新增通用工具 `physics_add_domain_feature`（ChargeConservation / LinearElasticMaterial / Solid 等）。
 
 ### `study.py`
@@ -60,7 +60,7 @@
 
 **结果：** `1.8593794414 pF`，理论值 `ε₀·ε_r·L²/d = 1.8593794407 pF` —— 误差 4 × 10⁻¹⁰ pF。
 
-### 6.3 专属避坑（源码注释中有）
+### 6.3+/6.4 clientapi 避坑（源码注释中有）
 
 1. **Electrostatics `fsp1` FreeSpace 陷阱** —— 默认 domain feature 用真空 ε₀，忽略材料 `relpermittivity`。必须加一个 `ChargeConservation` feature（`materialType='from_mat'`）+ 一个材料节点（`propertyGroup('def').set('relpermittivity', ...)`）。
 2. **Block 边界编号不是 1–6 ↔ −x/+x/−y/+y/−z/+z。** 对于 `Block size [0.01,0.01,0.001] pos [0,0,0]`：**bnd 3 = z=0 面，bnd 4 = z=0.001 面**；1/2/5/6 是侧面。用 `Box` selection（`condition='inside'`）按坐标确认。
@@ -70,16 +70,16 @@
 
 ## 环境要求
 
-- **COMSOL Multiphysics 6.3**（本 Fork 为 6.3 standalone 校准；5.x 经直接 API 仍可用，但不是重点）
+- **COMSOL Multiphysics 6.4 或更新版本**。本 Fork 面向 COMSOL 6.4+ standalone clientapi，因为当前工作流可能调用 **cuDSS** GPU 加速直接求解器等 6.4+ 求解器能力。
 - **Python 3.10+**（不要用 Windows Store 版）
-- **Java 运行时** —— 6.3 自带 Temurin Java 11，JPype 直接可用。（5.6 自带 Java 8，JPype 需要 Java 9+ 垫片 —— 不在本 Fork 范围内。）
+- **Java 运行时** —— COMSOL 6.4 自带 Java 21；已验证环境下 JPype 可直接使用。更老 COMSOL/Java 组合不在本 Fork 重点范围内。
 - **MPh 1.3.1**，加 `mcp`、`pydantic`。PDF 搜索可选：`pymupdf`、`chromadb`、`sentence-transformers`。
 
 ## 安装
 
 ```bash
-git clone https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_3_Calibrated.git
-cd COMSOL_Multiphysics_MCP_6_3_Calibrated
+git clone https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated.git
+cd COMSOL_Multiphysics_MCP_6_4_Calibrated
 python -m pip install -e .
 # 可选：PDF 知识库
 pip install pymupdf chromadb sentence-transformers
@@ -102,9 +102,9 @@ python scripts/build_knowledge_base.py
 
 ## 与上游的关系
 
-本 Fork 跟踪 `wjc9011/COMSOL_Multiphysics_MCP`，定位是 **6.3 兼容性补丁**，不是功能 Fork。上游 README（原仓库的 `README.md`，本 Fork 保留为 `README_upstream.md` / `README_CN_upstream.md`）描述了更完整的功能集、知识库、5.x 工作流，本 Fork 原样继承。
+本 Fork 跟踪 `wjc9011/COMSOL_Multiphysics_MCP`，定位是 **6.4+ standalone clientapi 兼容 Fork**，不是通用功能 Fork。上游 README（原仓库的 `README.md`，本 Fork 保留为 `README_upstream.md` / `README_CN_upstream.md`）描述了更完整的功能集、知识库、5.x 工作流，本 Fork 原样继承。
 
-如果你在 **6.3 standalone** 下用上游工具报 `No matching overloads`、`Operation_cannot_be_created_in_this_context`、或 `'ComponentGeomListClient' object is not subscriptable` —— 请用本 Fork。最后一个错在本 Fork 已修复：`geometry_get_boundaries` 现在返回每个边界的 `normal`（法向）+ `center`（中心坐标）+ 整体 `bounding_box`（通过参数中点调 `faceNormal`/`faceX`/`edgeNormal`/`edgeX`），可直接判断哪个边界是哪个面（如 z=0 面法向 `[0,0,-1]`），无需手动建 `Box` selection。
+如果你在 **6.4+ standalone** 下用上游工具报 `No matching overloads`、`Operation_cannot_be_created_in_this_context`、或 `'ComponentGeomListClient' object is not subscriptable` —— 请用本 Fork。最后一个错在本 Fork 已修复：`geometry_get_boundaries` 现在返回每个边界的 `normal`（法向）+ `center`（中心坐标）+ 整体 `bounding_box`（通过参数中点调 `faceNormal`/`faceX`/`edgeNormal`/`edgeX`），可直接判断哪个边界是哪个面（如 z=0 面法向 `[0,0,-1]`），无需手动建 `Box` selection。
 
 ## 许可证
 
