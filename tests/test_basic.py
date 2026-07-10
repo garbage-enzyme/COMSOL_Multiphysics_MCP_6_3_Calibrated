@@ -189,3 +189,26 @@ class TestSessionManager:
         assert sm.current_model == "model"
 
         sm.disconnect()
+
+    def test_connect_rejects_in_flight_local_start(self, monkeypatch):
+        import src.tools.session as session_module
+
+        sm = session_module.SessionManager()
+        sm._client = None
+        sm._starting = True
+        called = False
+
+        def create_client(**kwargs):
+            nonlocal called
+            called = True
+            raise AssertionError("mph.Client must not be called")
+
+        monkeypatch.setattr(session_module.mph, "Client", create_client)
+        try:
+            result = sm.connect(port=2036)
+        finally:
+            sm._starting = False
+
+        assert result["success"] is False
+        assert "still starting" in result["error"]
+        assert called is False
