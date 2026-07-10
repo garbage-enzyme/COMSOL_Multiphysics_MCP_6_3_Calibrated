@@ -133,6 +133,133 @@ def add_boundary_condition(
     return result
 
 
+def setup_flow_boundaries(
+    model,
+    physics_name: str,
+    inlet_boundaries: Sequence[int],
+    outlet_boundaries: Sequence[int],
+    *,
+    inlet_velocity: str = "1[mm/s]",
+    outlet_pressure: str = "0",
+) -> dict:
+    """Create per-boundary inlet and outlet features through clientapi."""
+    configured = {"inlets": [], "outlets": []}
+    for boundary in inlet_boundaries:
+        result = add_boundary_condition(
+            model,
+            physics_name,
+            "InletBoundary",
+            [boundary],
+            properties={"U0": inlet_velocity},
+            feature_tag=_make_tag("inl"),
+        )
+        if not result["success"]:
+            return result
+        configured["inlets"].append(
+            {
+                "tag": result["boundary_condition"]["tag"],
+                "boundary": int(boundary),
+                "velocity": inlet_velocity,
+            }
+        )
+    for boundary in outlet_boundaries:
+        result = add_boundary_condition(
+            model,
+            physics_name,
+            "OutletBoundary",
+            [boundary],
+            properties={"p0": outlet_pressure},
+            feature_tag=_make_tag("out"),
+        )
+        if not result["success"]:
+            return result
+        configured["outlets"].append(
+            {
+                "tag": result["boundary_condition"]["tag"],
+                "boundary": int(boundary),
+                "pressure": outlet_pressure,
+            }
+        )
+    return {
+        "success": True,
+        "physics": physics_name,
+        "configured_boundaries": configured,
+        "inlet_velocity": inlet_velocity,
+        "outlet_pressure": outlet_pressure,
+    }
+
+
+def setup_heat_boundaries(
+    model,
+    physics_name: str,
+    *,
+    heat_flux_boundaries: Sequence[int] = (),
+    temperature_boundaries: Sequence[int] = (),
+    convection_boundaries: Sequence[int] = (),
+    heat_flux_value: str = "1e6[W/m^2]",
+    temperature_value: str = "293.15[K]",
+    convection_coeff: str = "10[W/(m^2*K)]",
+    ambient_temp: str = "293.15[K]",
+) -> dict:
+    """Create per-boundary heat-transfer features through clientapi."""
+    configured = {"heat_flux": [], "temperature": [], "convection": []}
+    specifications = (
+        (
+            "heat_flux",
+            heat_flux_boundaries,
+            "HeatFluxBoundary",
+            "hf",
+            {"q0": heat_flux_value},
+            {"heat_flux": heat_flux_value},
+        ),
+        (
+            "temperature",
+            temperature_boundaries,
+            "TemperatureBoundary",
+            "temp",
+            {"T0": temperature_value},
+            {"temperature": temperature_value},
+        ),
+        (
+            "convection",
+            convection_boundaries,
+            "ConvectiveHeatFlux",
+            "conv",
+            {"h": convection_coeff, "Text": ambient_temp},
+            {"h": convection_coeff, "T_amb": ambient_temp},
+        ),
+    )
+    for key, boundaries, feature_type, prefix, properties, output_values in specifications:
+        for boundary in boundaries:
+            result = add_boundary_condition(
+                model,
+                physics_name,
+                feature_type,
+                [boundary],
+                properties=properties,
+                feature_tag=_make_tag(prefix),
+            )
+            if not result["success"]:
+                return result
+            configured[key].append(
+                {
+                    "tag": result["boundary_condition"]["tag"],
+                    "boundary": int(boundary),
+                    **output_values,
+                }
+            )
+    return {
+        "success": True,
+        "physics": physics_name,
+        "configured_boundaries": configured,
+        "summary": {
+            "heat_flux_boundaries": len(heat_flux_boundaries),
+            "temperature_boundaries": len(temperature_boundaries),
+            "convection_boundaries": len(convection_boundaries),
+        },
+    }
+
+
 def _make_tag(prefix="bc"):
     """Generate a unique tag using a monotonic counter."""
     _tag_counter[prefix] = _tag_counter.get(prefix, 0) + 1
@@ -1167,53 +1294,14 @@ def register_physics_tools(mcp: FastMCP) -> None:
             }
         
         try:
-            jm = model.java
-            
-            # Find physics in component
-            physics_interfaces = model.physics()
-            if physics_name not in physics_interfaces:
-                return {"success": False, "error": f"Physics '{physics_name}' not found. Available: {physics_interfaces}"}
-            
-            # Get component and physics
-            physics_java = _find_physics_java(jm, physics_name)
-
-            if physics_java is None:
-                return {"success": False, "error": f"Could not find physics interface: {physics_name}"}
-
-            results = {"inlets": [], "outlets": []}
-
-            for i, boundary in enumerate(inlet_boundaries):
-                inlet_tag = _make_tag("inl")
-                inlet = physics_java.create(inlet_tag, 'InletBoundary')
-                inlet.selection().set([int(boundary)])
-                inlet.set('U0', inlet_velocity)
-                inlet.label(f'Inlet {i+1} (Boundary {boundary})')
-                results["inlets"].append({
-                    "tag": inlet_tag,
-                    "boundary": boundary,
-                    "velocity": inlet_velocity
-                })
-            
-            for i, boundary in enumerate(outlet_boundaries):
-                outlet_tag = _make_tag("out")
-                outlet = physics_java.create(outlet_tag, 'OutletBoundary')
-                outlet.selection().set([int(boundary)])
-                outlet.set('p0', outlet_pressure)
-                outlet.label(f'Outlet {i+1} (Boundary {boundary})')
-                results["outlets"].append({
-                    "tag": outlet_tag,
-                    "boundary": boundary,
-                    "pressure": outlet_pressure
-                })
-            
-            return {
-                "success": True,
-                "physics": physics_name,
-                "configured_boundaries": results,
-                "inlet_velocity": inlet_velocity,
-                "outlet_pressure": outlet_pressure,
-                "message": f"Configured {len(inlet_boundaries)} inlet(s) and {len(outlet_boundaries)} outlet(s)",
-            }
+            return setup_flow_boundaries(
+                model,
+                physics_name,
+                inlet_boundaries,
+                outlet_boundaries,
+                inlet_velocity=inlet_velocity,
+                outlet_pressure=outlet_pressure,
+            )
         except Exception as e:
             return {"success": False, "error": f"Failed to setup boundaries: {str(e)}"}
 
@@ -1321,68 +1409,17 @@ def register_physics_tools(mcp: FastMCP) -> None:
         convection_boundaries = convection_boundaries or []
 
         try:
-            jm = model.java
-
-            physics_interfaces = model.physics()
-            if physics_name not in physics_interfaces:
-                return {"success": False, "error": f"Physics '{physics_name}' not found. Available: {physics_interfaces}"}
-
-            physics_java = _find_physics_java(jm, physics_name)
-
-            if physics_java is None:
-                return {"success": False, "error": f"Could not find physics interface: {physics_name}"}
-
-            results = {"heat_flux": [], "temperature": [], "convection": []}
-
-            for i, boundary in enumerate(heat_flux_boundaries):
-                tag = _make_tag("hf")
-                bc = physics_java.create(tag, 'HeatFluxBoundary')
-                bc.selection().set([int(boundary)])
-                bc.set('q0', heat_flux_value)
-                bc.label(f'Heat Flux {i+1} (Boundary {boundary})')
-                results["heat_flux"].append({
-                    "tag": tag,
-                    "boundary": boundary,
-                    "heat_flux": heat_flux_value
-                })
-            
-            for i, boundary in enumerate(temperature_boundaries):
-                tag = _make_tag("temp")
-                bc = physics_java.create(tag, 'TemperatureBoundary')
-                bc.selection().set([int(boundary)])
-                bc.set('T0', temperature_value)
-                bc.label(f'Temperature {i+1} (Boundary {boundary})')
-                results["temperature"].append({
-                    "tag": tag,
-                    "boundary": boundary,
-                    "temperature": temperature_value
-                })
-            
-            for i, boundary in enumerate(convection_boundaries):
-                tag = _make_tag("conv")
-                bc = physics_java.create(tag, 'ConvectiveHeatFlux')
-                bc.selection().set([int(boundary)])
-                bc.set('h', convection_coeff)
-                bc.set('Text', ambient_temp)
-                bc.label(f'Convection {i+1} (Boundary {boundary})')
-                results["convection"].append({
-                    "tag": tag,
-                    "boundary": boundary,
-                    "h": convection_coeff,
-                    "T_amb": ambient_temp
-                })
-            
-            return {
-                "success": True,
-                "physics": physics_name,
-                "configured_boundaries": results,
-                "summary": {
-                    "heat_flux_boundaries": len(heat_flux_boundaries),
-                    "temperature_boundaries": len(temperature_boundaries),
-                    "convection_boundaries": len(convection_boundaries)
-                },
-                "message": f"Configured {len(heat_flux_boundaries)} heat flux, {len(temperature_boundaries)} temperature, and {len(convection_boundaries)} convection boundaries",
-            }
+            return setup_heat_boundaries(
+                model,
+                physics_name,
+                heat_flux_boundaries=heat_flux_boundaries,
+                temperature_boundaries=temperature_boundaries,
+                convection_boundaries=convection_boundaries,
+                heat_flux_value=heat_flux_value,
+                temperature_value=temperature_value,
+                convection_coeff=convection_coeff,
+                ambient_temp=ambient_temp,
+            )
         except Exception as e:
             return {"success": False, "error": f"Failed to setup heat boundaries: {str(e)}"}
 

@@ -5,6 +5,8 @@ from src.tools.physics import (
     add_physics_interface,
     list_physics_features,
     remove_physics_interface,
+    setup_flow_boundaries,
+    setup_heat_boundaries,
 )
 
 
@@ -364,3 +366,49 @@ def test_add_boundary_condition_validates_selection():
     )
 
     assert result["success"] is False
+
+
+def test_setup_flow_boundaries_uses_clientapi_features():
+    physics = BoundaryPhysics()
+    model = FakeModel(BoundaryComponent(physics))
+
+    result = setup_flow_boundaries(
+        model,
+        "ht",
+        [1],
+        [2],
+        inlet_velocity="2[mm/s]",
+        outlet_pressure="1[Pa]",
+    )
+
+    assert result["success"] is True
+    assert [item[1] for item in physics.features.created] == [
+        "InletBoundary",
+        "OutletBoundary",
+    ]
+    assert physics.features.created[0][3].properties == {"U0": "2[mm/s]"}
+    assert physics.features.created[1][3].properties == {"p0": "1[Pa]"}
+
+
+def test_setup_heat_boundaries_creates_all_requested_types():
+    physics = BoundaryPhysics()
+    model = FakeModel(BoundaryComponent(physics))
+
+    result = setup_heat_boundaries(
+        model,
+        "ht",
+        heat_flux_boundaries=[1],
+        temperature_boundaries=[2],
+        convection_boundaries=[3],
+    )
+
+    assert result["summary"] == {
+        "heat_flux_boundaries": 1,
+        "temperature_boundaries": 1,
+        "convection_boundaries": 1,
+    }
+    assert [item[1] for item in physics.features.created] == [
+        "HeatFluxBoundary",
+        "TemperatureBoundary",
+        "ConvectiveHeatFlux",
+    ]
