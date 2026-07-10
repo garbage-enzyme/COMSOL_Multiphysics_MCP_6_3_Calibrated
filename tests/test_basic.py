@@ -33,6 +33,32 @@ class TestVersioning:
         assert path.parent == tmp_path / "model"
         assert path.name.startswith("model_")
         assert path.suffix == ".mph"
+
+    def test_latest_path_uses_custom_base(self, tmp_path):
+        from src.utils.versioning import generate_latest_path
+
+        result = Path(generate_latest_path("nested/model.mph", base_path=tmp_path))
+
+        assert result == tmp_path / "model" / "model_latest.mph"
+        assert result.parent.is_dir()
+
+    def test_list_versions_uses_custom_base(self, tmp_path):
+        from src.utils.versioning import list_model_versions
+
+        model_dir = tmp_path / "model"
+        model_dir.mkdir()
+        older = model_dir / "model_20260101_000000.mph"
+        newer = model_dir / "model_20260102_000000.mph"
+        latest = model_dir / "model_latest.mph"
+        for path in (older, newer, latest):
+            path.touch()
+        older.touch()
+        newer.touch()
+
+        result = list_model_versions("model", base_path=tmp_path)
+
+        assert set(result) == {str(older), str(newer)}
+        assert str(latest) not in result
     
     def test_parse_version_info_valid(self):
         from src.utils.versioning import parse_version_info

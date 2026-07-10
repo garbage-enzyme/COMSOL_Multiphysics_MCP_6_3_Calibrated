@@ -7,19 +7,24 @@ from pathlib import Path
 MODELS_BASE_DIR = Path(__file__).parent.parent.parent / "comsol_models"
 
 
-def get_model_directory(model_name: str) -> Path:
+def get_model_directory(
+    model_name: str,
+    base_path: str | Path | None = None,
+) -> Path:
     """
     Get the directory path for a model.
     
     Args:
-        model_name: Name of the model
+        model_name: Name of the model.
+        base_path: Optional model-storage root. Defaults to ``comsol_models``.
         
     Returns:
         Path to the model directory
     """
     # Clean model name (remove .mph extension if present)
     clean_name = Path(model_name).stem
-    return MODELS_BASE_DIR / clean_name
+    root = Path(base_path).expanduser() if base_path is not None else MODELS_BASE_DIR
+    return root / clean_name
 
 
 def generate_version_name(base_name: str) -> str:
@@ -56,11 +61,7 @@ def generate_version_path(model_name: str, base_path: str | Path | None = None) 
     clean_name = Path(model_name).stem
     
     # Get model directory
-    model_dir = (
-        Path(base_path).expanduser() / clean_name
-        if base_path is not None
-        else get_model_directory(clean_name)
-    )
+    model_dir = get_model_directory(clean_name, base_path=base_path)
     model_dir.mkdir(parents=True, exist_ok=True)
     
     # Generate versioned filename
@@ -70,34 +71,42 @@ def generate_version_path(model_name: str, base_path: str | Path | None = None) 
     return str(model_dir / versioned_name)
 
 
-def generate_latest_path(model_name: str) -> str:
+def generate_latest_path(
+    model_name: str,
+    base_path: str | Path | None = None,
+) -> str:
     """
     Generate path for the 'latest' version of a model.
     Uses structured path: ./comsol_models/{model_name}/{model_name}_latest.mph
     
     Args:
-        model_name: Name of the model
+        model_name: Name of the model.
+        base_path: Optional model-storage root. Defaults to ``comsol_models``.
         
     Returns:
         Path for the latest version
     """
     clean_name = Path(model_name).stem
-    model_dir = get_model_directory(clean_name)
+    model_dir = get_model_directory(clean_name, base_path=base_path)
     model_dir.mkdir(parents=True, exist_ok=True)
     return str(model_dir / f"{clean_name}_latest.mph")
 
 
-def list_model_versions(model_name: str) -> list:
+def list_model_versions(
+    model_name: str,
+    base_path: str | Path | None = None,
+) -> list[str]:
     """
     List all versions of a model.
     
     Args:
-        model_name: Name of the model
+        model_name: Name of the model.
+        base_path: Optional model-storage root. Defaults to ``comsol_models``.
         
     Returns:
         List of version file paths, sorted by modification time (newest first)
     """
-    model_dir = get_model_directory(model_name)
+    model_dir = get_model_directory(model_name, base_path=base_path)
     if not model_dir.exists():
         return []
     
