@@ -44,7 +44,27 @@ All fixes live in `src/tools/` and target the `clientapi` wrappers. Summary by f
 - New `.gitignore` for `__pycache__/`, `*.pyc`, `opencode.json` (machine-specific paths), `knowledge_base/` (regenerable), `*.mph`.
 - Stopped tracking `opencode.json` and `knowledge_base/chroma.sqlite3` — both are local-only / regenerable.
 
+### Durable workflow tools
+
+`study_staged_parametric_sweep` and `mesh_convergence_study` run one point or
+mesh level at a time and persist each result immediately. Their CSV journals
+are flushed and synced after every row. Optional reliability controls are:
+
+- `resume_csv=True`: skip rows already recorded with `status=success`.
+- `max_retries=N`: retry a failed point or mesh level up to `N` times.
+- `continue_on_error=True`: record the failed row and continue the run.
+- `checkpoint_model_path=...`: save through the Java clientapi during the run.
+- `checkpoint_every=N`: checkpoint after every `N` new successful rows.
+
+Legacy workflow CSVs are upgraded in place when resumed; missing status values
+are treated as successful rows. Existing columns are preserved.
+
 ## Verification
+
+Run the isolated unit suite with `python -m pytest -q`. Root-level
+`test_*.py` files are manual integration probes that may start COMSOL and are
+explicitly excluded from pytest collection; invoke them individually only when
+a dedicated COMSOL client is available.
 
 `test_e2e_cap.py` and `test_study_mesh.py` are standalone verification scripts (drive `mph.Client` directly, no MCP layer). The same recipe was also re-run end-to-end through the MCP tool interface after restarting opencode to load the new code:
 

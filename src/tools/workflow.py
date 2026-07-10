@@ -13,6 +13,7 @@ expressions that make sense for the model at hand.
 from __future__ import annotations
 
 import csv
+import os
 import time
 from pathlib import Path
 from typing import Any, Optional, Sequence
@@ -21,6 +22,7 @@ import numpy as np
 from mcp.server.fastmcp import FastMCP
 
 from .session import session_manager
+from .results import _json_safe
 from .study import _resolve_study_tag
 
 
@@ -57,16 +59,18 @@ def _scalarize(value: Any) -> Any:
     if arr.size == 1:
         scalar = arr.reshape(-1)[0]
         if np.iscomplexobj(arr):
-            return complex(scalar)
+            return _json_safe(complex(scalar))
         return float(scalar)
     if np.iscomplexobj(arr):
-        return [complex(v) for v in arr.reshape(-1)]
+        return [_json_safe(complex(v)) for v in arr.reshape(-1)]
     return [float(v) for v in arr.reshape(-1)]
 
 
 def _csv_value(value: Any) -> Any:
     if isinstance(value, complex):
         return f"{value.real}+{value.imag}i"
+    if isinstance(value, dict) and set(value) == {"real", "imag"}:
+        return f"{value['real']}+{value['imag']}i"
     if isinstance(value, list):
         return ";".join(_csv_value(v) for v in value)
     return value
@@ -93,13 +97,74 @@ def _write_rows_csv(
     _ensure_parent_dir(csv_path)
     path = Path(csv_path)
     mode = "a" if append and path.exists() else "w"
+    active_fieldnames = list(fieldnames)
+    if mode == "a":
+        with path.open(newline="", encoding="utf-8-sig") as existing:
+            reader = csv.DictReader(existing)
+            existing_fields = reader.fieldnames or []
+            existing_rows = list(reader)
+        active_fieldnames = [
+            *existing_fields,
+            *(field for field in fieldnames if field not in existing_fields),
+        ]
+        if existing_fields != active_fieldnames:
+            with path.open("w", newline="", encoding="utf-8") as migrated:
+                writer = csv.DictWriter(
+                    migrated,
+                    fieldnames=active_fieldnames,
+                    extrasaction="ignore",
+                )
+                writer.writeheader()
+                for row in existing_rows:
+                    if "status" in active_fieldnames and not row.get("status"):
+                        row["status"] = "success"
+                    writer.writerow(
+                        {key: _csv_value(row.get(key)) for key in active_fieldnames}
+                    )
+                migrated.flush()
+                os.fsync(migrated.fileno())
     with path.open(mode, newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(fieldnames), extrasaction="ignore")
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=active_fieldnames,
+            extrasaction="ignore",
+        )
         if mode == "w":
             writer.writeheader()
         for row in rows:
-            writer.writerow({key: _csv_value(row.get(key)) for key in fieldnames})
+            writer.writerow(
+                {key: _csv_value(row.get(key)) for key in active_fieldnames}
+            )
         handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _read_csv_rows(csv_path: Optional[str]) -> list[dict[str, str]]:
+    """Read an existing workflow journal, returning no rows when absent."""
+    if not csv_path:
+        return []
+    path = Path(csv_path)
+    if not path.exists() or path.stat().st_size == 0:
+        return []
+    with path.open(newline="", encoding="utf-8-sig") as handle:
+        return list(csv.DictReader(handle))
+
+
+def _completed_keys(csv_path: Optional[str], key: str) -> set[str]:
+    """Return successful journal keys, including rows from the legacy schema."""
+    completed = set()
+    for row in _read_csv_rows(csv_path):
+        status = (row.get("status") or "success").strip().lower()
+        value = row.get(key)
+        if value is not None and status == "success":
+            completed.add(value)
+    return completed
+
+
+def _save_model(model, file_path: str) -> None:
+    """Save through the Java clientapi to preserve non-ASCII Windows paths."""
+    _ensure_parent_dir(file_path)
+    model.java.save(str(Path(file_path).expanduser().resolve()))
 
 
 def run_staged_parametric_sweep(
@@ -116,6 +181,11 @@ def run_staged_parametric_sweep(
     study_step_unit_property: str = "punit",
     csv_path: Optional[str] = None,
     append_csv: bool = False,
+    resume_csv: bool = False,
+    max_retries: int = 0,
+    continue_on_error: bool = False,
+    checkpoint_model_path: Optional[str] = None,
+    checkpoint_every: int = 1,
     save_model_path: Optional[str] = None,
 ) -> dict[str, Any]:
     """Run a parameter sweep one point at a time and append CSV rows eagerly."""
@@ -123,6 +193,10 @@ def run_staged_parametric_sweep(
         return {"success": False, "error": "parameter_values must not be empty."}
     if not expressions:
         return {"success": False, "error": "expressions must not be empty."}
+    if max_retries < 0:
+        return {"success": False, "error": "max_retries must be non-negative."}
+    if checkpoint_every < 1:
+        return {"success": False, "error": "checkpoint_every must be at least 1."}
 
     jm = model.java
     study_tag = _resolve_study_tag(model, study_name)
@@ -135,50 +209,91 @@ def run_staged_parametric_sweep(
     fieldnames = [
         parameter_name,
         "parameter_value",
+        "status",
+        "attempt",
+        "error",
         "solve_sec",
         *list(expressions),
     ]
     rows: list[dict[str, Any]] = []
+    failed_rows: list[dict[str, Any]] = []
+    if csv_path and not append_csv and not resume_csv:
+        Path(csv_path).unlink(missing_ok=True)
+    completed_values = _completed_keys(csv_path, "parameter_value") if resume_csv else set()
+    skipped = 0
+    checkpointed_at = 0
     total_start = time.time()
 
     for value in parameter_values:
         parameter_value = _format_parameter_value(value, parameter_unit)
-        jm.param().set(parameter_name, parameter_value)
+        if parameter_value in completed_values:
+            skipped += 1
+            continue
 
-        if study_step_tag:
-            step = jm.study(study_tag).feature(study_step_tag)
-            step.set(study_step_property, _format_study_step_value(value))
-            if study_step_unit:
-                step.set(study_step_unit_property, study_step_unit)
+        for attempt in range(1, max_retries + 2):
+            solve_start = time.time()
+            try:
+                jm.param().set(parameter_name, parameter_value)
 
-        solve_start = time.time()
-        jm.study(study_tag).run()
-        solve_sec = time.time() - solve_start
+                if study_step_tag:
+                    step = jm.study(study_tag).feature(study_step_tag)
+                    step.set(study_step_property, _format_study_step_value(value))
+                    if study_step_unit:
+                        step.set(study_step_unit_property, study_step_unit)
 
-        evaluated = _evaluate_expressions(model, expressions)
-        row = {
-            parameter_name: value,
-            "parameter_value": parameter_value,
-            "solve_sec": solve_sec,
-            **evaluated,
-        }
-        rows.append(row)
-        _write_rows_csv(csv_path, fieldnames, [row], append=True)
+                jm.study(study_tag).run()
+                solve_sec = time.time() - solve_start
+                evaluated = _evaluate_expressions(model, expressions)
+                row = {
+                    parameter_name: value,
+                    "parameter_value": parameter_value,
+                    "status": "success",
+                    "attempt": attempt,
+                    "error": None,
+                    "solve_sec": solve_sec,
+                    **evaluated,
+                }
+                rows.append(row)
+                _write_rows_csv(csv_path, fieldnames, [row], append=True)
+                if checkpoint_model_path and len(rows) % checkpoint_every == 0:
+                    _save_model(model, checkpoint_model_path)
+                    checkpointed_at = len(rows)
+                break
+            except Exception as exc:
+                if attempt <= max_retries:
+                    continue
+                row = {
+                    parameter_name: value,
+                    "parameter_value": parameter_value,
+                    "status": "error",
+                    "attempt": attempt,
+                    "error": str(exc),
+                    "solve_sec": time.time() - solve_start,
+                }
+                failed_rows.append(row)
+                _write_rows_csv(csv_path, fieldnames, [row], append=True)
+                if not continue_on_error:
+                    raise
 
     if save_model_path:
-        model.save(path=save_model_path)
+        _save_model(model, save_model_path)
+    elif checkpoint_model_path and rows and checkpointed_at != len(rows):
+        _save_model(model, checkpoint_model_path)
 
     return {
-        "success": True,
+        "success": not failed_rows,
         "model": model.name(),
         "study": study_name,
         "resolved_study_tag": study_tag,
         "parameter": parameter_name,
         "n_points": len(rows),
+        "n_failed": len(failed_rows),
+        "n_skipped": skipped,
         "csv_path": csv_path,
         "save_model_path": save_model_path,
         "total_sec": time.time() - total_start,
         "rows": rows,
+        "failed_rows": failed_rows,
     }
 
 
@@ -200,6 +315,11 @@ def run_mesh_convergence(
     study_step_unit_property: str = "punit",
     csv_path: Optional[str] = None,
     append_csv: bool = False,
+    resume_csv: bool = False,
+    max_retries: int = 0,
+    continue_on_error: bool = False,
+    checkpoint_model_path: Optional[str] = None,
+    checkpoint_every: int = 1,
     save_model_path: Optional[str] = None,
 ) -> dict[str, Any]:
     """Run mesh rebuild + solve + evaluation for each mesh-property level."""
@@ -207,6 +327,10 @@ def run_mesh_convergence(
         return {"success": False, "error": "levels must not be empty."}
     if not expressions:
         return {"success": False, "error": "expressions must not be empty."}
+    if max_retries < 0:
+        return {"success": False, "error": "max_retries must be non-negative."}
+    if checkpoint_every < 1:
+        return {"success": False, "error": "checkpoint_every must be at least 1."}
 
     jm = model.java
     study_tag = _resolve_study_tag(model, study_name)
@@ -235,6 +359,9 @@ def run_mesh_convergence(
 
     fieldnames = [
         "level",
+        "status",
+        "attempt",
+        "error",
         *property_keys,
         "mesh_elements",
         "mesh_vertices",
@@ -243,46 +370,80 @@ def run_mesh_convergence(
         *list(expressions),
     ]
     rows: list[dict[str, Any]] = []
+    failed_rows: list[dict[str, Any]] = []
+    if csv_path and not append_csv and not resume_csv:
+        Path(csv_path).unlink(missing_ok=True)
+    completed_levels = _completed_keys(csv_path, "level") if resume_csv else set()
+    skipped = 0
+    checkpointed_at = 0
     total_start = time.time()
 
     for idx, level in enumerate(levels, start=1):
         label = str(level.get("name") or f"level_{idx}")
+        if label in completed_levels:
+            skipped += 1
+            continue
         properties = level.get("properties") or {}
-        for key, value in properties.items():
-            size_feature.set(key, value)
+        for attempt in range(1, max_retries + 2):
+            mesh_start = time.time()
+            try:
+                for key, value in properties.items():
+                    size_feature.set(key, value)
 
-        mesh_start = time.time()
-        mesh.run()
-        mesh_sec = time.time() - mesh_start
-        try:
-            mesh_elements = int(mesh.getNumElem())
-            mesh_vertices = int(mesh.getNumVertex())
-        except Exception:
-            mesh_elements = None
-            mesh_vertices = None
+                mesh.run()
+                mesh_sec = time.time() - mesh_start
+                try:
+                    mesh_elements = int(mesh.getNumElem())
+                    mesh_vertices = int(mesh.getNumVertex())
+                except Exception:
+                    mesh_elements = None
+                    mesh_vertices = None
 
-        solve_start = time.time()
-        jm.study(study_tag).run()
-        solve_sec = time.time() - solve_start
-
-        evaluated = _evaluate_expressions(model, expressions)
-        row = {
-            "level": label,
-            "mesh_elements": mesh_elements,
-            "mesh_vertices": mesh_vertices,
-            "mesh_sec": mesh_sec,
-            "solve_sec": solve_sec,
-            **{key: properties.get(key) for key in property_keys},
-            **evaluated,
-        }
-        rows.append(row)
-        _write_rows_csv(csv_path, fieldnames, [row], append=True)
+                solve_start = time.time()
+                jm.study(study_tag).run()
+                solve_sec = time.time() - solve_start
+                evaluated = _evaluate_expressions(model, expressions)
+                row = {
+                    "level": label,
+                    "status": "success",
+                    "attempt": attempt,
+                    "error": None,
+                    "mesh_elements": mesh_elements,
+                    "mesh_vertices": mesh_vertices,
+                    "mesh_sec": mesh_sec,
+                    "solve_sec": solve_sec,
+                    **{key: properties.get(key) for key in property_keys},
+                    **evaluated,
+                }
+                rows.append(row)
+                _write_rows_csv(csv_path, fieldnames, [row], append=True)
+                if checkpoint_model_path and len(rows) % checkpoint_every == 0:
+                    _save_model(model, checkpoint_model_path)
+                    checkpointed_at = len(rows)
+                break
+            except Exception as exc:
+                if attempt <= max_retries:
+                    continue
+                row = {
+                    "level": label,
+                    "status": "error",
+                    "attempt": attempt,
+                    "error": str(exc),
+                    "mesh_sec": time.time() - mesh_start,
+                    **{key: properties.get(key) for key in property_keys},
+                }
+                failed_rows.append(row)
+                _write_rows_csv(csv_path, fieldnames, [row], append=True)
+                if not continue_on_error:
+                    raise
 
     if save_model_path:
-        model.save(path=save_model_path)
+        _save_model(model, save_model_path)
+    elif checkpoint_model_path and rows and checkpointed_at != len(rows):
+        _save_model(model, checkpoint_model_path)
 
     return {
-        "success": True,
+        "success": not failed_rows,
         "model": model.name(),
         "component": component_name,
         "mesh": mesh_name,
@@ -290,10 +451,13 @@ def run_mesh_convergence(
         "study": study_name,
         "resolved_study_tag": study_tag,
         "n_levels": len(rows),
+        "n_failed": len(failed_rows),
+        "n_skipped": skipped,
         "csv_path": csv_path,
         "save_model_path": save_model_path,
         "total_sec": time.time() - total_start,
         "rows": rows,
+        "failed_rows": failed_rows,
     }
 
 
@@ -313,6 +477,11 @@ def register_workflow_tools(mcp: FastMCP) -> None:
         study_step_unit_property: str = "punit",
         csv_path: Optional[str] = None,
         append_csv: bool = False,
+        resume_csv: bool = False,
+        max_retries: int = 0,
+        continue_on_error: bool = False,
+        checkpoint_model_path: Optional[str] = None,
+        checkpoint_every: int = 1,
         save_model_path: Optional[str] = None,
         model_name: Optional[str] = None,
     ) -> dict[str, Any]:
@@ -337,6 +506,11 @@ def register_workflow_tools(mcp: FastMCP) -> None:
             study_step_unit_property: Step unit property name, default "punit".
             csv_path: Optional CSV output path. Rows are written after each point.
             append_csv: Append to existing CSV instead of replacing it.
+            resume_csv: Skip successful parameter values already in csv_path.
+            max_retries: Number of retries after a failed point.
+            continue_on_error: Continue after final retry and report failed rows.
+            checkpoint_model_path: Optional model path saved during the sweep.
+            checkpoint_every: Save a checkpoint after this many new successes.
             save_model_path: Optional path to save the model after the sweep.
             model_name: Model name (default: current).
 
@@ -348,7 +522,7 @@ def register_workflow_tools(mcp: FastMCP) -> None:
             return {"success": False, "error": f"Model not found: {model_name or 'no current model'}"}
 
         try:
-            if csv_path and not append_csv:
+            if csv_path and not append_csv and not resume_csv:
                 Path(csv_path).unlink(missing_ok=True)
             return run_staged_parametric_sweep(
                 model,
@@ -363,6 +537,11 @@ def register_workflow_tools(mcp: FastMCP) -> None:
                 study_step_unit_property=study_step_unit_property,
                 csv_path=csv_path,
                 append_csv=append_csv,
+                resume_csv=resume_csv,
+                max_retries=max_retries,
+                continue_on_error=continue_on_error,
+                checkpoint_model_path=checkpoint_model_path,
+                checkpoint_every=checkpoint_every,
                 save_model_path=save_model_path,
             )
         except Exception as exc:
@@ -385,6 +564,11 @@ def register_workflow_tools(mcp: FastMCP) -> None:
         study_step_unit_property: str = "punit",
         csv_path: Optional[str] = None,
         append_csv: bool = False,
+        resume_csv: bool = False,
+        max_retries: int = 0,
+        continue_on_error: bool = False,
+        checkpoint_model_path: Optional[str] = None,
+        checkpoint_every: int = 1,
         save_model_path: Optional[str] = None,
         model_name: Optional[str] = None,
     ) -> dict[str, Any]:
@@ -411,6 +595,11 @@ def register_workflow_tools(mcp: FastMCP) -> None:
             study_step_unit_property: Step unit property name, default "punit".
             csv_path: Optional CSV output path. Rows are written per level.
             append_csv: Append to existing CSV instead of replacing it.
+            resume_csv: Skip successful level names already in csv_path.
+            max_retries: Number of retries after a failed level.
+            continue_on_error: Continue after final retry and report failed rows.
+            checkpoint_model_path: Optional model path saved during the run.
+            checkpoint_every: Save a checkpoint after this many new successes.
             save_model_path: Optional path to save the model after the run.
             model_name: Model name (default: current).
 
@@ -422,7 +611,7 @@ def register_workflow_tools(mcp: FastMCP) -> None:
             return {"success": False, "error": f"Model not found: {model_name or 'no current model'}"}
 
         try:
-            if csv_path and not append_csv:
+            if csv_path and not append_csv and not resume_csv:
                 Path(csv_path).unlink(missing_ok=True)
             return run_mesh_convergence(
                 model,
@@ -441,6 +630,11 @@ def register_workflow_tools(mcp: FastMCP) -> None:
                 study_step_unit_property=study_step_unit_property,
                 csv_path=csv_path,
                 append_csv=append_csv,
+                resume_csv=resume_csv,
+                max_retries=max_retries,
+                continue_on_error=continue_on_error,
+                checkpoint_model_path=checkpoint_model_path,
+                checkpoint_every=checkpoint_every,
                 save_model_path=save_model_path,
             )
         except Exception as exc:
