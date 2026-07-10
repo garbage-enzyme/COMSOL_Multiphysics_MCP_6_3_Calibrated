@@ -1,5 +1,6 @@
 """Basic tests for COMSOL MCP Server."""
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -59,6 +60,16 @@ class TestSessionManager:
         sm1 = SessionManager()
         sm2 = SessionManager()
         assert sm1 is sm2
+
+    def test_session_manager_concurrent_singleton(self):
+        from src.tools.session import SessionManager
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            managers = list(executor.map(lambda _: SessionManager(), range(32)))
+
+        assert all(manager is managers[0] for manager in managers)
+        assert "_models" in managers[0].__dict__
+        assert "_start_lock" in managers[0].__dict__
     
     def test_session_manager_initial_state(self):
         from src.tools.session import SessionManager

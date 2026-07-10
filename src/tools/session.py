@@ -2,7 +2,6 @@
 
 import threading
 from typing import Optional
-from mcp.server import Server
 from mcp.server.fastmcp import FastMCP
 import mph
 import mph.session as mph_session
@@ -10,24 +9,27 @@ import mph.session as mph_session
 
 class SessionManager:
     """Singleton manager for COMSOL client session."""
-    
+
     _instance: Optional["SessionManager"] = None
-    _client: Optional[mph.Client] = None
-    _models: dict[str, mph.Model] = {}
-    _current_model: Optional[str] = None
-    # Background-start state — comsol_start spawns a daemon thread to run
-    # mph.Client() (which blocks for tens of seconds while the JVM and COMSOL
-    # back-end come up) and returns immediately so the MCP call does not time
-    # out. Poll comsol_status to know when the client is ready.
-    _starting: bool = False
-    _start_thread: Optional[threading.Thread] = None
-    _start_error: Optional[str] = None
-    _start_message: str = ""
-    _start_lock: threading.Lock = threading.Lock()
-    
+    _instance_lock = threading.Lock()
+
     def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
+        if cls._instance is not None:
+            return cls._instance
+
+        with cls._instance_lock:
+            if cls._instance is None:
+                instance = super().__new__(cls)
+                instance._client = None
+                instance._models = {}
+                instance._current_model = None
+                # comsol_start runs mph.Client() in this background thread.
+                instance._starting = False
+                instance._start_thread = None
+                instance._start_error = None
+                instance._start_message = ""
+                instance._start_lock = threading.Lock()
+                cls._instance = instance
         return cls._instance
     
     @property
