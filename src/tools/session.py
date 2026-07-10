@@ -28,6 +28,7 @@ class SessionManager:
                 instance._start_thread = None
                 instance._start_error = None
                 instance._start_message = ""
+                instance._start_cancel_requested = False
                 instance._start_lock = threading.Lock()
                 cls._instance = instance
         return cls._instance
@@ -52,21 +53,14 @@ class SessionManager:
         """Start a COMSOL client session (non-blocking)."""
         # Already connected — clear and reuse.
         if self._client is not None:
-            try:
-                self._client.clear()
-                self._models.clear()
-                self._current_model = None
-                return {
-                    "success": True,
-                    "version": self._client.version,
-                    "cores": self._client.cores,
-                    "standalone": self._client.standalone,
-                    "message": "Cleared existing session and ready."
-                }
-            except Exception:
-                self._client = None
-                self._models.clear()
-                self._current_model = None
+            return {
+                "success": True,
+                "connected": True,
+                "version": self._client.version,
+                "cores": self._client.cores,
+                "standalone": self._client.standalone,
+                "message": "COMSOL session is already connected; no action taken.",
+            }
 
         # A background start is in flight — tell caller to poll status.
         with self._start_lock:
@@ -80,6 +74,7 @@ class SessionManager:
             self._starting = True
             self._start_error = None
             self._start_message = "Starting COMSOL client in background..."
+            self._start_cancel_requested = False
 
         # If a previous start attempt failed, the thread is done; just spawn
         # a fresh one. If a previous attempt succeeded, _client would be set
@@ -109,9 +104,9 @@ class SessionManager:
 
     def _start_worker(self, kwargs: dict) -> None:
         """Runs mph.Client() in a daemon thread. Sets _client on success."""
+        client = None
         try:
             # Reuse an MPh session client if one happens to exist.
-            client = None
             try:
                 if mph_session.client is not None:
                     client = mph_session.client
@@ -119,17 +114,49 @@ class SessionManager:
                 pass
             if client is None:
                 client = mph.Client(**kwargs)
-            self._client = client
-            self._start_message = "Client ready."
+
+            with self._start_lock:
+                if self._start_cancel_requested:
+                    self._start_message = "Start cancelled; releasing client."
+                else:
+                    self._client = client
+                    self._start_message = "Client ready."
         except Exception as e:
-            self._start_error = str(e)
-            self._start_message = f"Start failed: {e}"
+            with self._start_lock:
+                self._start_error = str(e)
+                self._start_message = f"Start failed: {e}"
         finally:
             with self._start_lock:
+                cancelled = self._start_cancel_requested
                 self._starting = False
+                self._start_cancel_requested = False
+
+            if cancelled and client is not None:
+                try:
+                    client.clear()
+                except Exception:
+                    pass
+                try:
+                    client.disconnect()
+                except Exception:
+                    pass
+                try:
+                    if mph_session.client is client:
+                        mph_session.client = None
+                except Exception:
+                    pass
     
     def connect(self, port: int, host: str = "localhost") -> dict:
         """Connect to a remote COMSOL server."""
+        with self._start_lock:
+            if self._starting:
+                return {
+                    "success": False,
+                    "error": (
+                        "A local COMSOL client is still starting. Poll "
+                        "comsol_status before connecting to another server."
+                    ),
+                }
         if self._client is not None:
             return {
                 "success": False,
@@ -160,9 +187,17 @@ class SessionManager:
     
     def disconnect(self) -> dict:
         """Disconnect and clear the session."""
-        # Cancel any in-flight background start state.
+        # A blocking mph.Client() construction cannot be interrupted safely.
+        # Mark it for disposal as soon as the worker receives the client.
         with self._start_lock:
-            self._starting = False
+            if self._client is None and self._starting:
+                self._start_cancel_requested = True
+                self._start_message = "Cancellation requested; waiting for COMSOL startup to return."
+                return {
+                    "success": True,
+                    "starting": True,
+                    "message": self._start_message,
+                }
             self._start_error = None
             self._start_message = ""
         if self._client is None:

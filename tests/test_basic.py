@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import threading
 
 import pytest
 
@@ -113,3 +114,44 @@ class TestSessionManager:
         assert sm.client is None
         assert sm.models == {}
         assert sm.current_model is None
+
+    def test_disconnect_cancels_background_start(self, monkeypatch):
+        import src.tools.session as session_module
+
+        sm = session_module.SessionManager()
+        created = threading.Event()
+        release = threading.Event()
+
+        class FakeClient:
+            def __init__(self):
+                self.calls = []
+
+            def clear(self):
+                self.calls.append("clear")
+
+            def disconnect(self):
+                self.calls.append("disconnect")
+
+        client = FakeClient()
+
+        def create_client(**kwargs):
+            created.set()
+            assert release.wait(timeout=2)
+            return client
+
+        monkeypatch.setattr(session_module.mph, "Client", create_client)
+        monkeypatch.setattr(session_module.mph_session, "client", None)
+
+        started = sm.start(cores=2)
+        assert started["starting"] is True
+        assert created.wait(timeout=2)
+
+        cancelled = sm.disconnect()
+        assert cancelled["starting"] is True
+        release.set()
+        sm._start_thread.join(timeout=2)
+
+        assert not sm._start_thread.is_alive()
+        assert sm.client is None
+        assert sm.get_status()["connected"] is False
+        assert client.calls == ["clear", "disconnect"]
