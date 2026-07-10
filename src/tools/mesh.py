@@ -6,6 +6,65 @@ from mcp.server.fastmcp import FastMCP
 from .session import session_manager
 
 
+def get_mesh_info(
+    model,
+    *,
+    mesh_name: Optional[str] = None,
+    component_name: Optional[str] = None,
+) -> dict:
+    """Return mesh metadata through the COMSOL 6.4 clientapi."""
+    from .physics import _first_component
+
+    jm = model.java
+    comp = jm.component(component_name) if component_name else _first_component(jm)
+    if comp is None:
+        return {"success": False, "error": "No component found in model."}
+
+    mesh_list = comp.mesh()
+    tags = list(mesh_list.tags())
+    if not tags:
+        return {"success": False, "error": "No meshes defined in model."}
+
+    target_tag = None
+    if mesh_name is None:
+        target_tag = tags[0]
+    elif mesh_name in tags:
+        target_tag = mesh_name
+    else:
+        for tag in tags:
+            try:
+                if str(mesh_list.get(tag).label()) == mesh_name:
+                    target_tag = tag
+                    break
+            except Exception:
+                pass
+    if target_tag is None:
+        return {
+            "success": False,
+            "error": f"Mesh not found: {mesh_name}. Available tags: {tags}",
+        }
+
+    mesh = mesh_list.get(target_tag)
+    info = {
+        "name": target_tag,
+        "component": str(comp.tag()),
+        "features": list(mesh.feature().tags()),
+    }
+    try:
+        info["label"] = str(mesh.label())
+    except Exception:
+        pass
+    try:
+        info["num_elements"] = int(mesh.getNumElem())
+    except Exception:
+        info["num_elements"] = None
+    try:
+        info["num_vertices"] = int(mesh.getNumVertex())
+    except Exception:
+        info["num_vertices"] = None
+    return {"success": True, "mesh": info}
+
+
 def register_mesh_tools(mcp: FastMCP) -> None:
     """Register mesh tools with the MCP server."""
     
@@ -149,6 +208,7 @@ def register_mesh_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     def mesh_info(
         mesh_name: Optional[str] = None,
+        component_name: Optional[str] = None,
         model_name: Optional[str] = None
     ) -> dict:
         """
@@ -156,6 +216,7 @@ def register_mesh_tools(mcp: FastMCP) -> None:
         
         Args:
             mesh_name: Mesh sequence name (default: first mesh)
+            component_name: Component containing the mesh (default: first)
             model_name: Model name (default: current model)
         
         Returns:
@@ -169,38 +230,10 @@ def register_mesh_tools(mcp: FastMCP) -> None:
             }
         
         try:
-            meshes = model.meshes()
-            if not meshes:
-                return {"success": False, "error": "No meshes defined in model."}
-            
-            target = mesh_name or meshes[0]
-            if target not in meshes:
-                return {"success": False, "error": f"Mesh not found: {target}"}
-            
-            mesh_node = model / "meshes" / target
-            
-            info = {
-                "name": target,
-            }
-            
-            try:
-                java_mesh = mesh_node.java
-                if hasattr(java_mesh, 'getVertex'):
-                    info["num_vertices"] = java_mesh.getVertex().size()
-                if hasattr(java_mesh, 'getElement'):
-                    info["num_elements"] = java_mesh.getElement().size()
-            except Exception:
-                pass
-            
-            try:
-                children = [child.name() for child in mesh_node.children()]
-                info["features"] = children
-            except Exception:
-                pass
-            
-            return {
-                "success": True,
-                "mesh": info,
-            }
+            return get_mesh_info(
+                model,
+                mesh_name=mesh_name,
+                component_name=component_name,
+            )
         except Exception as e:
             return {"success": False, "error": f"Failed to get mesh info: {str(e)}"}
