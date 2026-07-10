@@ -2,10 +2,9 @@
 
 import threading
 from typing import Optional, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import Enum
-import traceback
 
 
 class SolverStatus(Enum):
@@ -56,7 +55,7 @@ class AsyncSolver:
     @property
     def progress(self) -> SolverProgress:
         with self._lock:
-            return self._progress
+            return replace(self._progress)
     
     @property
     def is_running(self) -> bool:
@@ -144,12 +143,10 @@ class AsyncSolver:
                     self._progress.message = "Solving completed successfully."
                     self._progress.end_time = datetime.now()
                 
-                if progress_callback:
-                    progress_callback(1.0, "Completed")
+                self._notify_progress(progress_callback, 1.0, "Completed")
                     
             except Exception as e:
                 error_msg = str(e)
-                tb = traceback.format_exc()
                 
                 with self._lock:
                     self._progress.status = SolverStatus.FAILED
@@ -157,12 +154,29 @@ class AsyncSolver:
                     self._progress.message = f"Solving failed: {error_msg}"
                     self._progress.end_time = datetime.now()
                 
-                if progress_callback:
-                    progress_callback(-1.0, f"Error: {error_msg}")
+                self._notify_progress(
+                    progress_callback,
+                    -1.0,
+                    f"Error: {error_msg}",
+                )
         
         self._thread = threading.Thread(target=solve_thread, daemon=True)
         self._thread.start()
         return True
+
+    @staticmethod
+    def _notify_progress(
+        callback: Optional[Callable[[float, str], None]],
+        progress: float,
+        message: str,
+    ) -> None:
+        """Notify a caller without allowing callback errors to alter solve state."""
+        if callback is None:
+            return
+        try:
+            callback(progress, message)
+        except Exception:
+            pass
     
     def _set_cancelled(self):
         """Set status to cancelled."""
@@ -207,7 +221,8 @@ class AsyncSolver:
     
     def get_progress(self) -> dict:
         """Get current solving progress as a dictionary."""
-        return self.progress.to_dict()
+        with self._lock:
+            return self._progress.to_dict()
     
     def reset(self):
         """Reset the solver state."""
