@@ -1,9 +1,79 @@
 """Parameter management tools for COMSOL MCP Server."""
 
-from typing import Optional, Union
+from typing import Optional, Sequence, Union
+
+from jpype import JArray, JString
 from mcp.server.fastmcp import FastMCP
 
 from .session import session_manager
+from .study import _resolve_study_tag
+
+
+def _java_string_array(values: Sequence[str]):
+    """Build the Java ``String[]`` required by clientapi array properties."""
+    return JArray(JString)([str(value) for value in values])
+
+
+def setup_parametric_sweep(
+    model,
+    parameter_name: str,
+    values: Sequence[Union[str, float]],
+    *,
+    study_name: Optional[str] = None,
+    parameter_unit: Optional[str] = None,
+) -> dict:
+    """Create or update an active clientapi Parametric study feature."""
+    if not parameter_name.strip():
+        return {"success": False, "error": "parameter_name must not be empty."}
+    if not values:
+        return {"success": False, "error": "values must not be empty."}
+
+    jm = model.java
+    study_tags = list(jm.study().tags())
+    if not study_tags:
+        return {"success": False, "error": "No studies found in model."}
+    study_tag = _resolve_study_tag(model, study_name) if study_name else study_tags[0]
+    study = jm.study(study_tag)
+
+    feature_list = study.feature()
+    sweep = None
+    sweep_tag = None
+    for tag in list(feature_list.tags()):
+        feature = feature_list.get(tag)
+        try:
+            label = str(feature.label()).lower()
+        except Exception:
+            label = ""
+        if tag.lower().startswith(("param", "sweep")) or "parametric" in label:
+            sweep = feature
+            sweep_tag = tag
+            break
+
+    if sweep is None:
+        existing = set(feature_list.tags())
+        index = 1
+        sweep_tag = f"param{index}"
+        while sweep_tag in existing:
+            index += 1
+            sweep_tag = f"param{index}"
+        sweep = study.create(sweep_tag, "Parametric")
+
+    value_list = " ".join(str(value) for value in values)
+    sweep.set("pname", _java_string_array([parameter_name]))
+    sweep.set("plistarr", _java_string_array([value_list]))
+    if parameter_unit:
+        sweep.set("punit", _java_string_array([parameter_unit]))
+    sweep.set("sweeptype", "sparse")
+    sweep.active(True)
+
+    return {
+        "success": True,
+        "study": study_tag,
+        "parameter": parameter_name,
+        "values": list(values),
+        "parameter_unit": parameter_unit,
+        "sweep_tag": sweep_tag,
+    }
 
 
 def register_parameter_tools(mcp: FastMCP) -> None:
@@ -135,7 +205,8 @@ def register_parameter_tools(mcp: FastMCP) -> None:
         parameter_name: str,
         values: list[Union[str, float]],
         model_name: Optional[str] = None,
-        study_name: Optional[str] = None
+        study_name: Optional[str] = None,
+        parameter_unit: Optional[str] = None,
     ) -> dict:
         """
         Set up a parametric sweep for a parameter.
@@ -145,6 +216,7 @@ def register_parameter_tools(mcp: FastMCP) -> None:
             values: List of parameter values to sweep through
             model_name: Model name (default: current model)
             study_name: Study to attach sweep to (default: first study)
+            parameter_unit: Optional COMSOL unit for the sweep values.
         
         Returns:
             Sweep configuration confirmation, or error message
@@ -157,39 +229,13 @@ def register_parameter_tools(mcp: FastMCP) -> None:
             }
         
         try:
-            studies = model.studies()
-            if not studies:
-                return {"success": False, "error": "No studies found in model."}
-            
-            target_study = study_name or studies[0]
-            if target_study not in studies:
-                return {"success": False, "error": f"Study not found: {target_study}"}
-            
-            study_node = model / "studies" / target_study
-            
-            sweep_node = None
-            try:
-                sweep_node = study_node.create("ParametricSweep")
-            except Exception:
-                existing_features = [child.name() for child in study_node.children()]
-                for feat in existing_features:
-                    if "parametric" in feat.lower() or "sweep" in feat.lower():
-                        sweep_node = study_node.child(feat)
-                        break
-            
-            if sweep_node is None:
-                return {"success": False, "error": "Could not create or find parametric sweep."}
-            
-            sweep_node.property("pname", [parameter_name])
-            sweep_node.property("plist", values)
-            
-            return {
-                "success": True,
-                "study": target_study,
-                "parameter": parameter_name,
-                "values": values,
-                "sweep_node": sweep_node.name() if hasattr(sweep_node, 'name') else "ParametricSweep",
-            }
+            return setup_parametric_sweep(
+                model,
+                parameter_name,
+                values,
+                study_name=study_name,
+                parameter_unit=parameter_unit,
+            )
         except Exception as e:
             return {"success": False, "error": f"Failed to set up parametric sweep: {str(e)}"}
     
