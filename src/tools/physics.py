@@ -118,6 +118,38 @@ def add_physics_interface(
     }
 
 
+def list_physics_features(model, physics_name: str) -> dict:
+    """List physics child features through clientapi tags and labels."""
+    physics = _find_physics_java(model.java, physics_name)
+    if physics is None:
+        return {
+            "success": False,
+            "error": f"Physics interface not found: {physics_name}",
+        }
+
+    features = []
+    feature_list = physics.feature()
+    for tag in list(feature_list.tags()):
+        feature = feature_list.get(tag)
+        info = {"tag": tag}
+        try:
+            info["label"] = str(feature.label())
+        except Exception:
+            info["label"] = tag
+        try:
+            info["selection"] = list(feature.selection().entities())
+        except Exception:
+            info["selection"] = None
+        features.append(info)
+
+    return {
+        "success": True,
+        "physics": physics_name,
+        "features": features,
+        "count": len(features),
+    }
+
+
 PHYSICS_INTERFACES = {
     "AC/DC": {
         "electrostatic": "Electrostatics (es)",
@@ -827,27 +859,7 @@ def register_physics_tools(mcp: FastMCP) -> None:
             }
         
         try:
-            physics_interfaces = model.physics()
-            if physics_name not in physics_interfaces:
-                return {"success": False, "error": f"Physics interface not found: {physics_name}"}
-            
-            physics_node = model / "physics" / physics_name
-            features = []
-            
-            for child in physics_node.children():
-                feat_info = {"name": child.name()}
-                try:
-                    feat_info["type"] = child.type() if hasattr(child, 'type') else "unknown"
-                except Exception:
-                    pass
-                features.append(feat_info)
-            
-            return {
-                "success": True,
-                "physics": physics_name,
-                "features": features,
-                "count": len(features),
-            }
+            return list_physics_features(model, physics_name)
         except Exception as e:
             return {"success": False, "error": f"Failed to list features: {str(e)}"}
     
