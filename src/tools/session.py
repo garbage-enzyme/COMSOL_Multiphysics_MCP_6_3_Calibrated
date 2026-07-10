@@ -167,14 +167,17 @@ class SessionManager:
             self._start_message = ""
         if self._client is None:
             return {"success": True, "message": "No active session."}
+
+        client = self._client
         try:
-            self._client.clear()
+            client.clear()
         except Exception:
             pass
         try:
-            self._client = None
+            client.disconnect()
         except Exception:
             pass
+        self._client = None
         self._models.clear()
         self._current_model = None
         try:

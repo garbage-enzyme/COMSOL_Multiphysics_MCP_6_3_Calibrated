@@ -86,3 +86,30 @@ class TestSessionManager:
         sm = SessionManager()
         status = sm.get_status()
         assert status["connected"] is False
+
+    def test_disconnect_releases_client(self):
+        from src.tools.session import SessionManager
+
+        class FakeClient:
+            def __init__(self):
+                self.calls = []
+
+            def clear(self):
+                self.calls.append("clear")
+
+            def disconnect(self):
+                self.calls.append("disconnect")
+
+        sm = SessionManager()
+        client = FakeClient()
+        sm._client = client
+        sm._models = {"model": object()}
+        sm._current_model = "model"
+
+        result = sm.disconnect()
+
+        assert result["success"] is True
+        assert client.calls == ["clear", "disconnect"]
+        assert sm.client is None
+        assert sm.models == {}
+        assert sm.current_model is None
