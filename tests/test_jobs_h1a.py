@@ -18,7 +18,7 @@ import psutil
 import pytest
 
 from src.jobs.manager import JobManager, validate_staged_sweep_spec
-from src.jobs.store import JobLock, JobStore, atomic_write_json, process_identity
+from src.jobs.store import JobLock, JobStore, atomic_write_json, process_identity, process_identity_state
 import src.jobs.store as store_module
 from src.jobs import worker as production_worker
 
@@ -229,6 +229,49 @@ def test_unknown_control_request_fails_closed(jobs_root):
     assert refused["accepted"] is False
     assert refused["reason"] == "unknown_control_request"
     assert store.read_state(job_id)["status"] == "running"
+
+
+def test_detached_coordinator_force_stops_exact_test_worker_and_allows_resume(jobs_root):
+    manager = JobManager(
+        jobs_root,
+        allow_test_jobs=True,
+        cancel_grace_seconds=0.1,
+        cancel_terminate_seconds=0.1,
+    )
+    result = manager.submit({"job_type": "test_sequence", "delays": [0.05, 0.4]})
+    running = wait_for(manager, result["job_id"], {"running"})
+    worker_identity = {
+        "pid": running["worker_pid"],
+        "process_create_time": running["worker_process_create_time"],
+        "command_signature": running["worker_command_signature"],
+    }
+
+    requested = manager.cancel(result["job_id"])
+    cancelled = wait_for(manager, result["job_id"], {"cancelled"}, timeout=10)
+
+    assert requested["request_id"] == cancelled["cancel"]["request_id"]
+    assert process_identity_state(worker_identity)[0] == "stale"
+    assert cancelled["cancel"]["verification"]["absent"] is True
+    resumed = manager.resume(result["job_id"])
+    assert resumed["attempt"] == 2
+    wait_for(manager, result["job_id"], {"completed"}, timeout=10)
+
+
+def test_thirty_cancel_status_polling_races_have_no_false_terminal_state(jobs_root):
+    manager = JobManager(
+        jobs_root,
+        allow_test_jobs=True,
+        cancel_grace_seconds=0.02,
+        cancel_terminate_seconds=0.05,
+    )
+    for _ in range(30):
+        result = manager.submit({"job_type": "test_sequence", "delays": [0.01, 0.25]})
+        wait_for(manager, result["job_id"], {"running"})
+        manager.cancel(result["job_id"])
+        final = wait_for(manager, result["job_id"], {"cancelled", "interrupted"}, timeout=5)
+        assert final["status"] != "completed"
+        if final["status"] == "cancelled":
+            assert final["cancel"]["verification"]["absent"] is True
 
 
 def test_completed_state_is_immutable(jobs_root):

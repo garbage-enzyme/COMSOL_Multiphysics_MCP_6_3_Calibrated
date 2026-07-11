@@ -148,10 +148,14 @@ class JobManager:
         *,
         allow_test_jobs: bool = False,
         preflight: Callable[..., dict[str, Any]] | None = None,
+        cancel_grace_seconds: float = 10.0,
+        cancel_terminate_seconds: float = 5.0,
     ):
         self.store = JobStore(root)
         self.allow_test_jobs = bool(allow_test_jobs)
         self._preflight = preflight
+        self.cancel_grace_seconds = float(cancel_grace_seconds)
+        self.cancel_terminate_seconds = float(cancel_terminate_seconds)
 
     def submit(self, raw_spec: dict[str, Any]) -> dict[str, Any]:
         job_type = raw_spec.get("job_type") if isinstance(raw_spec, dict) else None
@@ -272,6 +276,15 @@ class JobManager:
                 "status": state["status"],
                 "error": error,
             }
+        if not request["idempotent"]:
+            try:
+                self._launch_cancel_coordinator(job_id, control["request_id"])
+            except Exception as exc:
+                self.store.update_state(
+                    job_id,
+                    patch={"cancel": {**state.get("cancel", {}), "coordinator_launch_error": f"{type(exc).__name__}: {exc}"}},
+                    event="cancel_coordinator_launch_failed",
+                )
         return {
             "success": True,
             "job_id": job_id,
@@ -280,6 +293,32 @@ class JobManager:
             "target_attempt": control["target_attempt"],
             "idempotent": bool(request["idempotent"]),
         }
+
+    def _launch_cancel_coordinator(self, job_id: str, request_id: str) -> None:
+        directory = self.store.job_dir(job_id)
+        command = [
+            sys.executable,
+            "-m",
+            "src.jobs.cancel_worker",
+            str(self.store.root),
+            job_id,
+            request_id,
+            str(self.cancel_grace_seconds),
+            str(self.cancel_terminate_seconds),
+        ]
+        flags = 0
+        if os.name == "nt":
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+        with (directory / "worker.log").open("ab", buffering=0) as log:
+            subprocess.Popen(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=log,
+                close_fds=True,
+                creationflags=flags,
+                start_new_session=(os.name != "nt"),
+            )
 
     def resume(self, job_id: str) -> dict[str, Any]:
         with self.store.lock(job_id):
@@ -377,8 +416,8 @@ class JobManager:
                     "command_signature": state.get("worker_command_signature"),
                 }
                 process_state, reason = process_identity_state(identity)
-                if process_state == "stale":
-                    current = str(state["status"])
+                current = str(state["status"])
+                if process_state == "stale" and current != "cancelling":
                     if "interrupted" not in TRANSITIONS[current]:
                         raise RuntimeError(f"Cannot reconcile state {current} as interrupted")
                     state["status"] = "interrupted"
