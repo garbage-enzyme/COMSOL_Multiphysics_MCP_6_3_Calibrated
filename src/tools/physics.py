@@ -59,6 +59,16 @@ def _component_sdim(comp):
     return "3"
 
 
+def _resolve_geometry_tag(geom_list, geometry_name: Optional[str] = None) -> str:
+    """Resolve a geometry name or first clientapi tag to a Python string."""
+    if geometry_name:
+        return str(geometry_name)
+    tags = list(geom_list.tags())
+    if not tags:
+        raise ValueError("No geometries in component.")
+    return str(tags[0])
+
+
 def _find_physics_context(jm, physics_name):
     """Return ``(component, physics)`` by canonical type, label, or tag.
 
@@ -1246,11 +1256,8 @@ def register_physics_tools(mcp: FastMCP) -> None:
             geom_list = comp.geom()
             if geom_list.size() == 0:
                 return {"success": False, "error": "No geometries in component."}
-            geom_tag = geometry_name
-            if not geom_tag:
-                # clientapi: list is not subscriptable; use tags().
-                tags = list(geom_list.tags())
-                geom_tag = tags[0]
+            # clientapi lists are not subscriptable; resolve via tags().
+            geom_tag = _resolve_geometry_tag(geom_list, geometry_name)
             geom = comp.geom(geom_tag)
             geom.run()
 

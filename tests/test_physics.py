@@ -1,6 +1,7 @@
 """Unit tests for physics helpers without a COMSOL client."""
 
 from src.tools.physics import (
+    _resolve_geometry_tag,
     add_boundary_condition,
     add_domain_feature,
     add_multiphysics_coupling,
@@ -135,6 +136,19 @@ def test_add_physics_interface_validates_type():
     result = add_physics_interface(FakeModel(FakeComponent()), "  ")
 
     assert result["success"] is False
+
+
+def test_resolve_geometry_tag_normalizes_java_string():
+    geometries = type(
+        "GeometryList",
+        (),
+        {"tags": lambda self: [JavaStringLike("geom1")]},
+    )()
+
+    tag = _resolve_geometry_tag(geometries)
+
+    assert tag == "geom1"
+    assert type(tag) is str
 
 
 class FakeSelection:
