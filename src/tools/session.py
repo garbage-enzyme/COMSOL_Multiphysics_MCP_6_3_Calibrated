@@ -1,6 +1,7 @@
 """Session management tools for COMSOL MCP Server."""
 
 import threading
+from pathlib import Path
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
 import mph
@@ -22,6 +23,7 @@ class SessionManager:
                 instance = super().__new__(cls)
                 instance._client = None
                 instance._models = {}
+                instance._model_cleanup_paths = {}
                 instance._current_model = None
                 # comsol_start runs mph.Client() in this background thread.
                 instance._starting = False
@@ -213,6 +215,8 @@ class SessionManager:
         except Exception:
             pass
         self._client = None
+        for name in list(self._model_cleanup_paths):
+            self._cleanup_model_artifact(name)
         self._models.clear()
         self._current_model = None
         try:
@@ -263,13 +267,33 @@ class SessionManager:
             "current_model": self._current_model,
         }
     
-    def add_model(self, model: mph.Model) -> str:
+    def add_model(self, model: mph.Model, cleanup_path: Optional[str] = None) -> str:
         """Add a model to tracking."""
         name = model.name()
+        if name in self._model_cleanup_paths:
+            self._cleanup_model_artifact(name)
         self._models[name] = model
+        if cleanup_path:
+            self._model_cleanup_paths[name] = str(cleanup_path)
         if self._current_model is None:
             self._current_model = name
         return name
+
+    def _cleanup_model_artifact(self, name: str) -> None:
+        """Remove a tracked clone backing file after COMSOL releases it."""
+        cleanup_path = self._model_cleanup_paths.pop(name, None)
+        if not cleanup_path:
+            return
+        path = Path(cleanup_path)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            return
+        try:
+            if path.parent.name.startswith("comsol_mcp_clone_"):
+                path.parent.rmdir()
+        except OSError:
+            pass
     
     def get_model(self, name: Optional[str] = None) -> Optional[mph.Model]:
         """Get a model by name or current model."""
@@ -290,6 +314,7 @@ class SessionManager:
             try:
                 self._client.remove(self._models[name])
                 del self._models[name]
+                self._cleanup_model_artifact(name)
                 if self._current_model == name:
                     self._current_model = next(iter(self._models.keys()), None)
                 return True

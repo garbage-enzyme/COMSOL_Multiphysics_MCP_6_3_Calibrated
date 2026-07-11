@@ -141,6 +141,33 @@ class TestSessionManager:
         assert sm.models == {}
         assert sm.current_model is None
 
+    def test_remove_model_cleans_tracked_clone_file(self, tmp_path):
+        from src.tools.session import SessionManager
+
+        class FakeClient:
+            def remove(self, model):
+                return None
+
+        class FakeModel:
+            def name(self):
+                return "clone"
+
+        clone_dir = tmp_path / "comsol_mcp_clone_test"
+        clone_dir.mkdir()
+        clone_file = clone_dir / "clone.mph"
+        clone_file.write_bytes(b"model")
+
+        sm = SessionManager()
+        sm._client = FakeClient()
+        sm._models = {}
+        sm._model_cleanup_paths = {}
+        sm.add_model(FakeModel(), cleanup_path=str(clone_file))
+
+        assert sm.remove_model("clone") is True
+        assert not clone_file.exists()
+        assert not clone_dir.exists()
+        sm._client = None
+
     def test_disconnect_cancels_background_start(self, monkeypatch):
         import src.tools.session as session_module
 

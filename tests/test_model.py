@@ -93,9 +93,10 @@ def test_clone_model_uses_clientapi_save_copy_and_load():
     cloned = CloneModel("Loaded")
     client = CloneClient(cloned)
 
-    result = _clone_model(client, source, "Independent Copy")
+    result, cleanup_path = _clone_model(client, source, "Independent Copy")
 
     assert result is cloned
     assert source.java.saved[0][1] is True
     assert client.loaded == [source.java.saved[0][0]]
+    assert cleanup_path == source.java.saved[0][0]
     assert cloned.java.model_label == "Independent Copy"

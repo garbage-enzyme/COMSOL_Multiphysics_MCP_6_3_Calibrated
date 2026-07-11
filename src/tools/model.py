@@ -2,7 +2,7 @@
 
 from typing import Optional
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import mkdtemp
 from mcp.server.fastmcp import FastMCP
 
 from .session import session_manager
@@ -39,16 +39,17 @@ def _save_model_file(
 def _clone_model(client, model, new_name: Optional[str] = None):
     """Clone a standalone client model through clientapi Save Copy + load."""
     clone_name = new_name or f"{model.name()}_copy"
-    with TemporaryDirectory(
-        prefix="comsol_mcp_clone_",
-        dir=str(Path.cwd()),
-        ignore_cleanup_errors=True,
-    ) as temp_dir:
-        copy_path = Path(temp_dir) / "clone.mph"
+    temp_dir = Path(mkdtemp(prefix="comsol_mcp_clone_", dir=str(Path.cwd())))
+    copy_path = temp_dir / "clone.mph"
+    try:
         model.java.save(str(copy_path), True)
         cloned_model = client.load(str(copy_path))
+    except Exception:
+        copy_path.unlink(missing_ok=True)
+        temp_dir.rmdir()
+        raise
     cloned_model.java.label(clone_name)
-    return cloned_model
+    return cloned_model, str(copy_path)
 
 
 def register_model_tools(mcp: FastMCP) -> None:
@@ -393,8 +394,11 @@ def register_model_tools(mcp: FastMCP) -> None:
             if client is None:
                 return {"success": False, "error": "Client not available."}
             
-            cloned_model = _clone_model(client, model, new_name)
-            clone_name = session_manager.add_model(cloned_model)
+            cloned_model, cleanup_path = _clone_model(client, model, new_name)
+            clone_name = session_manager.add_model(
+                cloned_model,
+                cleanup_path=cleanup_path,
+            )
             
             if set_current:
                 session_manager.set_current_model(clone_name)
