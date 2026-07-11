@@ -9,7 +9,7 @@ import pytest
 
 
 ROOT = Path(__file__).parents[2]
-PROBES = ("test_study_mesh.py", "test_e2e_cap.py")
+PROBES = ("test_study_mesh.py", "test_e2e_cap.py", "test_unicode_save.py")
 
 
 def _comsol_pids() -> set[int]:
