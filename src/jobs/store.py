@@ -8,12 +8,13 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import tempfile
 import time
 from typing import Any, Iterator
 import uuid
 
 import psutil
+
+from src.utils.runtime_paths import default_jobs_root as _shared_default_jobs_root
 
 
 JOB_SCHEMA_VERSION = "1"
@@ -41,12 +42,7 @@ TRANSITIONS = {
 
 
 def default_jobs_root() -> Path:
-    configured = os.environ.get("COMSOL_MCP_JOBS_DIR")
-    if configured:
-        return Path(configured)
-    if os.name == "nt" and Path("D:/").exists():
-        return Path("D:/comsol_runtime/jobs")
-    return Path(tempfile.gettempdir()) / "comsol_runtime" / "jobs"
+    return _shared_default_jobs_root()
 
 
 def _require_ascii_path(path: Path) -> None:

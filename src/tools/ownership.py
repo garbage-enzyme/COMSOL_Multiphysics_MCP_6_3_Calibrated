@@ -7,7 +7,6 @@ import json
 import os
 import platform
 import sys
-import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -15,6 +14,8 @@ from typing import Any, Callable, Optional
 import mph
 import psutil
 from mcp.server.fastmcp import FastMCP
+
+from src.utils.runtime_paths import default_runtime_dir as _shared_default_runtime_dir
 
 
 LEASE_SCHEMA_VERSION = "1"
@@ -30,15 +31,7 @@ def _is_ascii_path(path: Path) -> bool:
 
 
 def _default_runtime_dir() -> Path:
-    configured = os.environ.get("COMSOL_MCP_RUNTIME_DIR")
-    if configured:
-        return Path(configured)
-    if os.name == "nt":
-        if Path("D:/").exists():
-            return Path("D:/comsol_runtime")
-        program_data = Path(os.environ.get("PROGRAMDATA", "C:/ProgramData"))
-        return program_data / "comsol_mcp_runtime"
-    return Path(tempfile.gettempdir()) / "comsol_runtime"
+    return _shared_default_runtime_dir()
 
 
 def _command_signature(command_line: list[str]) -> str:

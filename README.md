@@ -91,8 +91,12 @@ The refactor covers the following stable paths:
   `mph.Client()` when another solver owner is detected.
 - `solver_recover_stale_lease` removes only a lease proven stale by PID plus
   creation-time/command evidence. It never terminates a process. The runtime
-  directory defaults to `D:\comsol_runtime` when that drive exists and can be
-  overridden with `COMSOL_MCP_RUNTIME_DIR`; it must remain ASCII-only.
+  directory defaults to `D:\comsol_runtime` when that drive exists, otherwise
+  `C:\ProgramData\comsol_mcp_runtime` on Windows; it can be overridden with
+  `COMSOL_MCP_RUNTIME_DIR` and must remain ASCII-only. Durable jobs are always
+  placed in its `jobs` subdirectory. `COMSOL_MCP_JOBS_DIR` is a compatibility
+  override and, when used with `COMSOL_MCP_RUNTIME_DIR`, must equal
+  `<runtime>\jobs` so jobs and the solver lease remain coordinated.
 
 ### Repo hygiene
 
