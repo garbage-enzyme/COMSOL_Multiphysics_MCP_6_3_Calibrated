@@ -70,6 +70,37 @@ class FakeModel:
         self.java = FakeJava(FakeComponent(meshes))
 
 
+class JavaStringLike:
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return self.value
+
+
+class JavaTagFeatureList(FakeFeatureList):
+    def tags(self):
+        return [JavaStringLike("size"), JavaStringLike("ftet1")]
+
+
+class JavaTagMesh(FakeMesh):
+    def feature(self):
+        return JavaTagFeatureList()
+
+
+class JavaTagMeshList(FakeMeshList):
+    def tags(self):
+        return [JavaStringLike(tag) for tag in self.meshes]
+
+    def get(self, tag):
+        return self.meshes[str(tag)]
+
+
+class JavaTagComponent(FakeComponent):
+    def mesh(self):
+        return JavaTagMeshList(self.meshes)
+
+
 def test_get_mesh_info_uses_clientapi_counts():
     result = get_mesh_info(FakeModel({"mesh1": FakeMesh()}))
 
@@ -101,3 +132,14 @@ def test_get_mesh_info_reports_available_tags():
 
     assert result["success"] is False
     assert "mesh1" in result["error"]
+
+
+def test_get_mesh_info_normalizes_java_string_tags():
+    model = FakeModel({"mesh1": JavaTagMesh()})
+    model.java = FakeJava(JavaTagComponent({"mesh1": JavaTagMesh()}))
+
+    result = get_mesh_info(model)
+
+    assert result["success"] is True
+    assert result["mesh"]["name"] == "mesh1"
+    assert result["mesh"]["features"] == ["size", "ftet1"]

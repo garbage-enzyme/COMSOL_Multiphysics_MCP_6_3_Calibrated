@@ -21,7 +21,7 @@ def get_mesh_info(
         return {"success": False, "error": "No component found in model."}
 
     mesh_list = comp.mesh()
-    tags = list(mesh_list.tags())
+    tags = [str(tag) for tag in mesh_list.tags()]
     if not tags:
         return {"success": False, "error": "No meshes defined in model."}
 
@@ -48,7 +48,7 @@ def get_mesh_info(
     info = {
         "name": target_tag,
         "component": str(comp.tag()),
-        "features": list(mesh.feature().tags()),
+        "features": [str(tag) for tag in mesh.feature().tags()],
     }
     try:
         info["label"] = str(mesh.label())
