@@ -11,44 +11,64 @@ English | [中文](README_CN.md)
 
 Under `mph.Client(cores=...)` (MPh 1.3+ standalone), `model.java` returns `com.comsol.clientapi.impl.ModelClient` — a **wrapper** around the real model. Every `component()` / `physics()` / `geom()` call returns a `*Client` class whose method overloads differ from the direct `com.comsol.model.*` API the upstream code was written against. Result: most geometry/physics/study/mesh tools fail at runtime on standalone clientapi.
 
-This fork fixes all known clientapi mismatches in `src/tools/` and adds two missing tools. End-to-end verified via MCP: a parallel-plate capacitor returns **C = 1.8593794414 pF**, matching theory (1.8593794407 pF, err 4e-10 pF).
+This fork repairs the clientapi paths exercised by the current test matrix and adds durable workflow helpers. End-to-end verification through MCP gives a parallel-plate capacitance of **1.8593794419540652 pF**, matching the theoretical **1.8593794406880002 pF**.
 
-> ⚠️ **Provenance:** The code changes in this fork were authored by an AI assistant (opencode + glm-5.2) under human direction, then verified end-to-end through the MCP tool interface. See `git log` for the detailed change breakdown.
+> **Refactor provenance:** This COMSOL 6.4 clientapi refactor and validation pass was carried out with **OpenAI Codex** (GPT-5-based coding agent; project display label: **“GPT-5.6 Sol”**) under 陆星's direction. Earlier fork work also involved opencode/GLM-5.2. See `git log` for the tested, incremental change history.
 
 ## What changed
 
-All fixes live in `src/tools/` and target the `clientapi` wrappers. Summary by file:
+The refactor covers the following stable paths:
 
 ### `model.py`
-- `list_components`: iterate components via `tags()` instead of int index — `ModelEntityListClient.get` only accepts a String tag.
+
+- Unicode-safe `.mph` saves use `model.java.save(full_path)`.
+- Model clones use clientapi Save Copy plus `client.load()`; temporary backing files are tracked and removed with the cloned model/session.
+- Component tags and localized labels are normalized to Python strings before MCP transport.
 
 ### `geometry.py`
-- 5× `len(geom.feature())` → `geom.feature().size()` — clientapi lists don't support `len()`.
-- Affects `add_block`, `add_cylinder`, `add_sphere`, `add_rectangle`, `boolean_difference`.
+
+- Generic feature creation and listing use clientapi `tags()`/`size()` semantics.
+- Circle, Union, and CAD Import helpers use the correct clientapi feature and selection APIs.
+- Geometry responses normalize feature tags/labels for JSON transport.
 
 ### `physics.py`
-- New helpers `_first_component(jm)` and `_component_sdim(comp)` — `getSDim()` returns int; physics `create` needs it as a **String**.
-- All `comp.get(int)` → `tags()` iteration.
-- `physics().create(tag, type, sdim_string)` — **three args**, third is a String like `"3"`. Two-arg form fails with "物理场接口不支持空间维度: 0维"; int third arg fails with "No matching overloads".
-- `geometry_get_boundaries`: `getNboundary()` → `getNBoundaries()`, `getNdomain()` → `getNDomains()` (capitalized in clientapi).
-- `physics_add_electrostatics`: new `relpermittivity` + `domain_numbers` params. When given, auto-creates a `ChargeConservation` feature + material node — required because **COMSOL 6.3+/6.4's default Electrostatics domain feature is `fsp1` (FreeSpace) which uses vacuum ε₀ and ignores material `relpermittivity`**.
-- New generic `physics_add_domain_feature` tool (ChargeConservation / LinearElasticMaterial / Solid, …).
+
+- Physics interfaces use `physics().create(tag, type, sdim_string)`; child features use their integer entity dimension.
+- Canonical English names resolve stable tags even when COMSOL returns localized labels.
+- Domain features and materials are created in the physics-owning component and use that component's dimension.
+- Existing component materials are reused correctly.
+- Multiphysics couplings are created through `comp.multiphysics().create(...)`.
+- Interface, feature, geometry, and material tags are normalized before uniqueness checks or MCP transport.
+- `physics_add_electrostatics` can add `ChargeConservation` plus a material because COMSOL 6.3+/6.4's default `fsp1` FreeSpace feature otherwise uses vacuum permittivity.
 
 ### `study.py`
-- Study step type uses **full names** (`Stationary` / `TimeDependent` / `Eigenfrequency` / `Frequency` / `Perturbation`) via a `SHORT_TO_FULL` map. Short names (`stat` / `time` / `eig` / `freq` / `pert`) work in the direct Model API but fail in clientapi with `Operation_cannot_be_created_in_this_context`.
+
+- Study creation maps aliases to clientapi types such as `Stationary`, `Transient`, `FrequencyDomain`, `Eigenfrequency`, and `Perturbation`.
+- Study tags, localized labels, steps, and solve targets are resolved through stable clientapi tags.
 
 ### `mesh.py`
-- New `mesh_sequence_create` tool. COMSOL does **not** auto-create a mesh sequence — the upstream `mesh_create` only runs an existing sequence. New tool does `comp.mesh().create()` + `feature().create('FreeTet')` + `run()`, and reports element counts via `getNumElem()` / `getNumVertex()` (clientapi; not `getElement().size()`).
+
+- `mesh_sequence_create` creates and optionally builds an explicit mesh sequence; COMSOL does not create one automatically.
+- Inspection uses `getNumElem()` / `getNumVertex()` and returns JSON-safe tags and localized labels.
+
+### `parameters.py`, `results.py`, and `workflow.py`
+
+- Parametric sweeps use clientapi `String[]` properties (`pname`, `plistarr`, and optional `punit`) and activate the sweep.
+- Real, NumPy, and complex results are normalized for MCP JSON transport.
+- Staged parameter sweeps and mesh-convergence runs write success/error rows incrementally, retry failed points, resume successful rows, checkpoint through clientapi, and flush plus `fsync` every row.
+
+### `mim_patch.py`
+
+- Boundary probing uses `getUpDown()`, coordinates, normals, and bounding boxes.
+- Periodic side classification filters by both normal and cell-edge coordinate.
+- Pair, geometry, and mesh tags are normalized for transport.
 
 ### Repo hygiene
+
 - New `.gitignore` for `__pycache__/`, `*.pyc`, `opencode.json` (machine-specific paths), `knowledge_base/` (regenerable), `*.mph`.
 - Stopped tracking `opencode.json` and `knowledge_base/chroma.sqlite3` — both are local-only / regenerable.
 
-### Durable workflow tools
-
-`study_staged_parametric_sweep` and `mesh_convergence_study` run one point or
-mesh level at a time and persist each result immediately. Their CSV journals
-are flushed and synced after every row. Optional reliability controls are:
+`study_staged_parametric_sweep` and `mesh_convergence_study` support:
 
 - `resume_csv=True`: skip rows already recorded with `status=success`.
 - `max_retries=N`: retry a failed point or mesh level up to `N` times.
@@ -59,14 +79,18 @@ are flushed and synced after every row. Optional reliability controls are:
 Legacy workflow CSVs are upgraded in place when resumed; missing status values
 are treated as successful rows. Existing columns are preserved.
 
+> **Current limitation:** long sweeps still run inside one MCP call; durable background jobs, external solver ownership, and real cancellation remain planned work. The semantic PDF tools are also experimental and should not be called from the COMSOL control process until they are isolated or disabled by default.
+
 ## Verification
 
-Run the isolated unit suite with `python -m pytest -q`. Root-level
+Run the isolated unit suite with `python -m pytest -q`. The current refactor gate is
+**78 passing tests**. `python -m pytest --collect-only -q` also leaves the COMSOL
+process set unchanged. Root-level
 `test_*.py` files are manual integration probes that may start COMSOL and are
 explicitly excluded from pytest collection; invoke them individually only when
 a dedicated COMSOL client is available.
 
-`test_e2e_cap.py` and `test_study_mesh.py` are standalone verification scripts (drive `mph.Client` directly, no MCP layer). The same recipe was also re-run end-to-end through the MCP tool interface after restarting opencode to load the new code:
+`test_e2e_cap.py` and `test_study_mesh.py` are standalone verification scripts (drive `mph.Client` directly, no MCP layer). The same recipe was also re-run end-to-end through the MCP tool interface after restarting the MCP host to load the new code:
 
 | Step | MCP tool |
 | --- | --- |
@@ -78,7 +102,9 @@ a dedicated COMSOL client is available.
 | Solve | `study_create(Stationary)` → `study_solve` |
 | Capacitance | `results_global_evaluate('2*es.intWe/(1[V])^2','pF')` |
 
-**Result:** `1.8593794414 pF` vs theory `ε₀·ε_r·L²/d = 1.8593794407 pF` — error 4 × 10⁻¹⁰ pF.
+**Result:** `1.8593794419540652 pF` vs theory `ε₀·ε_r·L²/d = 1.8593794406880002 pF`.
+
+Additional real COMSOL 6.4 checks include localized component/geometry/physics/mesh/study JSON responses, Circle plus Union geometry, DXF import (5 domains and 33 boundaries), active Parametric sweep properties, model clone cleanup, and an `ElectromechanicalForces` multiphysics coupling.
 
 ### 6.3+/6.4 clientapi gotchas (documented in source comments)
 
@@ -100,11 +126,16 @@ a dedicated COMSOL client is available.
 ```bash
 git clone https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated.git
 cd COMSOL_Multiphysics_MCP_6_4_Calibrated
-python -m pip install -e .
+python -m pip install .
 # Optional: PDF knowledge base
 pip install pymupdf chromadb sentence-transformers
 python scripts/build_knowledge_base.py
 ```
+
+On Windows accounts with a non-ASCII user path, do not use editable installs for
+this repository. Re-run `python -m pip install . --no-deps` after source changes.
+The MCP server does not hot-reload `src/tools/`; restart the host agent/CLI after
+installing a new source revision.
 
 Start COMSOL Multiphysics first (MCP bridges via MPh/JPype), then point your MCP client (opencode / Claude Desktop) at the server:
 
