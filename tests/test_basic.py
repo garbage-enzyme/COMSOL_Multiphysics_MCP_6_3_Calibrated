@@ -328,6 +328,35 @@ class TestSessionManager:
         assert captured == {"cores": 2, "version": "6.4"}
         sm.disconnect()
 
+    def test_start_failure_requires_explicit_reset(self, monkeypatch):
+        import src.tools.session as session_module
+
+        sm = session_module.SessionManager()
+        calls = []
+
+        def fail_client(**kwargs):
+            calls.append(kwargs)
+            raise RuntimeError("planned start failure")
+
+        monkeypatch.setattr(session_module.mph, "Client", fail_client)
+        monkeypatch.setattr(session_module.mph_session, "client", None)
+
+        first = sm.start(cores=2)
+        assert first["starting"] is True
+        sm._start_thread.join(timeout=2)
+        assert not sm._start_thread.is_alive()
+
+        blocked = sm.start(cores=4)
+
+        assert blocked["success"] is False
+        assert blocked["reset_required"] is True
+        assert len(calls) == 1
+
+        reset = sm.reset()
+
+        assert reset["success"] is True
+        assert sm.get_status()["connected"] is False
+
     def test_connect_rejects_in_flight_local_start(self, monkeypatch):
         import src.tools.session as session_module
 

@@ -72,15 +72,25 @@ class SessionManager:
                     "starting": True,
                     "message": self._start_message or "COMSOL is still starting. Poll comsol_status."
                 }
+            if self._start_error:
+                return {
+                    "success": False,
+                    "starting": False,
+                    "reset_required": True,
+                    "error": self._start_error,
+                    "message": (
+                        "The previous COMSOL start failed. Call session_reset "
+                        "before retrying."
+                    ),
+                }
             # Claim the starting flag for this call.
             self._starting = True
             self._start_error = None
             self._start_message = "Starting COMSOL client in background..."
             self._start_cancel_requested = False
 
-        # If a previous start attempt failed, the thread is done; just spawn
-        # a fresh one. If a previous attempt succeeded, _client would be set
-        # and we'd have returned above.
+        # A previous failure is retained until explicit session_reset. If a
+        # previous attempt succeeded, _client would be set and we'd return above.
         # MPh 1.3.1 Client accepts cores/version/port/host only. COMSOL checks
         # out licensed products on demand when a physics interface is created.
         kwargs = {"cores": cores, "version": version}
