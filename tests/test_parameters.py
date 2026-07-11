@@ -30,6 +30,22 @@ class FakeFeatureList:
         return self.features[tag]
 
 
+class JavaStringLike:
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return self.value
+
+
+class JavaTagFeatureList(FakeFeatureList):
+    def tags(self):
+        return [JavaStringLike(tag) for tag in self.features]
+
+    def get(self, tag):
+        return self.features[str(tag)]
+
+
 class FakeStudy:
     def __init__(self, features=None):
         self.features = dict(features or {})
@@ -45,6 +61,11 @@ class FakeStudy:
 
     def label(self):
         return "Study 1"
+
+
+class JavaTagStudy(FakeStudy):
+    def feature(self):
+        return JavaTagFeatureList(self.features)
 
 
 class FakeStudyList:
@@ -108,6 +129,19 @@ def test_setup_parametric_sweep_reuses_existing_feature(monkeypatch):
     assert result["sweep_tag"] == "sweep_custom"
     assert list(study.features) == ["sweep_custom"]
     assert existing.properties["plistarr"] == ["0 10 20"]
+
+
+def test_setup_parametric_sweep_accepts_java_string_tags(monkeypatch):
+    existing = FakeSweep()
+    study = JavaTagStudy({"parametric1": existing})
+    model = FakeModel({"std1": study})
+    monkeypatch.setattr(parameters, "_java_string_array", list)
+
+    result = parameters.setup_parametric_sweep(model, "wl", [1, 2])
+
+    assert result["success"] is True
+    assert result["sweep_tag"] == "parametric1"
+    assert existing.properties["plistarr"] == ["1 2"]
 
 
 def test_setup_parametric_sweep_validates_inputs():

@@ -38,8 +38,9 @@ def setup_parametric_sweep(
     feature_list = study.feature()
     sweep = None
     sweep_tag = None
-    for tag in list(feature_list.tags()):
-        feature = feature_list.get(tag)
+    for raw_tag in list(feature_list.tags()):
+        tag = str(raw_tag)
+        feature = feature_list.get(raw_tag)
         try:
             label = str(feature.label()).lower()
         except Exception:
@@ -50,7 +51,7 @@ def setup_parametric_sweep(
             break
 
     if sweep is None:
-        existing = set(feature_list.tags())
+        existing = {str(tag) for tag in feature_list.tags()}
         index = 1
         sweep_tag = f"param{index}"
         while sweep_tag in existing:
