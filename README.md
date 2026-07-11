@@ -63,6 +63,18 @@ The refactor covers the following stable paths:
 - Periodic side classification filters by both normal and cell-edge coordinate.
 - Pair, geometry, and mesh tags are normalized for transport.
 
+### Default server profile
+
+- The dependency-free `capabilities` tool reports the COMSOL/MPh target, verified
+  areas, experimental async semantics, disabled tools, and missing long-job
+  guarantees without starting COMSOL.
+- `pdf_search`, `pdf_search_status`, and `pdf_list_modules` are disabled by
+  default because they can initialize ChromaDB and an embedding model in the
+  COMSOL control process. Their source remains available for an explicit isolated
+  profile.
+- Startup logs print a compact capability summary. The current default profile
+  exposes 84 tools.
+
 ### Repo hygiene
 
 - New `.gitignore` for `__pycache__/`, `*.pyc`, `opencode.json` (machine-specific paths), `knowledge_base/` (regenerable), `*.mph`.
@@ -79,12 +91,12 @@ The refactor covers the following stable paths:
 Legacy workflow CSVs are upgraded in place when resumed; missing status values
 are treated as successful rows. Existing columns are preserved.
 
-> **Current limitation:** long sweeps still run inside one MCP call; durable background jobs, external solver ownership, and real cancellation remain planned work. The semantic PDF tools are also experimental and should not be called from the COMSOL control process until they are isolated or disabled by default.
+> **Current limitation:** long sweeps still run inside one MCP call; durable background jobs, external solver ownership, and real cancellation remain planned work. Async progress is synthetic lifecycle state, and its cooperative cancellation flag cannot interrupt a blocking COMSOL `study.run()`.
 
 ## Verification
 
 Run the isolated unit suite with `python -m pytest -q`. The current refactor gate is
-**78 passing tests**. `python -m pytest --collect-only -q` also leaves the COMSOL
+**82 passing tests**. `python -m pytest --collect-only -q` also leaves the COMSOL
 process set unchanged. Root-level
 `test_*.py` files are manual integration probes that may start COMSOL and are
 explicitly excluded from pytest collection; invoke them individually only when
