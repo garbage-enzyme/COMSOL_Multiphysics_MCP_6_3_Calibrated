@@ -8,6 +8,7 @@ import os
 import platform
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -18,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 from src.utils.runtime_paths import default_runtime_dir as _shared_default_runtime_dir
 
 
-LEASE_SCHEMA_VERSION = "1"
+LEASE_SCHEMA_VERSION = "2"
 CREATE_TIME_TOLERANCE_SECONDS = 0.05
 
 
@@ -366,6 +367,7 @@ class SolverOwnership:
             "model_path": model_path,
             "heartbeat_epoch": now,
             "created_at_epoch": now,
+            "acquisition_id": uuid.uuid4().hex,
             "comsol_server_pids": [],
             "comsol_server_port": None,
         }
@@ -397,6 +399,10 @@ class SolverOwnership:
             return False
         if abs(float(lease.get("process_create_time", -1)) - self.create_time) > CREATE_TIME_TOLERANCE_SECONDS:
             return False
+        acquisition_id = lease.get("acquisition_id")
+        if not acquisition_id:
+            return False
+        original = self.lease_path.read_bytes()
         lease["heartbeat_epoch"] = time.time()
         if model_path is not None:
             lease["model_path"] = model_path
@@ -419,13 +425,20 @@ class SolverOwnership:
                 ):
                     server_pids.append(pid)
             lease["comsol_server_pids"] = sorted(set(server_pids))
-        temporary = self.lease_path.with_suffix(".json.tmp")
+        if self.lease_path.read_bytes() != original:
+            return False
+        temporary = self.lease_path.with_name(f".{self.lease_path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
         with temporary.open("w", encoding="utf-8", newline="\n") as handle:
             json.dump(lease, handle, ensure_ascii=False, indent=2, sort_keys=True)
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, self.lease_path)
+        try:
+            if self.lease_path.read_bytes() != original:
+                return False
+            os.replace(temporary, self.lease_path)
+        finally:
+            temporary.unlink(missing_ok=True)
         return True
 
     def release(self) -> dict[str, Any]:
@@ -438,6 +451,11 @@ class SolverOwnership:
             float(lease.get("process_create_time", -1)) - self.create_time
         ) > CREATE_TIME_TOLERANCE_SECONDS:
             return {"success": False, "released": False, "error": "Refusing to release a foreign solver lease."}
+        if not lease.get("acquisition_id"):
+            return {"success": False, "released": False, "error": "Refusing to release a legacy lease without acquisition ID."}
+        original = self.lease_path.read_bytes()
+        if self.lease_path.read_bytes() != original:
+            return {"success": False, "released": False, "error": "Lease changed before release; retry status."}
         self.lease_path.unlink(missing_ok=True)
         return {"success": True, "released": True}
 
@@ -456,6 +474,8 @@ class SolverOwnership:
                 "error": f"Lease is {state['state']}; only a proven stale lease may be removed.",
                 "lease_state": state,
             }
+        if not lease.get("acquisition_id"):
+            return {"success": False, "recovered": False, "error": "Lease has no acquisition ID; refusing stale recovery."}
         if self.lease_path.read_bytes() != original:
             return {"success": False, "recovered": False, "error": "Lease changed during recovery; retry status."}
         self.lease_path.unlink()
