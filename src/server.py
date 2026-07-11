@@ -6,6 +6,7 @@ from weakref import WeakSet
 from mcp.server.fastmcp import FastMCP
 
 from .tools import register_tool_modules
+from .tools.capabilities import startup_capability_summary
 from .resources.model_resources import register_model_resources
 from .knowledge.embedded import register_knowledge_tools
 
@@ -49,6 +50,7 @@ def create_server(name: str = "COMSOL MCP") -> FastMCP:
 def main() -> None:
     """Run the MCP server."""
     logger.info("Starting COMSOL MCP Server...")
+    logger.info("Capabilities: %s", startup_capability_summary())
     
     register_all_tools()
     register_all_resources()

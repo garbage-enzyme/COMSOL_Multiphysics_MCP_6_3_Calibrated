@@ -4,7 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 from src.knowledge.embedded import register_knowledge_tools
 from src.server import create_server, register_all_resources, register_all_tools
-from src.tools.capabilities import get_capabilities
+from src.tools.capabilities import get_capabilities, startup_capability_summary
 
 
 def test_server_registration_is_idempotent():
@@ -53,3 +53,20 @@ def test_capabilities_report_risky_operations_without_starting_comsol(monkeypatc
     assert result["session"] == {"connected": False, "starting": False}
     assert result["long_jobs"]["real_cancellation"] is False
     assert "pdf_search" in result["disabled_by_default"]
+
+
+def test_startup_capability_summary_is_compact_and_truthful(monkeypatch):
+    import src.tools.capabilities as capability_module
+
+    monkeypatch.setattr(
+        capability_module.session_manager,
+        "get_status",
+        lambda: {"connected": False},
+    )
+
+    summary = startup_capability_summary()
+
+    assert "profile=default" in summary
+    assert "semantic_pdf=disabled" in summary
+    assert "durable_jobs=unavailable" in summary
+    assert "cancellation=cooperative_only" in summary

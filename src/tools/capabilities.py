@@ -55,6 +55,18 @@ def get_capabilities() -> dict:
     }
 
 
+def startup_capability_summary() -> str:
+    """Return a compact startup summary without initializing external services."""
+    capabilities = get_capabilities()
+    targets = capabilities["targets"]
+    return (
+        f"profile={capabilities['profile']}; "
+        f"target=COMSOL {targets['comsol']} / MPh {targets['mph']}; "
+        "semantic_pdf=disabled; durable_jobs=unavailable; "
+        "cancellation=cooperative_only"
+    )
+
+
 def register_capability_tools(mcp: FastMCP) -> None:
     """Register dependency-free server capability tools."""
 
