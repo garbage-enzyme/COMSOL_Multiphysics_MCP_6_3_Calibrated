@@ -122,10 +122,13 @@ def test_cooperative_cancel_is_truthful_and_resumable(jobs_root):
     wait_for(manager, result["job_id"], {"running"})
 
     requested = manager.cancel(result["job_id"])
-    interrupted = wait_for(manager, result["job_id"], {"interrupted"})
+    terminal = wait_for(manager, result["job_id"], {"cancelled", "interrupted"})
 
     assert requested["status"] == "cancel_requested"
-    assert interrupted["last_error"]["type"] == "CooperativeCancel"
+    if terminal["status"] == "cancelled":
+        assert terminal["cancel"]["verification"]["absent"] is True
+    else:
+        assert terminal["last_error"]["type"] == "CooperativeCancel"
     manager.resume(result["job_id"])
     wait_for(manager, result["job_id"], {"completed"})
 
@@ -146,7 +149,7 @@ def test_repeated_and_concurrent_cancel_calls_share_one_attempt_bound_request(jo
     assert control["target_attempt"] == 1
     assert control["target_worker"]["pid"] is not None
     assert manager.store.read_state(result["job_id"])["cancel"]["request_id"] == first["request_id"]
-    wait_for(manager, result["job_id"], {"interrupted"})
+    wait_for(manager, result["job_id"], {"cancelled"})
 
 
 def test_completed_before_cancel_acquires_lock_has_no_control_side_effect(jobs_root):
@@ -170,7 +173,7 @@ def test_cancel_requested_state_cannot_be_overwritten_by_completed(jobs_root):
     with pytest.raises(ValueError, match="Invalid job state transition"):
         manager.store.update_state(result["job_id"], "completed")
 
-    wait_for(manager, result["job_id"], {"interrupted"})
+    wait_for(manager, result["job_id"], {"cancelled"})
 
 
 def test_stale_attempt_control_is_ignored_after_resume(jobs_root):
@@ -178,7 +181,7 @@ def test_stale_attempt_control_is_ignored_after_resume(jobs_root):
     result = manager.submit({"job_type": "test_sequence", "delays": [0.05, 0.4]})
     wait_for(manager, result["job_id"], {"running"})
     first = manager.cancel(result["job_id"])
-    wait_for(manager, result["job_id"], {"interrupted"})
+    wait_for(manager, result["job_id"], {"cancelled"})
 
     resumed = manager.resume(result["job_id"])
     manager.store.write_control(
@@ -273,6 +276,14 @@ def test_startup_reconciliation_relaunches_only_existing_stale_cancel_request(jo
 
     assert manager.reconcile_cancellations() == 1
     assert calls == [(job_id, "cancel-existing")]
+
+
+def test_read_only_manager_construction_skips_startup_reconciliation(jobs_root, monkeypatch):
+    def unexpected_reconciliation(_self, **_kwargs):
+        raise AssertionError("read-only manager must not reconcile")
+
+    monkeypatch.setattr(JobManager, "reconcile_cancellations", unexpected_reconciliation)
+    JobManager(jobs_root, allow_test_jobs=True, reconcile_on_start=False)
 
 
 def test_thirty_cancel_status_polling_races_have_no_false_terminal_state(jobs_root):

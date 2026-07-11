@@ -8,6 +8,8 @@ import sys
 import time
 from typing import Any
 
+import psutil
+
 from .process_control import capture_owned_descendants, inspect_identity, terminate_exact, verify_absent
 from .store import JobStore, atomic_write_json, process_identity
 
@@ -75,6 +77,65 @@ def _commit_cancelled(
         return True
 
 
+def _verify_solver_cleanup(store: JobStore, job_id: str) -> dict[str, Any]:
+    """Verify the target job's recorded lease, server identities, and port.
+
+    Bare historical server PIDs are intentionally insufficient: an H2 terminal
+    cancellation must remain blocked rather than risk acting after PID reuse.
+    """
+    # This common path is intentionally dependency-free: most workers release
+    # their lease before exiting, and a coordinator must not import the complete
+    # MCP tool package merely to confirm its absence.
+    if not (store.root.parent / "solver_owner.json").is_file():
+        return {"ok": True, "lease_state": "absent", "lease_recovered": False, "recorded_port_closed": True}
+
+    from src.tools.ownership import SolverOwnership
+
+    ownership = SolverOwnership(store.root.parent)
+    status = ownership.status()
+    lease_status = status["lease"]
+    if lease_status["state"] == "absent":
+        return {"ok": True, "lease_state": "absent", "lease_recovered": False, "recorded_port_closed": True}
+    lease = lease_status.get("lease")
+    if not isinstance(lease, dict) or lease.get("owner") != f"job:{job_id}":
+        return {"ok": False, "reason": "target job does not exclusively own the recorded solver lease", "lease_state": lease_status["state"]}
+    servers = lease.get("comsol_server_processes")
+    if not isinstance(servers, list):
+        return {"ok": False, "reason": "lease server identities are missing", "lease_state": lease_status["state"]}
+    if lease.get("comsol_server_pids") and not servers:
+        return {"ok": False, "reason": "lease contains only legacy server PIDs", "lease_state": lease_status["state"]}
+    server_verification = verify_absent(servers)
+    if not server_verification["absent"]:
+        return {"ok": False, "reason": "recorded server identity remains active or uncertain", "servers": server_verification, "lease_state": lease_status["state"]}
+    port = lease.get("comsol_server_port")
+    try:
+        port_open = bool(port) and any(
+            connection.laddr and int(connection.laddr.port) == int(port)
+            for connection in psutil.net_connections(kind="inet")
+        )
+    except (psutil.AccessDenied, OSError) as exc:
+        return {"ok": False, "reason": f"cannot verify recorded server port: {exc}", "lease_state": lease_status["state"]}
+    if port_open:
+        return {"ok": False, "reason": "recorded COMSOL server port remains open", "lease_state": lease_status["state"]}
+    if lease_status["state"] != "stale":
+        return {"ok": False, "reason": "target job lease is not proven stale", "lease_state": lease_status["state"]}
+    recovered = ownership.recover_stale()
+    if not recovered.get("success"):
+        return {"ok": False, "reason": f"stale lease recovery refused: {recovered}", "lease_state": lease_status["state"]}
+    return {
+        "ok": True,
+        "lease_state": "recovered",
+        "lease_recovered": bool(recovered.get("recovered")),
+        "recorded_port_closed": True,
+        "servers": server_verification,
+    }
+
+
+def _verified_cancel(store: JobStore, job_id: str, worker_verification: dict[str, Any]) -> dict[str, Any]:
+    solver = _verify_solver_cleanup(store, job_id)
+    return {**worker_verification, "solver": solver, "absent": bool(worker_verification["absent"] and solver["ok"])}
+
+
 def run(root: str, job_id: str, request_id: str, grace_seconds: float = 10.0, terminate_seconds: float = 5.0) -> int:
     store = JobStore(Path(root))
     identity = process_identity(os.getpid())
@@ -93,16 +154,19 @@ def run(root: str, job_id: str, request_id: str, grace_seconds: float = 10.0, te
     deadline = time.monotonic() + max(0.0, float(grace_seconds))
     while time.monotonic() < deadline:
         if inspect_identity(worker)["state"] != "active":
-            verification = verify_absent([worker, *initial_descendants])
+            verification = _verified_cancel(store, job_id, verify_absent([worker, *initial_descendants]))
             if verification["absent"]:
                 return 0 if _commit_cancelled(store, job_id, request_id, verification, []) else 0
-            _record_blocker(store, job_id, request_id, "worker exited during grace with uncertain descendants")
+            _record_blocker(store, job_id, request_id, str(verification.get("solver", {}).get("reason") or "worker exited during grace with uncertain descendants"))
             return 0
         time.sleep(0.025)
 
     captured = capture_owned_descendants(worker)
     if captured["worker"]["state"] != "active":
-        _record_blocker(store, job_id, request_id, captured["worker"]["reason"])
+        verification = _verified_cancel(store, job_id, verify_absent([worker, *initial_descendants]))
+        if verification["absent"]:
+            return 0 if _commit_cancelled(store, job_id, request_id, verification, []) else 0
+        _record_blocker(store, job_id, request_id, str(verification.get("solver", {}).get("reason") or captured["worker"]["reason"]))
         return 0
     descendants = captured["descendants"]
     actions = [terminate_exact(worker, force=False)]
@@ -114,9 +178,9 @@ def run(root: str, job_id: str, request_id: str, grace_seconds: float = 10.0, te
     for descendant in descendants:
         if inspect_identity(descendant)["state"] == "active":
             actions.append(terminate_exact(descendant, force=True))
-    verification = verify_absent([worker, *descendants])
+    verification = _verified_cancel(store, job_id, verify_absent([worker, *descendants]))
     if not verification["absent"]:
-        _record_blocker(store, job_id, request_id, "worker or captured descendant identity remains active/uncertain")
+        _record_blocker(store, job_id, request_id, str(verification.get("solver", {}).get("reason") or "worker or captured descendant identity remains active/uncertain"))
         return 0
     return 0 if _commit_cancelled(store, job_id, request_id, verification, actions) else 0
 

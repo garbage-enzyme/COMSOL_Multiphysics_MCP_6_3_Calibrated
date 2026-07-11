@@ -236,7 +236,7 @@ class SolverOwnership:
         try:
             from src.jobs.manager import JobManager
 
-            durable_jobs = JobManager(self.runtime_dir / "jobs").summaries()
+            durable_jobs = JobManager(self.runtime_dir / "jobs", reconcile_on_start=False).summaries()
         except Exception as exc:
             durable_jobs = {
                 "available": False,
@@ -369,6 +369,7 @@ class SolverOwnership:
             "created_at_epoch": now,
             "acquisition_id": uuid.uuid4().hex,
             "comsol_server_pids": [],
+            "comsol_server_processes": [],
             "comsol_server_port": None,
         }
         data = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
@@ -413,7 +414,7 @@ class SolverOwnership:
                 for item in processes
                 if item.get("pid") is not None
             }
-            server_pids = []
+            servers = []
             for item in processes:
                 pid = int(item.get("pid") or 0)
                 if not pid or not self._is_descendant(pid, parent_map, self.pid):
@@ -423,8 +424,19 @@ class SolverOwnership:
                 if "mphserver" in name or (
                     name in {"java", "java.exe"} and "comsol" in command and "server" in command
                 ):
-                    server_pids.append(pid)
-            lease["comsol_server_pids"] = sorted(set(server_pids))
+                    servers.append(
+                        {
+                            "pid": pid,
+                            "process_create_time": item.get("create_time"),
+                            "command_signature": _command_signature(
+                                [str(part) for part in item.get("command_line") or []]
+                            ),
+                        }
+                    )
+            servers.sort(key=lambda item: int(item["pid"]))
+            lease["comsol_server_processes"] = servers
+            # Keep v2 PID-only evidence readable, but never use it to act.
+            lease["comsol_server_pids"] = [item["pid"] for item in servers]
         if self.lease_path.read_bytes() != original:
             return False
         temporary = self.lease_path.with_name(f".{self.lease_path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")

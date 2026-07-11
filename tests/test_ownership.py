@@ -160,6 +160,13 @@ def test_heartbeat_records_owned_comsol_server_pid(runtime_dir):
     lease = manager.status()["lease"]["lease"]
 
     assert lease["comsol_server_pids"] == [52]
+    assert lease["comsol_server_processes"] == [
+        {
+            "pid": 52,
+            "process_create_time": 502.0,
+            "command_signature": _command_signature(["comsolmphserver.exe", "-port", "2036"]),
+        }
+    ]
 
 
 def test_real_process_evidence_refuses_known_external_client(runtime_dir):

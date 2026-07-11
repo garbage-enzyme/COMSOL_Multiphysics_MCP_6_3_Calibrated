@@ -151,13 +151,15 @@ class JobManager:
         preflight: Callable[..., dict[str, Any]] | None = None,
         cancel_grace_seconds: float = 10.0,
         cancel_terminate_seconds: float = 5.0,
+        reconcile_on_start: bool = True,
     ):
         self.store = JobStore(root)
         self.allow_test_jobs = bool(allow_test_jobs)
         self._preflight = preflight
         self.cancel_grace_seconds = float(cancel_grace_seconds)
         self.cancel_terminate_seconds = float(cancel_terminate_seconds)
-        self.reconcile_cancellations()
+        if reconcile_on_start:
+            self.reconcile_cancellations()
 
     def submit(self, raw_spec: dict[str, Any]) -> dict[str, Any]:
         job_type = raw_spec.get("job_type") if isinstance(raw_spec, dict) else None
@@ -322,14 +324,18 @@ class JobManager:
                 start_new_session=(os.name != "nt"),
             )
 
-    def reconcile_cancellations(self) -> int:
+    def reconcile_cancellations(self, *, limit: int = 20) -> int:
         """Boundedly relaunch only durable cancellation requests lacking a live coordinator."""
         relaunched = 0
         if not self.store.root.is_dir():
             return 0
-        for directory in self.store.root.iterdir():
-            if not directory.is_dir() or not (directory / "state.json").is_file():
-                continue
+        count = max(1, min(int(limit), 100))
+        directories = sorted(
+            (path for path in self.store.root.iterdir() if path.is_dir() and (path / "state.json").is_file()),
+            key=lambda path: path.stat().st_mtime_ns,
+            reverse=True,
+        )[:count]
+        for directory in directories:
             job_id = directory.name
             try:
                 with self.store.lock(job_id, timeout=0.1):
@@ -436,6 +442,16 @@ class JobManager:
         return {"success": True, "job_id": job_id, "status": "starting", "attempt": state["attempt"]}
 
     def status(self, job_id: str) -> dict[str, Any]:
+        # A cancellation coordinator must be able to acquire the durable lock
+        # promptly.  Atomic state replacement makes this terminal observation
+        # safe without taking the polling lock, and it avoids status callers
+        # starving the coordinator during the H2 grace/verification window.
+        try:
+            observed = self.store.read_state(job_id)
+        except RuntimeError:
+            observed = None
+        if isinstance(observed, dict) and observed.get("status") == "cancelling":
+            return {"success": True, "job_id": job_id, **observed}
         with self.store.lock(job_id):
             state = self.store.read_state(job_id)
             if state.get("status") in ACTIVE_STATES and state.get("worker_pid") is not None:
