@@ -13,6 +13,9 @@ expressions that make sense for the model at hand.
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
+import math
 import os
 import time
 from pathlib import Path
@@ -24,6 +27,10 @@ from mcp.server.fastmcp import FastMCP
 from .session import session_manager
 from .results import _json_safe
 from .study import _resolve_study_tag
+
+
+SWEEP_SCHEMA_VERSION = "2"
+DEFAULT_RESPONSE_TAIL = 5
 
 
 def _format_parameter_value(value: Any, unit: Optional[str] = None) -> str:
@@ -150,6 +157,267 @@ def _read_csv_rows(csv_path: Optional[str]) -> list[dict[str, str]]:
         return list(csv.DictReader(handle))
 
 
+def _read_csv_journal(csv_path: Optional[str]) -> tuple[list[str], list[dict[str, str]]]:
+    if not csv_path:
+        return [], []
+    path = Path(csv_path)
+    if not path.exists() or path.stat().st_size == 0:
+        return [], []
+    with path.open(newline="", encoding="utf-8-sig") as handle:
+        reader = csv.DictReader(handle)
+        return list(reader.fieldnames or []), list(reader)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _model_identity(model, source_model_path: Optional[str]) -> dict[str, Any]:
+    identity: dict[str, Any] = {
+        "model_name": str(model.name()),
+        "source_path": None,
+        "source_sha256": None,
+        "source_size": None,
+        "source_mtime_ns": None,
+    }
+    if not source_model_path:
+        return identity
+    path = Path(source_model_path).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"source_model_path does not exist: {path}")
+    stat = path.stat()
+    identity.update(
+        source_path=str(path),
+        source_sha256=_sha256_file(path),
+        source_size=stat.st_size,
+        source_mtime_ns=stat.st_mtime_ns,
+    )
+    return identity
+
+
+def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    _ensure_parent_dir(str(path))
+    temporary = path.with_suffix(path.suffix + f".tmp-{os.getpid()}")
+    with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+        json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+
+
+def _prepare_sweep_manifest(
+    model,
+    *,
+    parameter_name: str,
+    parameter_values: Sequence[Any],
+    parameter_unit: Optional[str],
+    expressions: Sequence[str],
+    study_tag: str,
+    study_step_tag: Optional[str],
+    study_step_property: str,
+    study_step_unit: Optional[str],
+    csv_path: Optional[str],
+    manifest_path: Optional[str],
+    source_model_path: Optional[str],
+    config_id: Optional[str],
+    record_wavelength_controls: bool,
+    physical_bounds: Optional[dict[str, Sequence[float]]],
+    resume_csv: bool,
+    append_csv: bool,
+    allow_legacy_resume: bool,
+) -> tuple[dict[str, Any], Optional[Path], bool]:
+    model_identity = _model_identity(model, source_model_path)
+    spec = {
+        "workflow": "staged_parametric_sweep",
+        "model": model_identity,
+        "study_tag": study_tag,
+        "study_step_tag": study_step_tag,
+        "study_step_property": study_step_property,
+        "study_step_unit": study_step_unit,
+        "parameter_name": parameter_name,
+        "parameter_unit": parameter_unit,
+        "requested_values": [
+            _format_parameter_value(value, parameter_unit) for value in parameter_values
+        ],
+        "expressions": list(expressions),
+        "record_wavelength_controls": record_wavelength_controls,
+        "physical_bounds": physical_bounds or {},
+    }
+    canonical = json.dumps(spec, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    spec_fingerprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    active_config_id = config_id or f"sweep-{spec_fingerprint[:16]}"
+    manifest = {
+        "schema_version": SWEEP_SCHEMA_VERSION,
+        "config_id": active_config_id,
+        "spec_fingerprint": spec_fingerprint,
+        "created_at_epoch": time.time(),
+        "spec": spec,
+    }
+    path = Path(manifest_path).expanduser().resolve() if manifest_path else None
+    if path is None and csv_path:
+        path = Path(str(Path(csv_path).expanduser().resolve()) + ".manifest.json")
+
+    adopted_legacy = False
+    if path and path.is_file() and (resume_csv or append_csv):
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Cannot parse sweep manifest {path}: {exc}") from exc
+        for key in ("schema_version", "config_id", "spec_fingerprint"):
+            if existing.get(key) != manifest.get(key):
+                raise ValueError(
+                    f"Sweep manifest mismatch for {key}: "
+                    f"existing={existing.get(key)!r}, active={manifest.get(key)!r}"
+                )
+        manifest = existing
+    elif path and (resume_csv or append_csv) and csv_path and Path(csv_path).exists():
+        if not allow_legacy_resume:
+            raise ValueError(
+                f"Existing CSV has no manifest at {path}; set allow_legacy_resume=true "
+                "only after auditing that legacy file"
+            )
+        adopted_legacy = True
+
+    if path and (not path.exists() or not (resume_csv or append_csv) or adopted_legacy):
+        _atomic_write_json(path, manifest)
+    return manifest, path, adopted_legacy
+
+
+def _finite_csv_value(value: Optional[str]) -> tuple[bool, list[float]]:
+    if value is None or not str(value).strip():
+        return False, []
+    numbers: list[float] = []
+    for item in str(value).split(";"):
+        token = item.strip()
+        try:
+            if token.endswith("i"):
+                parsed = complex(token[:-1].replace("+-", "-") + "j")
+                components = [float(parsed.real), float(parsed.imag)]
+            else:
+                components = [float(token)]
+        except (TypeError, ValueError):
+            return False, []
+        if not all(math.isfinite(component) for component in components):
+            return False, []
+        numbers.extend(components)
+    return True, numbers
+
+
+def _resume_completed_values(
+    csv_path: Optional[str],
+    *,
+    fieldnames: Sequence[str],
+    manifest: dict[str, Any],
+    expressions: Sequence[str],
+    physical_bounds: Optional[dict[str, Sequence[float]]],
+    adopted_legacy: bool,
+) -> tuple[set[str], int]:
+    existing_fields, rows = _read_csv_journal(csv_path)
+    if not rows:
+        return set(), 0
+    required = {"parameter_value", *expressions}
+    wavelength_fields = {
+        "evaluated_wl",
+        "evaluated_c_const_over_ewfd_freq",
+    }
+    if wavelength_fields <= set(fieldnames):
+        required.update(wavelength_fields)
+    if not adopted_legacy:
+        required.update({"schema_version", "config_id", "status"})
+    missing = sorted(required - set(existing_fields))
+    if missing:
+        raise ValueError(f"CSV schema is missing required columns: {missing}")
+
+    completed: set[str] = set()
+    invalid = 0
+    for row in rows:
+        status = (row.get("status") or ("success" if adopted_legacy else "")).strip().lower()
+        if status not in ({"success", "ok"} if adopted_legacy else {"ok"}):
+            invalid += 1
+            continue
+        if not adopted_legacy and (
+            row.get("schema_version") != SWEEP_SCHEMA_VERSION
+            or row.get("config_id") != manifest["config_id"]
+        ):
+            raise ValueError("CSV contains rows from a different schema or config_id")
+        valid = True
+        parsed_values: dict[str, list[float]] = {}
+        for expression in expressions:
+            finite, values = _finite_csv_value(row.get(expression))
+            if not finite:
+                valid = False
+                break
+            parsed_values[expression] = values
+        for wavelength_field in wavelength_fields & required:
+            finite, _ = _finite_csv_value(row.get(wavelength_field))
+            if not finite:
+                valid = False
+                break
+        if valid:
+            for expression, bounds in (physical_bounds or {}).items():
+                if expression not in parsed_values or len(bounds) != 2:
+                    valid = False
+                    break
+                low, high = float(bounds[0]), float(bounds[1])
+                if any(value < low or value > high for value in parsed_values[expression]):
+                    valid = False
+                    break
+        parameter_value = row.get("parameter_value")
+        if valid and parameter_value:
+            completed.add(parameter_value)
+        else:
+            invalid += 1
+    return completed, invalid
+
+
+def _migrate_legacy_sweep_csv(
+    csv_path: Optional[str],
+    fieldnames: Sequence[str],
+    manifest: dict[str, Any],
+) -> None:
+    existing_fields, rows = _read_csv_journal(csv_path)
+    if not rows:
+        return
+    for row in rows:
+        row["schema_version"] = SWEEP_SCHEMA_VERSION
+        row["config_id"] = manifest["config_id"]
+        row["source_model_sha256"] = manifest["spec"]["model"]["source_sha256"]
+        row["status"] = "legacy_unverified"
+        row.setdefault("error_type", "")
+        row.setdefault("error", "")
+    merged_fields = [
+        *fieldnames,
+        *(field for field in existing_fields if field not in fieldnames),
+    ]
+    _write_rows_csv(csv_path, merged_fields, rows, append=False)
+
+
+def _validate_evaluated_values(
+    evaluated: dict[str, Any],
+    expressions: Sequence[str],
+    physical_bounds: Optional[dict[str, Sequence[float]]],
+) -> None:
+    parsed_values: dict[str, list[float]] = {}
+    for expression in expressions:
+        finite, values = _finite_csv_value(str(_csv_value(evaluated.get(expression))))
+        if not finite:
+            raise ValueError(f"Expression {expression!r} did not evaluate to finite numeric data")
+        parsed_values[expression] = values
+    for expression, bounds in (physical_bounds or {}).items():
+        if expression not in parsed_values or len(bounds) != 2:
+            raise ValueError(f"Invalid physical bound declaration for {expression!r}")
+        low, high = float(bounds[0]), float(bounds[1])
+        if any(value < low or value > high for value in parsed_values[expression]):
+            raise ValueError(
+                f"Expression {expression!r} is outside physical bounds [{low}, {high}]"
+            )
+
+
 def _completed_keys(csv_path: Optional[str], key: str) -> set[str]:
     """Return successful journal keys, including rows from the legacy schema."""
     completed = set()
@@ -187,6 +455,13 @@ def run_staged_parametric_sweep(
     checkpoint_model_path: Optional[str] = None,
     checkpoint_every: int = 1,
     save_model_path: Optional[str] = None,
+    manifest_path: Optional[str] = None,
+    source_model_path: Optional[str] = None,
+    config_id: Optional[str] = None,
+    allow_legacy_resume: bool = False,
+    record_wavelength_controls: Optional[bool] = None,
+    physical_bounds: Optional[dict[str, Sequence[float]]] = None,
+    response_tail: int = DEFAULT_RESPONSE_TAIL,
 ) -> dict[str, Any]:
     """Run a parameter sweep one point at a time and append CSV rows eagerly."""
     if not parameter_values:
@@ -197,6 +472,20 @@ def run_staged_parametric_sweep(
         return {"success": False, "error": "max_retries must be non-negative."}
     if checkpoint_every < 1:
         return {"success": False, "error": "checkpoint_every must be at least 1."}
+    if response_tail < 0 or response_tail > 20:
+        return {"success": False, "error": "response_tail must be between 0 and 20."}
+    if source_model_path:
+        baseline = Path(source_model_path).expanduser().resolve()
+        mutation_targets = [
+            Path(path).expanduser().resolve()
+            for path in (checkpoint_model_path, save_model_path)
+            if path
+        ]
+        if baseline in mutation_targets:
+            return {
+                "success": False,
+                "error": "checkpoint/save path must not overwrite source_model_path",
+            }
 
     jm = model.java
     study_tag = _resolve_study_tag(model, study_name)
@@ -206,20 +495,73 @@ def run_staged_parametric_sweep(
             return {"success": False, "error": "No studies found in model."}
         study_tag = str(tags[0])
 
+    if record_wavelength_controls is None:
+        record_wavelength_controls = parameter_name.casefold() in {"wl", "wavelength"}
     fieldnames = [
+        "schema_version",
+        "config_id",
+        "source_model_sha256",
         parameter_name,
         "parameter_value",
+        *(
+            ["requested_wavelength", "evaluated_wl", "evaluated_c_const_over_ewfd_freq"]
+            if record_wavelength_controls else []
+        ),
         "status",
         "attempt",
+        "error_type",
         "error",
         "solve_sec",
         *list(expressions),
     ]
     rows: list[dict[str, Any]] = []
     failed_rows: list[dict[str, Any]] = []
+    journal_tail: list[dict[str, Any]] = []
     if csv_path and not append_csv and not resume_csv:
         Path(csv_path).unlink(missing_ok=True)
-    completed_values = _completed_keys(csv_path, "parameter_value") if resume_csv else set()
+    try:
+        manifest, resolved_manifest_path, adopted_legacy = _prepare_sweep_manifest(
+            model,
+            parameter_name=parameter_name,
+            parameter_values=parameter_values,
+            parameter_unit=parameter_unit,
+            expressions=expressions,
+            study_tag=study_tag,
+            study_step_tag=study_step_tag,
+            study_step_property=study_step_property,
+            study_step_unit=study_step_unit,
+            csv_path=csv_path,
+            manifest_path=manifest_path,
+            source_model_path=source_model_path,
+            config_id=config_id,
+            record_wavelength_controls=record_wavelength_controls,
+            physical_bounds=physical_bounds,
+            resume_csv=resume_csv,
+            append_csv=append_csv,
+            allow_legacy_resume=allow_legacy_resume,
+        )
+        if adopted_legacy:
+            _migrate_legacy_sweep_csv(csv_path, fieldnames, manifest)
+            adopted_legacy = False
+        completed_values, invalid_existing_rows = (
+            _resume_completed_values(
+                csv_path,
+                fieldnames=fieldnames,
+                manifest=manifest,
+                expressions=expressions,
+                physical_bounds=physical_bounds,
+                adopted_legacy=adopted_legacy,
+            )
+            if resume_csv else (set(), 0)
+        )
+    except (OSError, ValueError) as exc:
+        return {
+            "success": False,
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+            "csv_path": csv_path,
+            "manifest_path": manifest_path or (f"{csv_path}.manifest.json" if csv_path else None),
+        }
     skipped = 0
     checkpointed_at = 0
     total_start = time.time()
@@ -243,17 +585,42 @@ def run_staged_parametric_sweep(
 
                 jm.study(study_tag).run()
                 solve_sec = time.time() - solve_start
-                evaluated = _evaluate_expressions(model, expressions)
+                evaluation_expressions = list(expressions)
+                if record_wavelength_controls:
+                    evaluation_expressions.extend(
+                        expression for expression in ("wl", "c_const/ewfd.freq")
+                        if expression not in evaluation_expressions
+                    )
+                evaluated_all = _evaluate_expressions(model, evaluation_expressions)
+                evaluated = {expression: evaluated_all[expression] for expression in expressions}
+                _validate_evaluated_values(
+                    evaluated_all,
+                    evaluation_expressions,
+                    physical_bounds,
+                )
                 row = {
+                    "schema_version": SWEEP_SCHEMA_VERSION,
+                    "config_id": manifest["config_id"],
+                    "source_model_sha256": manifest["spec"]["model"]["source_sha256"],
                     parameter_name: value,
                     "parameter_value": parameter_value,
-                    "status": "success",
+                    "status": "ok",
                     "attempt": attempt,
+                    "error_type": None,
                     "error": None,
                     "solve_sec": solve_sec,
                     **evaluated,
                 }
+                if record_wavelength_controls:
+                    row.update(
+                        requested_wavelength=parameter_value,
+                        evaluated_wl=evaluated_all["wl"],
+                        evaluated_c_const_over_ewfd_freq=evaluated_all[
+                            "c_const/ewfd.freq"
+                        ],
+                    )
                 rows.append(row)
+                journal_tail.append(row)
                 _write_rows_csv(csv_path, fieldnames, [row], append=True)
                 if checkpoint_model_path and len(rows) % checkpoint_every == 0:
                     _save_model(model, checkpoint_model_path)
@@ -263,14 +630,21 @@ def run_staged_parametric_sweep(
                 if attempt <= max_retries:
                     continue
                 row = {
+                    "schema_version": SWEEP_SCHEMA_VERSION,
+                    "config_id": manifest["config_id"],
+                    "source_model_sha256": manifest["spec"]["model"]["source_sha256"],
                     parameter_name: value,
                     "parameter_value": parameter_value,
                     "status": "error",
                     "attempt": attempt,
+                    "error_type": type(exc).__name__,
                     "error": str(exc),
                     "solve_sec": time.time() - solve_start,
                 }
+                if record_wavelength_controls:
+                    row["requested_wavelength"] = parameter_value
                 failed_rows.append(row)
+                journal_tail.append(row)
                 _write_rows_csv(csv_path, fieldnames, [row], append=True)
                 if not continue_on_error:
                     raise
@@ -282,18 +656,22 @@ def run_staged_parametric_sweep(
 
     return {
         "success": not failed_rows,
-        "model": model.name(),
+        "model": str(model.name()),
         "study": study_name,
         "resolved_study_tag": study_tag,
         "parameter": parameter_name,
         "n_points": len(rows),
         "n_failed": len(failed_rows),
         "n_skipped": skipped,
+        "n_invalid_existing": invalid_existing_rows,
         "csv_path": csv_path,
+        "manifest_path": str(resolved_manifest_path) if resolved_manifest_path else None,
+        "config_id": manifest["config_id"],
+        "schema_version": SWEEP_SCHEMA_VERSION,
         "save_model_path": save_model_path,
         "total_sec": time.time() - total_start,
-        "rows": rows,
-        "failed_rows": failed_rows,
+        "last_point": journal_tail[-1] if journal_tail else None,
+        "tail_rows": journal_tail[-response_tail:] if response_tail else [],
     }
 
 
@@ -483,6 +861,13 @@ def register_workflow_tools(mcp: FastMCP) -> None:
         checkpoint_model_path: Optional[str] = None,
         checkpoint_every: int = 1,
         save_model_path: Optional[str] = None,
+        manifest_path: Optional[str] = None,
+        source_model_path: Optional[str] = None,
+        config_id: Optional[str] = None,
+        allow_legacy_resume: bool = False,
+        record_wavelength_controls: Optional[bool] = None,
+        physical_bounds: Optional[dict[str, Sequence[float]]] = None,
+        response_tail: int = DEFAULT_RESPONSE_TAIL,
         model_name: Optional[str] = None,
     ) -> dict[str, Any]:
         """
@@ -512,6 +897,15 @@ def register_workflow_tools(mcp: FastMCP) -> None:
             checkpoint_model_path: Optional model path saved during the sweep.
             checkpoint_every: Save a checkpoint after this many new successes.
             save_model_path: Optional path to save the model after the sweep.
+            manifest_path: Optional manifest path; defaults beside csv_path.
+            source_model_path: Immutable source model to fingerprint with SHA-256.
+            config_id: Optional caller-supplied stable configuration identifier.
+            allow_legacy_resume: Explicitly adopt an audited CSV lacking a manifest;
+                old rows are marked unverified and rerun.
+            record_wavelength_controls: Record requested wavelength, evaluated wl,
+                and c_const/ewfd.freq. Defaults on for wl/wavelength parameters.
+            physical_bounds: Optional expression bounds, e.g. {"A": [0, 1]}.
+            response_tail: Number of recent rows returned in the MCP response (0-20).
             model_name: Model name (default: current).
 
         Returns:
@@ -522,8 +916,6 @@ def register_workflow_tools(mcp: FastMCP) -> None:
             return {"success": False, "error": f"Model not found: {model_name or 'no current model'}"}
 
         try:
-            if csv_path and not append_csv and not resume_csv:
-                Path(csv_path).unlink(missing_ok=True)
             return run_staged_parametric_sweep(
                 model,
                 parameter_name,
@@ -543,6 +935,13 @@ def register_workflow_tools(mcp: FastMCP) -> None:
                 checkpoint_model_path=checkpoint_model_path,
                 checkpoint_every=checkpoint_every,
                 save_model_path=save_model_path,
+                manifest_path=manifest_path,
+                source_model_path=source_model_path,
+                config_id=config_id,
+                allow_legacy_resume=allow_legacy_resume,
+                record_wavelength_controls=record_wavelength_controls,
+                physical_bounds=physical_bounds,
+                response_tail=response_tail,
             )
         except Exception as exc:
             return {"success": False, "error": f"staged sweep failed: {exc}"}

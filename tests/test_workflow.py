@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 
 import numpy as np
@@ -168,8 +169,11 @@ def test_staged_sweep_retries_and_checkpoints(tmp_path):
     assert result["resolved_study_tag"] == "std1"
     assert type(result["resolved_study_tag"]) is str
     assert result["n_points"] == 2
-    assert result["rows"][0]["attempt"] == 2
-    assert [row["status"] for row in read_csv(csv_path)] == ["success", "success"]
+    assert result["tail_rows"][0]["attempt"] == 2
+    assert [row["status"] for row in read_csv(csv_path)] == ["ok", "ok"]
+    assert result["manifest_path"] == str(csv_path) + ".manifest.json"
+    assert Path(result["manifest_path"]).is_file()
+    assert "rows" not in result
     assert len(model.java.saved) == 2
 
 
@@ -189,13 +193,15 @@ def test_staged_sweep_resumes_legacy_csv(tmp_path):
         parameter_unit="m",
         csv_path=str(csv_path),
         resume_csv=True,
+        allow_legacy_resume=True,
     )
 
     rows = read_csv(csv_path)
-    assert result["n_skipped"] == 1
-    assert result["n_points"] == 1
-    assert [row["parameter_value"] for row in rows] == ["1[m]", "2[m]"]
-    assert [row["status"] for row in rows] == ["success", "success"]
+    assert result["n_skipped"] == 0
+    assert result["n_invalid_existing"] == 1
+    assert result["n_points"] == 2
+    assert [row["parameter_value"] for row in rows] == ["1[m]", "1[m]", "2[m]"]
+    assert [row["status"] for row in rows] == ["legacy_unverified", "ok", "ok"]
 
 
 def test_staged_sweep_records_error_and_continues(tmp_path):
@@ -216,10 +222,171 @@ def test_staged_sweep_records_error_and_continues(tmp_path):
     assert result["n_points"] == 2
     assert result["n_failed"] == 1
     assert [row["status"] for row in read_csv(csv_path)] == [
-        "success",
+        "ok",
         "error",
-        "success",
+        "ok",
     ]
+
+
+def test_staged_sweep_manifest_rejects_changed_spec(tmp_path):
+    csv_path = tmp_path / "sweep.csv"
+    model = FakeModel()
+    first = run_staged_parametric_sweep(
+        model,
+        "wl",
+        [1, 2],
+        ["A"],
+        parameter_unit="m",
+        csv_path=str(csv_path),
+    )
+    resumed = run_staged_parametric_sweep(
+        model,
+        "wl",
+        [1, 2, 3],
+        ["A"],
+        parameter_unit="m",
+        csv_path=str(csv_path),
+        resume_csv=True,
+    )
+
+    assert first["success"] is True
+    assert resumed["success"] is False
+    assert resumed["error_type"] == "ValueError"
+    assert "manifest mismatch" in resumed["error"].lower()
+    assert model.java.study_node.run_count == 2
+
+
+def test_error_row_is_retried_but_valid_row_is_skipped(tmp_path):
+    csv_path = tmp_path / "resume.csv"
+    first_model = FakeModel(failures={"2[m]": 1})
+    first = run_staged_parametric_sweep(
+        first_model,
+        "wl",
+        [1, 2],
+        ["A"],
+        parameter_unit="m",
+        csv_path=str(csv_path),
+        continue_on_error=True,
+    )
+    second_model = FakeModel()
+    resumed = run_staged_parametric_sweep(
+        second_model,
+        "wl",
+        [1, 2],
+        ["A"],
+        parameter_unit="m",
+        csv_path=str(csv_path),
+        resume_csv=True,
+    )
+
+    assert first["success"] is False
+    assert resumed["success"] is True
+    assert resumed["n_skipped"] == 1
+    assert resumed["n_points"] == 1
+    assert resumed["n_invalid_existing"] == 1
+    assert second_model.java.study_node.run_count == 1
+
+
+def test_manifest_fingerprints_source_and_rows_record_wavelength_controls(tmp_path):
+    csv_path = tmp_path / "provenance.csv"
+    source = tmp_path / "baseline.mph"
+    source.write_bytes(b"immutable fake model")
+    model = FakeModel()
+
+    result = run_staged_parametric_sweep(
+        model,
+        "wl",
+        [1],
+        ["A"],
+        parameter_unit="m",
+        csv_path=str(csv_path),
+        source_model_path=str(source),
+        physical_bounds={"A": [0, 1]},
+        response_tail=1,
+    )
+
+    manifest = json.loads(Path(result["manifest_path"]).read_text(encoding="utf-8"))
+    row = read_csv(csv_path)[0]
+    assert manifest["spec"]["model"]["source_path"] == str(source.resolve())
+    assert len(manifest["spec"]["model"]["source_sha256"]) == 64
+    assert row["source_model_sha256"] == manifest["spec"]["model"]["source_sha256"]
+    assert row["requested_wavelength"] == "1[m]"
+    assert row["evaluated_wl"] == "2.0"
+    assert row["evaluated_c_const_over_ewfd_freq"] == "3.0"
+    assert result["last_point"] == result["tail_rows"][-1]
+
+
+def test_resume_retries_nonfinite_row_instead_of_skipping(tmp_path):
+    csv_path = tmp_path / "nonfinite.csv"
+    first_model = FakeModel()
+    run_staged_parametric_sweep(
+        first_model,
+        "wl",
+        [1, 2],
+        ["A"],
+        parameter_unit="m",
+        csv_path=str(csv_path),
+    )
+    rows = read_csv(csv_path)
+    rows[0]["A"] = "nan"
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+    resumed_model = FakeModel()
+    resumed = run_staged_parametric_sweep(
+        resumed_model,
+        "wl",
+        [1, 2],
+        ["A"],
+        parameter_unit="m",
+        csv_path=str(csv_path),
+        resume_csv=True,
+    )
+
+    assert resumed["n_invalid_existing"] == 1
+    assert resumed["n_skipped"] == 1
+    assert resumed["n_points"] == 1
+    assert resumed_model.java.study_node.run_count == 1
+
+
+def test_source_baseline_cannot_be_used_as_checkpoint(tmp_path):
+    source = tmp_path / "baseline.mph"
+    source.write_bytes(b"keep me")
+    result = run_staged_parametric_sweep(
+        FakeModel(),
+        "wl",
+        [1],
+        ["A"],
+        source_model_path=str(source),
+        checkpoint_model_path=str(source),
+    )
+
+    assert result["success"] is False
+    assert "must not overwrite" in result["error"]
+    assert source.read_bytes() == b"keep me"
+
+
+def test_out_of_bounds_result_is_journaled_as_error(tmp_path):
+    csv_path = tmp_path / "bounds.csv"
+    result = run_staged_parametric_sweep(
+        FakeModel(),
+        "wl",
+        [2],
+        ["A"],
+        parameter_unit="m",
+        csv_path=str(csv_path),
+        physical_bounds={"A": [0, 1]},
+        continue_on_error=True,
+    )
+
+    row = read_csv(csv_path)[0]
+    assert result["success"] is False
+    assert result["n_failed"] == 1
+    assert row["status"] == "error"
+    assert row["error_type"] == "ValueError"
+    assert "outside physical bounds" in row["error"]
 
 
 def test_mesh_convergence_resumes_completed_levels(tmp_path):

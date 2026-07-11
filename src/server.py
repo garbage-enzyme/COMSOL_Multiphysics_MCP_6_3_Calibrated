@@ -9,6 +9,7 @@ from .tools import register_tool_modules
 from .tools.capabilities import startup_capability_summary
 from .resources.model_resources import register_model_resources
 from .knowledge.embedded import register_knowledge_tools
+from .knowledge.lexical_manual import register_lexical_manual_tools
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ def register_all_tools(server: FastMCP | None = None) -> None:
         return
     register_tool_modules(target)
     register_knowledge_tools(target)
+    register_lexical_manual_tools(target)
     _tool_servers.add(target)
     logger.info("Registered all tools")
 

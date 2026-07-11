@@ -29,6 +29,7 @@ def get_capabilities() -> dict:
             "study",
             "results_transport",
             "staged_csv_workflows",
+            "bounded_lexical_manual_search",
         ],
         "experimental": {
             "async_solver": {
@@ -45,6 +46,12 @@ def get_capabilities() -> dict:
             "pdf_search_status",
             "pdf_list_modules",
         ],
+        "manual_search": {
+            "backend": "sqlite_fts5_bm25",
+            "isolated_worker": True,
+            "hard_deadline": True,
+            "semantic_embeddings": False,
+        },
         "long_jobs": {
             "durable_background_jobs": False,
             "external_solver_ownership": False,
@@ -62,7 +69,7 @@ def startup_capability_summary() -> str:
     return (
         f"profile={capabilities['profile']}; "
         f"target=COMSOL {targets['comsol']} / MPh {targets['mph']}; "
-        "semantic_pdf=disabled; durable_jobs=unavailable; "
+        "lexical_manual=enabled; semantic_pdf=disabled; durable_jobs=unavailable; "
         "cancellation=cooperative_only"
     )
 

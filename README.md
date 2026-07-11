@@ -72,8 +72,14 @@ The refactor covers the following stable paths:
   default because they can initialize ChromaDB and an embedding model in the
   COMSOL control process. Their source remains available for an explicit isolated
   profile.
+- `manual_search` and `manual_read_pages` provide the default documentation
+  path through an offline SQLite FTS5/BM25 index. Each read runs in a bounded
+  worker process, returns source/page references, and never imports ChromaDB,
+  Torch, or SentenceTransformer in the COMSOL control process. Long natural-
+  language queries first use strict significant-term matching, then automatically
+  relax and rerank by term coverage plus BM25 instead of silently returning zero.
 - Startup logs print a compact capability summary. The current default profile
-  exposes 86 tools, including explicit `session_clear_models` and
+  exposes 88 tools, including explicit `session_clear_models` and
   `session_reset` lifecycle operations.
 - A failed local startup is retained as an error and cannot silently create
   another worker; call `session_reset` before an explicit retry.
@@ -91,15 +97,21 @@ The refactor covers the following stable paths:
 - `checkpoint_model_path=...`: save through the Java clientapi during the run.
 - `checkpoint_every=N`: checkpoint after every `N` new successful rows.
 
-Legacy workflow CSVs are upgraded in place when resumed; missing status values
-are treated as successful rows. Existing columns are preserved.
+The staged sweep now writes a versioned JSON manifest beside its CSV, derives or
+accepts a stable `config_id`, optionally fingerprints the immutable source MPH,
+records `status=ok/error` plus exception type, and resumes only finite rows whose
+schema/config and required expressions match. Wavelength sweeps record the
+requested value, evaluated global `wl`, and evaluated `c_const/ewfd.freq` by
+default. MCP responses return counts, the last point, and a bounded tail instead
+of every row. Legacy CSV adoption requires `allow_legacy_resume=true`; adopted
+rows are marked `legacy_unverified` and rerun rather than silently trusted.
 
 > **Current limitation:** long sweeps still run inside one MCP call; durable background jobs, external solver ownership, and real cancellation remain planned work. Async progress is synthetic lifecycle state, and its cooperative cancellation flag cannot interrupt a blocking COMSOL `study.run()`.
 
 ## Verification
 
 Run the isolated unit suite with `python -m pytest -q`. The current refactor gate is
-**90 passing tests**. `python -m pytest --collect-only -q` also leaves the COMSOL
+**105 passing tests**. `python -m pytest --collect-only -q` also leaves the COMSOL
 process set unchanged. Root-level
 `test_*.py` files are manual integration probes that may start COMSOL and are
 explicitly excluded from pytest collection; invoke them individually only when
@@ -145,7 +157,9 @@ Additional real COMSOL 6.4 checks include localized component/geometry/physics/m
 - **COMSOL Multiphysics 6.4 or newer**. This fork targets COMSOL 6.4+ standalone clientapi because current workflows may use 6.4+ solver features such as **cuDSS** GPU-accelerated direct solving.
 - **Python 3.10+** (not the Windows Store build)
 - **Java runtime** — COMSOL 6.4 ships Java 21, and JPype works directly in the verified setup. Older COMSOL/Java combinations are not this fork's focus.
-- **MPh 1.3.1**, plus `mcp`, `pydantic`. Optional for PDF search: `pymupdf`, `chromadb`, `sentence-transformers`.
+- **MPh 1.3.1**, plus `mcp`, `pydantic`. Offline manual-index building optionally
+  uses `pymupdf`; legacy semantic PDF search additionally uses `chromadb` and
+  `sentence-transformers`.
 
 ## Installation
 
@@ -153,8 +167,11 @@ Additional real COMSOL 6.4 checks include localized component/geometry/physics/m
 git clone https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated.git
 cd COMSOL_Multiphysics_MCP_6_4_Calibrated
 python -m pip install .
-# Optional: PDF knowledge base
-pip install pymupdf chromadb sentence-transformers
+# Recommended offline lexical manual index (ASCII-only output path)
+python -m pip install ".[manuals]"
+python -m src.knowledge.lexical_manual build --index D:\comsol_docs_fts\manuals.sqlite3
+# Optional legacy semantic profile
+python -m pip install ".[semantic-pdf]"
 python scripts/build_knowledge_base.py
 ```
 

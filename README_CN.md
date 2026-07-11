@@ -73,16 +73,20 @@
 - **COMSOL Multiphysics 6.4 或更新版本**。本 Fork 面向 COMSOL 6.4+ standalone clientapi，因为当前工作流可能调用 **cuDSS** GPU 加速直接求解器等 6.4+ 求解器能力。
 - **Python 3.10+**（不要用 Windows Store 版）
 - **Java 运行时** —— COMSOL 6.4 自带 Java 21；已验证环境下 JPype 可直接使用。更老 COMSOL/Java 组合不在本 Fork 重点范围内。
-- **MPh 1.3.1**，加 `mcp`、`pydantic`。PDF 搜索可选：`pymupdf`、`chromadb`、`sentence-transformers`。
+- **MPh 1.3.1**，加 `mcp`、`pydantic`。离线手册索引构建可选安装
+  `pymupdf`；旧版语义 PDF 搜索还需要 `chromadb`、`sentence-transformers`。
 
 ## 安装
 
 ```bash
 git clone https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated.git
 cd COMSOL_Multiphysics_MCP_6_4_Calibrated
-python -m pip install -e .
-# 可选：PDF 知识库
-pip install pymupdf chromadb sentence-transformers
+python -m pip install .
+# 推荐：离线 lexical 手册索引（输出路径必须仅含 ASCII）
+python -m pip install ".[manuals]"
+python -m src.knowledge.lexical_manual build --index D:\comsol_docs_fts\manuals.sqlite3
+# 可选：旧版 semantic PDF profile
+python -m pip install ".[semantic-pdf]"
 python scripts/build_knowledge_base.py
 ```
 
