@@ -490,8 +490,17 @@ def get_pdf_list_modules() -> dict:
         }
 
 
-def register_knowledge_tools(mcp: FastMCP) -> None:
-    """Register knowledge base tools with the MCP server."""
+def register_knowledge_tools(
+    mcp: FastMCP,
+    *,
+    include_pdf_search: bool = False,
+) -> None:
+    """Register lightweight knowledge tools and optional semantic PDF tools.
+
+    Semantic PDF search is excluded from the default profile because invoking it
+    can initialize ChromaDB and an embedding model in the COMSOL control process.
+    Its implementation remains available for an explicit isolated profile.
+    """
     
     @mcp.tool()
     def docs_get(topic: str) -> dict:
@@ -580,6 +589,9 @@ def register_knowledge_tools(mcp: FastMCP) -> None:
             Best practices for the specified category
         """
         return get_best_practices(category)
+
+    if not include_pdf_search:
+        return
     
     @mcp.tool()
     def pdf_search(query: str, n_results: int = 5,
