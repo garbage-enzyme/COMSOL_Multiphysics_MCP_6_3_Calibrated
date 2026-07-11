@@ -204,7 +204,7 @@ def run_staged_parametric_sweep(
         tags = list(jm.study().tags())
         if not tags:
             return {"success": False, "error": "No studies found in model."}
-        study_tag = tags[0]
+        study_tag = str(tags[0])
 
     fieldnames = [
         parameter_name,
@@ -338,7 +338,7 @@ def run_mesh_convergence(
         tags = list(jm.study().tags())
         if not tags:
             return {"success": False, "error": "No studies found in model."}
-        study_tag = tags[0]
+        study_tag = str(tags[0])
 
     if parameter_name is not None and parameter_value is not None:
         jm.param().set(parameter_name, _format_parameter_value(parameter_value, parameter_unit))

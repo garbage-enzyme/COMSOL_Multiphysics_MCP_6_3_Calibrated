@@ -15,12 +15,20 @@ from src.tools.workflow import (
 )
 
 
+class JavaStringLike:
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return self.value
+
+
 class FakeEntityList:
     def __init__(self, entities):
         self.entities = entities
 
     def tags(self):
-        return list(self.entities)
+        return [JavaStringLike(tag) for tag in self.entities]
 
     def get(self, tag):
         return self.entities[tag]
@@ -157,6 +165,8 @@ def test_staged_sweep_retries_and_checkpoints(tmp_path):
     )
 
     assert result["success"] is True
+    assert result["resolved_study_tag"] == "std1"
+    assert type(result["resolved_study_tag"]) is str
     assert result["n_points"] == 2
     assert result["rows"][0]["attempt"] == 2
     assert [row["status"] for row in read_csv(csv_path)] == ["success", "success"]
@@ -233,6 +243,8 @@ def test_mesh_convergence_resumes_completed_levels(tmp_path):
     )
 
     assert first["success"] is True
+    assert first["resolved_study_tag"] == "std1"
+    assert type(first["resolved_study_tag"]) is str
     assert resumed["n_skipped"] == 1
     assert resumed["n_levels"] == 1
     assert [row["level"] for row in read_csv(csv_path)] == ["coarse", "fine"]
