@@ -459,3 +459,31 @@ class TestSessionManager:
         assert result["success"] is False
         assert "still starting" in result["error"]
         assert called is False
+
+    def test_start_preflight_refusal_never_calls_mph_client(self, monkeypatch):
+        import src.tools.session as session_module
+
+        sm = session_module.SessionManager()
+        sm._client = None
+        called = False
+
+        class RefusingOwnership:
+            def preflight(self, **kwargs):
+                return {"ready": False, "blockers": ["external solver detected"]}
+
+        def create_client(**kwargs):
+            nonlocal called
+            called = True
+            raise AssertionError("mph.Client must not be called after failed preflight")
+
+        previous = sm._ownership
+        sm._ownership = RefusingOwnership()
+        monkeypatch.setattr(session_module.mph, "Client", create_client)
+        try:
+            result = sm.start(cores=2)
+        finally:
+            sm._ownership = previous
+
+        assert result["success"] is False
+        assert result["preflight"]["blockers"] == ["external solver detected"]
+        assert called is False

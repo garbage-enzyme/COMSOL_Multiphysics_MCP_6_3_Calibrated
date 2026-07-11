@@ -1,0 +1,497 @@
+"""Cross-process solver ownership, collision detection, and preflight checks."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import platform
+import sys
+import tempfile
+import time
+from pathlib import Path
+from typing import Any, Callable, Optional
+
+import mph
+import psutil
+from mcp.server.fastmcp import FastMCP
+
+
+LEASE_SCHEMA_VERSION = "1"
+CREATE_TIME_TOLERANCE_SECONDS = 0.05
+
+
+def _is_ascii_path(path: Path) -> bool:
+    try:
+        str(path.resolve()).encode("ascii")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def _default_runtime_dir() -> Path:
+    configured = os.environ.get("COMSOL_MCP_RUNTIME_DIR")
+    if configured:
+        return Path(configured)
+    if os.name == "nt":
+        if Path("D:/").exists():
+            return Path("D:/comsol_runtime")
+        program_data = Path(os.environ.get("PROGRAMDATA", "C:/ProgramData"))
+        return program_data / "comsol_mcp_runtime"
+    return Path(tempfile.gettempdir()) / "comsol_runtime"
+
+
+def _command_signature(command_line: list[str]) -> str:
+    canonical = "\0".join(str(part) for part in command_line)
+    return hashlib.sha256(canonical.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _process_record(process: psutil.Process) -> dict[str, Any]:
+    with process.oneshot():
+        try:
+            command_line = list(process.cmdline())
+        except (psutil.AccessDenied, psutil.ZombieProcess):
+            command_line = []
+        try:
+            executable = process.exe()
+        except (psutil.AccessDenied, psutil.ZombieProcess):
+            executable = None
+        return {
+            "pid": process.pid,
+            "parent_pid": process.ppid(),
+            "name": process.name(),
+            "create_time": process.create_time(),
+            "command_line": command_line,
+            "executable": executable,
+        }
+
+
+def _system_processes() -> list[dict[str, Any]]:
+    records = []
+    for process in psutil.process_iter():
+        try:
+            records.append(_process_record(process))
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+    return records
+
+
+def _agent_owner_label() -> str:
+    configured = os.environ.get("COMSOL_MCP_OWNER")
+    if configured:
+        return configured
+    try:
+        parent_command = " ".join(psutil.Process(os.getppid()).cmdline()).casefold()
+    except (psutil.Error, OSError):
+        parent_command = ""
+    if "opencode" in parent_command:
+        return "opencode-mcp"
+    if "codex" in parent_command:
+        return "codex-mcp"
+    return "comsol-mcp"
+
+
+class SolverOwnership:
+    """Coordinate one local COMSOL solver owner across agent processes."""
+
+    def __init__(
+        self,
+        runtime_dir: str | Path | None = None,
+        *,
+        process_provider: Optional[Callable[[], list[dict[str, Any]]]] = None,
+        pid: Optional[int] = None,
+        parent_pid: Optional[int] = None,
+        create_time: Optional[float] = None,
+        command_line: Optional[list[str]] = None,
+        owner: Optional[str] = None,
+    ):
+        self.runtime_dir = Path(runtime_dir) if runtime_dir else _default_runtime_dir()
+        if not _is_ascii_path(self.runtime_dir):
+            raise ValueError("COMSOL runtime/lease path must contain ASCII characters only")
+        self.lease_path = self.runtime_dir / "solver_owner.json"
+        self._process_provider = process_provider or _system_processes
+        self.pid = int(pid if pid is not None else os.getpid())
+        self.parent_pid = int(parent_pid if parent_pid is not None else os.getppid())
+        if create_time is None:
+            create_time = psutil.Process(self.pid).create_time()
+        self.create_time = float(create_time)
+        if command_line is None:
+            try:
+                command_line = list(psutil.Process(self.pid).cmdline())
+            except (psutil.Error, OSError):
+                command_line = [sys.executable, *sys.argv]
+        self.command_line = list(command_line)
+        self.command_signature = _command_signature(self.command_line)
+        self.owner = owner or _agent_owner_label()
+
+    def _read_lease(self) -> tuple[Optional[dict[str, Any]], Optional[str]]:
+        if not self.lease_path.is_file():
+            return None, None
+        try:
+            return json.loads(self.lease_path.read_text(encoding="utf-8")), None
+        except (OSError, json.JSONDecodeError) as exc:
+            return None, f"Cannot read solver lease: {exc}"
+
+    def _lease_state(self, lease: dict[str, Any], processes: list[dict[str, Any]]) -> dict[str, Any]:
+        required = {"pid", "process_create_time", "command_signature"}
+        if not required <= set(lease):
+            return {"state": "uncertain", "reason": "lease is missing process identity fields"}
+        match = next((item for item in processes if item.get("pid") == int(lease["pid"])), None)
+        if match is None:
+            return {"state": "stale", "reason": "lease PID no longer exists"}
+        actual_time = match.get("create_time")
+        if actual_time is None:
+            return {"state": "uncertain", "reason": "process creation time is unavailable"}
+        if abs(float(actual_time) - float(lease["process_create_time"])) > CREATE_TIME_TOLERANCE_SECONDS:
+            return {"state": "stale", "reason": "PID was reused with a different creation time"}
+        actual_command = list(match.get("command_line") or [])
+        if actual_command and _command_signature(actual_command) != lease["command_signature"]:
+            return {"state": "stale", "reason": "PID command line no longer matches the lease"}
+        return {
+            "state": "active",
+            "reason": "PID, creation time, and command line match",
+            "owned_by_current_process": (
+                int(lease["pid"]) == self.pid
+                and abs(float(lease["process_create_time"]) - self.create_time)
+                <= CREATE_TIME_TOLERANCE_SECONDS
+            ),
+        }
+
+    @staticmethod
+    def _is_descendant(pid: int, parent_map: dict[int, int], ancestor: int) -> bool:
+        seen = set()
+        current = pid
+        while current and current not in seen:
+            if current == ancestor:
+                return True
+            seen.add(current)
+            current = parent_map.get(current, 0)
+        return False
+
+    def _external_solver_processes(
+        self, processes: list[dict[str, Any]], lease: Optional[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        parent_map = {
+            int(item["pid"]): int(item.get("parent_pid") or 0)
+            for item in processes
+            if item.get("pid") is not None
+        }
+        ancestor_pids = set()
+        current = self.pid
+        while current and current not in ancestor_pids:
+            ancestor_pids.add(current)
+            current = parent_map.get(current, 0)
+        owned_pids = {self.pid}
+        if lease and int(lease.get("pid", -1)) == self.pid:
+            owned_pids.update(int(pid) for pid in lease.get("comsol_server_pids", []))
+        evidence = []
+        for item in processes:
+            pid = int(item.get("pid") or 0)
+            if (
+                not pid
+                or pid in owned_pids
+                or pid in ancestor_pids
+                or self._is_descendant(pid, parent_map, self.pid)
+            ):
+                continue
+            name = str(item.get("name") or "").casefold()
+            command_line = [str(part) for part in item.get("command_line") or []]
+            command = " ".join(command_line).casefold()
+            kind = None
+            if "mphserver" in name or "comsolmphserver" in name:
+                kind = "comsol-server"
+            elif name in {"java", "java.exe"} and "comsol" in command and "server" in command:
+                kind = "comsol-java-server"
+            elif any(pattern in command for pattern in ("mph.client", "import mph", "from mph", "-m mph")):
+                kind = "python-mph-client"
+            elif name in {"python", "python.exe", "pythonw", "pythonw.exe"}:
+                for argument in command_line[1:]:
+                    script = Path(argument.strip('"'))
+                    if script.suffix.casefold() != ".py" or not script.is_file():
+                        continue
+                    try:
+                        if script.stat().st_size <= 2 * 1024 * 1024:
+                            source = script.read_text(encoding="utf-8", errors="ignore").casefold()
+                            if "mph.client" in source:
+                                kind = "python-mph-client-script"
+                    except OSError:
+                        pass
+                    break
+            if kind:
+                evidence.append(
+                    {
+                        "pid": pid,
+                        "parent_pid": item.get("parent_pid"),
+                        "process_create_time": item.get("create_time"),
+                        "kind": kind,
+                        "command_line": command_line[:32],
+                    }
+                )
+        return evidence
+
+    def status(self, session_state: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        processes = self._process_provider()
+        lease, lease_error = self._read_lease()
+        if lease_error:
+            lease_status = {"state": "uncertain", "reason": lease_error}
+        elif lease is None:
+            lease_status = {"state": "absent", "reason": "no solver lease exists"}
+        else:
+            lease_status = {**self._lease_state(lease, processes), "lease": lease}
+        external = self._external_solver_processes(processes, lease)
+        return {
+            "success": True,
+            "session": session_state or {"connected": False, "starting": False},
+            "lease_path": str(self.lease_path),
+            "lease": lease_status,
+            "external_solver_processes": external,
+            "collision": bool(external) or (
+                lease_status["state"] in {"active", "uncertain"}
+                and not lease_status.get("owned_by_current_process", False)
+            ),
+            "durable_jobs": {"available": False, "reason": "H1 is not implemented"},
+        }
+
+    def preflight(
+        self,
+        *,
+        session_state: Optional[dict[str, Any]] = None,
+        model_path: Optional[str] = None,
+        output_path: Optional[str] = None,
+        requested_version: Optional[str] = None,
+        minimum_free_gb: float = 2.0,
+    ) -> dict[str, Any]:
+        ownership = self.status(session_state=session_state)
+        blockers = []
+        warnings = []
+        lease = ownership["lease"]
+        if ownership["external_solver_processes"]:
+            blockers.append("external COMSOL/MPh solver process detected")
+        if lease["state"] == "stale":
+            blockers.append("stale solver lease requires explicit recovery")
+        elif lease["state"] == "uncertain":
+            blockers.append("solver lease cannot be validated safely")
+        elif lease["state"] == "active" and not lease.get("owned_by_current_process", False):
+            blockers.append("solver lease belongs to another active process")
+
+        pointer_bits = 8 * __import__("struct").calcsize("P")
+        if pointer_bits != 64:
+            blockers.append("COMSOL requires a 64-bit Python architecture")
+        java_home = os.environ.get("JAVA_HOME") or os.environ.get("JDK_HOME")
+        try:
+            backends = mph.discovery.find_backends()
+        except Exception as exc:
+            backends = []
+            warnings.append(f"COMSOL backend discovery failed: {exc}")
+        detected_backends = [
+            {
+                "name": str(item.get("name")),
+                "root": str(item.get("root")),
+                "jvm": str(item.get("jvm")),
+            }
+            for item in backends
+        ]
+        usable_jre = bool(java_home and Path(java_home).exists()) or any(
+            Path(item["jvm"]).is_file() for item in detected_backends
+        )
+        if not usable_jre:
+            blockers.append("No existing COMSOL JRE was found through the environment or MPh discovery")
+        memory = psutil.virtual_memory()
+        free_gb = memory.available / (1024**3)
+        if free_gb < float(minimum_free_gb):
+            blockers.append(f"available memory {free_gb:.2f} GiB is below {minimum_free_gb:.2f} GiB")
+        if model_path and not Path(model_path).expanduser().is_file():
+            blockers.append(f"model baseline does not exist: {model_path}")
+        if output_path:
+            parent = Path(output_path).expanduser().resolve().parent
+            existing_parent = parent
+            while not existing_parent.exists() and existing_parent != existing_parent.parent:
+                existing_parent = existing_parent.parent
+            if not existing_parent.is_dir() or not os.access(existing_parent, os.W_OK):
+                blockers.append(f"output directory is not writable: {parent}")
+        if requested_version:
+            if not str(requested_version).startswith("6.4"):
+                warnings.append(f"requested COMSOL version {requested_version!r} is outside the verified 6.4 target")
+            if detected_backends and not any(
+                item["name"].startswith(str(requested_version)) for item in detected_backends
+            ):
+                blockers.append(f"requested COMSOL version {requested_version!r} was not discovered")
+
+        return {
+            "success": not blockers,
+            "ready": not blockers,
+            "blockers": blockers,
+            "warnings": warnings,
+            "environment": {
+                "platform": platform.platform(),
+                "machine": platform.machine(),
+                "pointer_bits": pointer_bits,
+                "python": sys.executable,
+                "mph_version": getattr(mph, "__version__", None),
+                "java_home": java_home,
+                "detected_comsol_backends": detected_backends,
+                "requested_comsol_version": requested_version,
+                "available_memory_gb": round(free_gb, 3),
+                "model_path": model_path,
+                "output_path": output_path,
+            },
+            "ownership": ownership,
+        }
+
+    def acquire(self, *, mode: str, model_path: Optional[str] = None) -> dict[str, Any]:
+        status = self.status()
+        lease_status = status["lease"]
+        if lease_status["state"] == "active" and lease_status.get("owned_by_current_process"):
+            return {"success": True, "acquired": False, "reused": True, "lease": lease_status["lease"]}
+        if status["collision"] or lease_status["state"] == "stale":
+            return {
+                "success": False,
+                "acquired": False,
+                "error": "Solver ownership is not available; inspect solver_status.",
+                "status": status,
+            }
+        self.runtime_dir.mkdir(parents=True, exist_ok=True)
+        now = time.time()
+        payload = {
+            "schema_version": LEASE_SCHEMA_VERSION,
+            "owner": self.owner,
+            "mode": mode,
+            "pid": self.pid,
+            "parent_pid": self.parent_pid,
+            "process_create_time": self.create_time,
+            "command_line": self.command_line,
+            "command_signature": self.command_signature,
+            "model_path": model_path,
+            "heartbeat_epoch": now,
+            "created_at_epoch": now,
+            "comsol_server_pids": [],
+            "comsol_server_port": None,
+        }
+        data = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+        try:
+            descriptor = os.open(self.lease_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+        except FileExistsError:
+            return {
+                "success": False,
+                "acquired": False,
+                "error": "Another process acquired the solver lease concurrently.",
+                "status": self.status(),
+            }
+        try:
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+        except Exception:
+            self.lease_path.unlink(missing_ok=True)
+            raise
+        return {"success": True, "acquired": True, "reused": False, "lease": payload}
+
+    def heartbeat(
+        self, *, model_path: Optional[str] = None, refresh_server_processes: bool = False
+    ) -> bool:
+        lease, error = self._read_lease()
+        if error or not lease or int(lease.get("pid", -1)) != self.pid:
+            return False
+        if abs(float(lease.get("process_create_time", -1)) - self.create_time) > CREATE_TIME_TOLERANCE_SECONDS:
+            return False
+        lease["heartbeat_epoch"] = time.time()
+        if model_path is not None:
+            lease["model_path"] = model_path
+        if refresh_server_processes:
+            processes = self._process_provider()
+            parent_map = {
+                int(item["pid"]): int(item.get("parent_pid") or 0)
+                for item in processes
+                if item.get("pid") is not None
+            }
+            server_pids = []
+            for item in processes:
+                pid = int(item.get("pid") or 0)
+                if not pid or not self._is_descendant(pid, parent_map, self.pid):
+                    continue
+                name = str(item.get("name") or "").casefold()
+                command = " ".join(str(part) for part in item.get("command_line") or []).casefold()
+                if "mphserver" in name or (
+                    name in {"java", "java.exe"} and "comsol" in command and "server" in command
+                ):
+                    server_pids.append(pid)
+            lease["comsol_server_pids"] = sorted(set(server_pids))
+        temporary = self.lease_path.with_suffix(".json.tmp")
+        with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+            json.dump(lease, handle, ensure_ascii=False, indent=2, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, self.lease_path)
+        return True
+
+    def release(self) -> dict[str, Any]:
+        lease, error = self._read_lease()
+        if error:
+            return {"success": False, "released": False, "error": error}
+        if lease is None:
+            return {"success": True, "released": False, "message": "No solver lease exists."}
+        if int(lease.get("pid", -1)) != self.pid or abs(
+            float(lease.get("process_create_time", -1)) - self.create_time
+        ) > CREATE_TIME_TOLERANCE_SECONDS:
+            return {"success": False, "released": False, "error": "Refusing to release a foreign solver lease."}
+        self.lease_path.unlink(missing_ok=True)
+        return {"success": True, "released": True}
+
+    def recover_stale(self) -> dict[str, Any]:
+        lease, error = self._read_lease()
+        if error:
+            return {"success": False, "recovered": False, "error": error}
+        if lease is None:
+            return {"success": True, "recovered": False, "message": "No solver lease exists."}
+        original = self.lease_path.read_bytes()
+        state = self._lease_state(lease, self._process_provider())
+        if state["state"] != "stale":
+            return {
+                "success": False,
+                "recovered": False,
+                "error": f"Lease is {state['state']}; only a proven stale lease may be removed.",
+                "lease_state": state,
+            }
+        if self.lease_path.read_bytes() != original:
+            return {"success": False, "recovered": False, "error": "Lease changed during recovery; retry status."}
+        self.lease_path.unlink()
+        return {"success": True, "recovered": True, "reason": state["reason"]}
+
+
+ownership_manager = SolverOwnership()
+
+
+def register_ownership_tools(mcp: FastMCP) -> None:
+    """Register read-only ownership/preflight and explicit stale recovery tools."""
+
+    @mcp.tool()
+    def solver_status() -> dict:
+        """Report MCP session, solver lease, process collisions, and job availability without starting COMSOL."""
+        from .session import session_manager
+
+        return ownership_manager.status(session_state=session_manager.get_status())
+
+    @mcp.tool()
+    def solver_preflight(
+        model_path: Optional[str] = None,
+        output_path: Optional[str] = None,
+        requested_version: Optional[str] = None,
+        minimum_free_gb: float = 2.0,
+    ) -> dict:
+        """Validate architecture, JRE, memory, paths, and ownership without starting COMSOL."""
+        from .session import session_manager
+
+        return ownership_manager.preflight(
+            session_state=session_manager.get_status(),
+            model_path=model_path,
+            output_path=output_path,
+            requested_version=requested_version,
+            minimum_free_gb=minimum_free_gb,
+        )
+
+    @mcp.tool()
+    def solver_recover_stale_lease() -> dict:
+        """Remove only a lease proven stale by PID and process-creation evidence; never kill a process."""
+        return ownership_manager.recover_stale()

@@ -1,6 +1,7 @@
 """MCP Tools for COMSOL operations."""
 
 from .capabilities import register_capability_tools
+from .ownership import register_ownership_tools
 from .session import register_session_tools
 from .model import register_model_tools
 from .parameters import register_parameter_tools
@@ -14,6 +15,7 @@ from .workflow import register_workflow_tools
 
 TOOL_REGISTRARS = (
     register_capability_tools,
+    register_ownership_tools,
     register_session_tools,
     register_model_tools,
     register_parameter_tools,
@@ -34,6 +36,7 @@ def register_tool_modules(mcp) -> None:
 
 __all__ = [
     "register_capability_tools",
+    "register_ownership_tools",
     "register_session_tools",
     "register_model_tools",
     "register_parameter_tools",

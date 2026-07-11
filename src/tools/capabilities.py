@@ -30,6 +30,7 @@ def get_capabilities() -> dict:
             "results_transport",
             "staged_csv_workflows",
             "bounded_lexical_manual_search",
+            "solver_ownership_and_preflight",
         ],
         "experimental": {
             "async_solver": {
@@ -54,7 +55,7 @@ def get_capabilities() -> dict:
         },
         "long_jobs": {
             "durable_background_jobs": False,
-            "external_solver_ownership": False,
+            "external_solver_ownership": True,
             "real_cancellation": False,
             "staged_csv_resume": True,
         },
@@ -70,7 +71,7 @@ def startup_capability_summary() -> str:
         f"profile={capabilities['profile']}; "
         f"target=COMSOL {targets['comsol']} / MPh {targets['mph']}; "
         "lexical_manual=enabled; semantic_pdf=disabled; durable_jobs=unavailable; "
-        "cancellation=cooperative_only"
+        "solver_ownership=enforced; cancellation=cooperative_only"
     )
 
 

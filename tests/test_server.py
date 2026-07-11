@@ -19,6 +19,9 @@ def test_server_registration_is_idempotent():
     assert "capabilities" in tool_names
     assert "session_clear_models" in tool_names
     assert "session_reset" in tool_names
+    assert "solver_status" in tool_names
+    assert "solver_preflight" in tool_names
+    assert "solver_recover_stale_lease" in tool_names
     assert "model_create" in tool_names
     assert "study_solve" in tool_names
     assert "docs_get" in tool_names

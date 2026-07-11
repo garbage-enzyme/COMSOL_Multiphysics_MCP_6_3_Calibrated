@@ -7,6 +7,8 @@ from mcp.server.fastmcp import FastMCP
 import mph
 import mph.session as mph_session
 
+from .ownership import ownership_manager
+
 
 class SessionManager:
     """Singleton manager for COMSOL client session."""
@@ -32,6 +34,8 @@ class SessionManager:
                 instance._start_message = ""
                 instance._start_cancel_requested = False
                 instance._start_lock = threading.Lock()
+                instance._ownership = ownership_manager
+                instance._owns_solver_lease = False
                 cls._instance = instance
         return cls._instance
     
@@ -83,6 +87,26 @@ class SessionManager:
                         "before retrying."
                     ),
                 }
+            preflight = self._ownership.preflight(
+                session_state=self.get_status(),
+                requested_version=version,
+            )
+            if not preflight["ready"]:
+                return {
+                    "success": False,
+                    "starting": False,
+                    "error": "COMSOL start preflight failed.",
+                    "preflight": preflight,
+                }
+            claim = self._ownership.acquire(mode="local-client")
+            if not claim["success"]:
+                return {
+                    "success": False,
+                    "starting": False,
+                    "error": claim["error"],
+                    "ownership": claim.get("status"),
+                }
+            self._owns_solver_lease = True
             # Claim the starting flag for this call.
             self._starting = True
             self._start_error = None
@@ -139,6 +163,7 @@ class SessionManager:
                 else:
                     self._client = client
                     self._start_message = "Client ready."
+                    self._ownership.heartbeat(refresh_server_processes=True)
         except Exception as e:
             with self._start_lock:
                 self._start_error = str(e)
@@ -154,6 +179,9 @@ class SessionManager:
                     client.clear()
                 except Exception:
                     pass
+            if cancelled:
+                self._ownership.release()
+                self._owns_solver_lease = False
                 try:
                     client.disconnect()
                 except Exception:
@@ -180,9 +208,21 @@ class SessionManager:
                 "success": False,
                 "error": "COMSOL session already running. Disconnect first."
             }
+        preflight = self._ownership.preflight(session_state=self.get_status())
+        if not preflight["ready"]:
+            return {
+                "success": False,
+                "error": "COMSOL connection preflight failed.",
+                "preflight": preflight,
+            }
+        claim = self._ownership.acquire(mode="remote-connect")
+        if not claim["success"]:
+            return {"success": False, "error": claim["error"], "ownership": claim.get("status")}
+        self._owns_solver_lease = True
         try:
             if mph_session.client is not None:
                 self._client = mph_session.client
+                self._ownership.heartbeat(refresh_server_processes=True)
                 return {
                     "success": True,
                     "version": self._client.version,
@@ -194,6 +234,7 @@ class SessionManager:
             pass
         try:
             self._client = mph.Client(port=port, host=host)
+            self._ownership.heartbeat(refresh_server_processes=True)
             return {
                 "success": True,
                 "version": self._client.version,
@@ -201,6 +242,8 @@ class SessionManager:
                 "host": host,
             }
         except Exception as e:
+            self._ownership.release()
+            self._owns_solver_lease = False
             return {"success": False, "error": str(e)}
     
     def disconnect(self) -> dict:
@@ -219,7 +262,12 @@ class SessionManager:
             self._start_error = None
             self._start_message = ""
         if self._client is None:
-            return {"success": True, "message": "No active session."}
+            release = self._ownership.release() if self._owns_solver_lease else None
+            self._owns_solver_lease = False
+            result = {"success": True, "message": "No active session."}
+            if release is not None:
+                result["lease_release"] = release
+            return result
 
         client = self._client
         try:
@@ -241,7 +289,12 @@ class SessionManager:
             mph_session.thread = None
         except Exception:
             pass
-        return {"success": True, "message": "Session disconnected and client destroyed."}
+        release = self._ownership.release() if self._owns_solver_lease else None
+        self._owns_solver_lease = False
+        result = {"success": True, "message": "Session disconnected and client destroyed."}
+        if release is not None:
+            result["lease_release"] = release
+        return result
     
     def get_status(self) -> dict:
         """Get current session status."""
@@ -334,7 +387,31 @@ class SessionManager:
             self._model_cleanup_paths[name] = str(cleanup_path)
         if self._current_model is None:
             self._current_model = name
+        try:
+            model_path = model.file() if hasattr(model, "file") else None
+            self._ownership.heartbeat(model_path=str(model_path) if model_path else None)
+        except Exception:
+            pass
         return name
+
+    def preflight_long_operation(
+        self, *, model_path: Optional[str] = None, output_path: Optional[str] = None
+    ) -> dict:
+        """Require the connected session to own the solver before long work."""
+        result = self._ownership.preflight(
+            session_state=self.get_status(),
+            model_path=model_path,
+            output_path=output_path,
+        )
+        lease = result["ownership"]["lease"]
+        if self._client is None:
+            result["blockers"].append("no connected COMSOL session")
+        if lease.get("state") != "active" or not lease.get("owned_by_current_process", False):
+            result["blockers"].append("current MCP process does not own the solver lease")
+        result["blockers"] = list(dict.fromkeys(result["blockers"]))
+        result["ready"] = not result["blockers"]
+        result["success"] = result["ready"]
+        return result
 
     def _cleanup_model_artifact(self, name: str) -> None:
         """Remove a tracked clone backing file after COMSOL releases it."""

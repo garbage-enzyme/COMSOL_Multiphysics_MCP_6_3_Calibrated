@@ -915,6 +915,16 @@ def register_workflow_tools(mcp: FastMCP) -> None:
         Returns:
             Rows containing parameter value, solve time, and expression values.
         """
+        preflight = session_manager.preflight_long_operation(
+            model_path=source_model_path,
+            output_path=csv_path,
+        )
+        if not preflight["ready"]:
+            return {
+                "success": False,
+                "error": "Long-operation solver preflight failed.",
+                "preflight": preflight,
+            }
         model = session_manager.get_model(model_name)
         if model is None:
             return {"success": False, "error": f"Model not found: {model_name or 'no current model'}"}
@@ -1009,6 +1019,13 @@ def register_workflow_tools(mcp: FastMCP) -> None:
         Returns:
             Rows containing mesh counts, timings, and expression values.
         """
+        preflight = session_manager.preflight_long_operation(output_path=csv_path)
+        if not preflight["ready"]:
+            return {
+                "success": False,
+                "error": "Long-operation solver preflight failed.",
+                "preflight": preflight,
+            }
         model = session_manager.get_model(model_name)
         if model is None:
             return {"success": False, "error": f"Model not found: {model_name or 'no current model'}"}

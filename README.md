@@ -79,10 +79,20 @@ The refactor covers the following stable paths:
   language queries first use strict significant-term matching, then automatically
   relax and rerank by term coverage plus BM25 instead of silently returning zero.
 - Startup logs print a compact capability summary. The current default profile
-  exposes 88 tools, including explicit `session_clear_models` and
+  exposes 91 tools, including explicit `session_clear_models` and
   `session_reset` lifecycle operations.
 - A failed local startup is retained as an error and cannot silently create
   another worker; call `session_reset` before an explicit retry.
+- `solver_status` merges MCP session state, an ASCII-path process lease, external
+  MPh/COMSOL process evidence, and durable-job availability without starting
+  COMSOL. `solver_preflight` checks process ownership, PID creation time, command
+  identity, 64-bit architecture, discovered COMSOL/JRE backends, memory, and
+  model/output paths. Local start and remote connect fail closed before
+  `mph.Client()` when another solver owner is detected.
+- `solver_recover_stale_lease` removes only a lease proven stale by PID plus
+  creation-time/command evidence. It never terminates a process. The runtime
+  directory defaults to `D:\comsol_runtime` when that drive exists and can be
+  overridden with `COMSOL_MCP_RUNTIME_DIR`; it must remain ASCII-only.
 
 ### Repo hygiene
 
@@ -106,7 +116,11 @@ default. MCP responses return counts, the last point, and a bounded tail instead
 of every row. Legacy CSV adoption requires `allow_legacy_resume=true`; adopted
 rows are marked `legacy_unverified` and rerun rather than silently trusted.
 
-> **Current limitation:** long sweeps still run inside one MCP call; durable background jobs, external solver ownership, and real cancellation remain planned work. Async progress is synthetic lifecycle state, and its cooperative cancellation flag cannot interrupt a blocking COMSOL `study.run()`.
+> **Current limitation:** long sweeps still run inside one MCP call; durable
+> background jobs and real cancellation remain planned work. Solver ownership is
+> now enforced for starts, connections, and registered long workflows, but async
+> progress remains synthetic lifecycle state and its cooperative cancellation flag
+> cannot interrupt a blocking COMSOL `study.run()`.
 
 ## Verification
 
