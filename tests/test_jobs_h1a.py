@@ -196,6 +196,32 @@ def test_production_schema_is_solver_free_and_guards_source(jobs_root):
         )
 
 
+def test_production_submit_uses_parameter_count_not_test_delays(jobs_root, monkeypatch):
+    source = jobs_root / "baseline.mph"
+    source.write_bytes(b"model")
+    manager = JobManager(
+        jobs_root,
+        preflight=lambda **_kwargs: {"ready": True},
+    )
+    identity = process_identity(os.getpid())
+    monkeypatch.setattr(manager, "_launch_worker", lambda *_args: identity)
+
+    submitted = manager.submit(
+        {
+            "job_type": "staged_sweep",
+            "source_model_path": str(source),
+            "parameter_name": "wl",
+            "parameter_values": [4.25, 4.251, 4.253],
+            "expressions": ["A"],
+        }
+    )
+
+    assert manager.store.read_state(submitted["job_id"])["progress"] == {
+        "completed": 0,
+        "total": 3,
+    }
+
+
 def test_test_jobs_require_explicit_injection(jobs_root):
     with pytest.raises(ValueError, match="disabled"):
         JobManager(jobs_root).submit({"job_type": "test_sequence", "delays": [0.01]})

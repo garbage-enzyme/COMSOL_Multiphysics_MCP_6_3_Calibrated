@@ -167,6 +167,9 @@ class JobManager:
                 raise RuntimeError(f"Job preflight failed: {preflight.get('blockers') or preflight}")
             worker_module = "src.jobs.worker"
         now = time.time()
+        total_points = len(spec["delays"]) if spec["job_type"] == "test_sequence" else len(
+            spec["parameter_values"]
+        )
         state = {
             "schema_version": JOB_SCHEMA_VERSION,
             "status": "submitted",
@@ -176,7 +179,7 @@ class JobManager:
             "worker_pid": None,
             "worker_process_create_time": None,
             "worker_command_signature": None,
-            "progress": {"completed": 0, "total": len(spec["delays"])},
+            "progress": {"completed": 0, "total": total_points},
             "last_error": None,
         }
         job_id = self.store.create(spec, state)
