@@ -383,11 +383,10 @@ def run_bounded(operation: str, arguments: dict, timeout: float) -> dict:
     try:
         completed = subprocess.run(
             command,
-            input=json.dumps({"operation": operation, "arguments": arguments}),
+            input=json.dumps(
+                {"operation": operation, "arguments": arguments}, ensure_ascii=False
+            ).encode("utf-8"),
             capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=max(0.05, float(timeout)),
             check=False,
         )
@@ -401,11 +400,12 @@ def run_bounded(operation: str, arguments: dict, timeout: float) -> dict:
         return {
             "success": False,
             "error_type": "WorkerError",
-            "error": completed.stderr.strip() or f"worker exited with code {completed.returncode}",
+            "error": completed.stderr.decode("utf-8", errors="replace").strip()
+            or f"worker exited with code {completed.returncode}",
         }
     try:
-        return json.loads(completed.stdout)
-    except json.JSONDecodeError:
+        return json.loads(completed.stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
         return {
             "success": False,
             "error_type": "WorkerError",

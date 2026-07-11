@@ -8,13 +8,9 @@ import sys
 from .lexical_manual import read_index_pages, search_index
 
 
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-
-
 def main() -> None:
     try:
-        request = json.load(sys.stdin)
+        request = json.loads(sys.stdin.buffer.read().decode("utf-8"))
         operation = request["operation"]
         arguments = request["arguments"]
         if operation == "search":
@@ -29,7 +25,7 @@ def main() -> None:
             "error_type": type(exc).__name__,
             "error": str(exc),
         }
-    json.dump(result, sys.stdout, ensure_ascii=False)
+    sys.stdout.buffer.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
 
 
 if __name__ == "__main__":
