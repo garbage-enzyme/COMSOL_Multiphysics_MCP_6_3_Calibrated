@@ -265,6 +265,86 @@ class TestSessionManager:
         assert sm.get_status()["connected"] is False
         assert client.calls == ["clear", "disconnect"]
 
+    def test_concurrent_start_calls_create_exactly_one_client(self, monkeypatch):
+        import src.tools.session as session_module
+
+        sm = session_module.SessionManager()
+        created = threading.Event()
+        release = threading.Event()
+        calls = []
+
+        class FakeClient:
+            version = "6.4"
+            cores = 2
+            standalone = True
+
+            def clear(self):
+                return None
+
+            def disconnect(self):
+                return None
+
+        def create_client(**kwargs):
+            calls.append(kwargs)
+            created.set()
+            assert release.wait(timeout=2)
+            return FakeClient()
+
+        monkeypatch.setattr(session_module.mph, "Client", create_client)
+        monkeypatch.setattr(session_module.mph_session, "client", None)
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            results = list(executor.map(lambda _: sm.start(cores=2), range(16)))
+
+        assert created.wait(timeout=2)
+        assert all(result.get("starting") for result in results)
+        assert len(calls) == 1
+
+        release.set()
+        sm._start_thread.join(timeout=2)
+        assert sm.client is not None
+        sm.reset()
+
+    def test_reset_discards_client_that_finishes_starting_late(self, monkeypatch):
+        import src.tools.session as session_module
+
+        sm = session_module.SessionManager()
+        created = threading.Event()
+        release = threading.Event()
+
+        class FakeClient:
+            def __init__(self):
+                self.calls = []
+
+            def clear(self):
+                self.calls.append("clear")
+
+            def disconnect(self):
+                self.calls.append("disconnect")
+
+        client = FakeClient()
+
+        def create_client(**kwargs):
+            created.set()
+            assert release.wait(timeout=2)
+            return client
+
+        monkeypatch.setattr(session_module.mph, "Client", create_client)
+        monkeypatch.setattr(session_module.mph_session, "client", None)
+
+        assert sm.start()["starting"] is True
+        assert created.wait(timeout=2)
+
+        reset = sm.reset()
+        assert reset["reset"] is True
+        assert reset["starting"] is True
+
+        release.set()
+        sm._start_thread.join(timeout=2)
+
+        assert sm.client is None
+        assert client.calls == ["clear", "disconnect"]
+
     def test_start_is_idempotent_when_connected(self):
         from src.tools.session import SessionManager
 
