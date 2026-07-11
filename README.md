@@ -79,12 +79,12 @@ The refactor covers the following stable paths:
   language queries first use strict significant-term matching, then automatically
   relax and rerank by term coverage plus BM25 instead of silently returning zero.
 - Startup logs print a compact capability summary. The current default profile
-  exposes 91 tools, including explicit `session_clear_models` and
+  exposes 96 tools, including explicit `session_clear_models` and
   `session_reset` lifecycle operations.
 - A failed local startup is retained as an error and cannot silently create
   another worker; call `session_reset` before an explicit retry.
 - `solver_status` merges MCP session state, an ASCII-path process lease, external
-  MPh/COMSOL process evidence, and durable-job availability without starting
+  MPh/COMSOL process evidence, and active/recent durable-job summaries without starting
   COMSOL. `solver_preflight` checks process ownership, PID creation time, command
   identity, 64-bit architecture, discovered COMSOL/JRE backends, memory, and
   model/output paths. Local start and remote connect fail closed before
@@ -116,16 +116,24 @@ default. MCP responses return counts, the last point, and a bounded tail instead
 of every row. Legacy CSV adoption requires `allow_legacy_resume=true`; adopted
 rows are marked `legacy_unverified` and rerun rather than silently trusted.
 
-> **Current limitation:** long sweeps still run inside one MCP call; durable
-> background jobs and real cancellation remain planned work. Solver ownership is
-> now enforced for starts, connections, and registered long workflows, but async
-> progress remains synthetic lifecycle state and its cooperative cancellation flag
-> cannot interrupt a blocking COMSOL `study.run()`.
+### Durable background staged sweeps
+
+`job_submit`, `job_status`, `job_tail`, `job_cancel`, and `job_resume` provide the
+H1 durable control plane. Each accepted `staged_sweep` runs in a detached worker,
+owns the M2 solver lease, binds CSV/manifest/checkpoint/log artifacts to its
+ASCII-only job directory, validates one or two smoke points against the complete
+immutable M1 manifest, and resumes only matching finite `status=ok` rows.
+
+The cancellation boundary is intentional and machine-readable: `job_cancel`
+records `cancel_requested`; a worker checks it only between blocking solve points
+and then records `interrupted`. H1 never reports `cancelled` and does not claim to
+abort an active COMSOL `study.run()`. Verified native/process cancellation remains
+H2 work.
 
 ## Verification
 
 Run the isolated unit suite with `python -m pytest -q`. The current refactor gate is
-**105 passing tests**. `python -m pytest --collect-only -q` also leaves the COMSOL
+**130 passing tests**. `python -m pytest --collect-only -q` also leaves the COMSOL
 process set unchanged. Root-level
 `test_*.py` files are manual integration probes that may start COMSOL and are
 explicitly excluded from pytest collection; invoke them individually only when

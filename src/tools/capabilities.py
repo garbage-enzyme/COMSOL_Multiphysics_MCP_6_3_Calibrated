@@ -31,6 +31,7 @@ def get_capabilities() -> dict:
             "staged_csv_workflows",
             "bounded_lexical_manual_search",
             "solver_ownership_and_preflight",
+            "durable_background_staged_sweep_jobs",
         ],
         "experimental": {
             "async_solver": {
@@ -54,7 +55,13 @@ def get_capabilities() -> dict:
             "semantic_embeddings": False,
         },
         "long_jobs": {
-            "durable_background_jobs": False,
+            "durable_background_jobs": True,
+            "job_types": ["staged_sweep"],
+            "control_tools": ["job_submit", "job_status", "job_tail", "job_cancel", "job_resume"],
+            "cooperative_cancel_boundary": (
+                "job_cancel records cancel_requested; the worker checks only between blocking solve points "
+                "and then records interrupted. H1 never reports cancelled."
+            ),
             "external_solver_ownership": True,
             "real_cancellation": False,
             "staged_csv_resume": True,
@@ -70,7 +77,7 @@ def startup_capability_summary() -> str:
     return (
         f"profile={capabilities['profile']}; "
         f"target=COMSOL {targets['comsol']} / MPh {targets['mph']}; "
-        "lexical_manual=enabled; semantic_pdf=disabled; durable_jobs=unavailable; "
+        "lexical_manual=enabled; semantic_pdf=disabled; durable_jobs=staged_sweep; "
         "solver_ownership=enforced; cancellation=cooperative_only"
     )
 

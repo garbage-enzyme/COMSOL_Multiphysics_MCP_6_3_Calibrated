@@ -239,6 +239,15 @@ class SolverOwnership:
         else:
             lease_status = {**self._lease_state(lease, processes), "lease": lease}
         external = self._external_solver_processes(processes, lease)
+        try:
+            from src.jobs.manager import JobManager
+
+            durable_jobs = JobManager(self.runtime_dir / "jobs").summaries()
+        except Exception as exc:
+            durable_jobs = {
+                "available": False,
+                "reason": f"Cannot inspect durable jobs: {type(exc).__name__}: {exc}",
+            }
         return {
             "success": True,
             "session": session_state or {"connected": False, "starting": False},
@@ -249,7 +258,7 @@ class SolverOwnership:
                 lease_status["state"] in {"active", "uncertain"}
                 and not lease_status.get("owned_by_current_process", False)
             ),
-            "durable_jobs": {"available": False, "reason": "H1 is not implemented"},
+            "durable_jobs": durable_jobs,
         }
 
     def preflight(

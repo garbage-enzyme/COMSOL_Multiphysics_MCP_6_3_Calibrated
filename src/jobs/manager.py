@@ -364,3 +364,43 @@ class JobManager:
 
     def tail(self, job_id: str, n: int = 20) -> dict[str, Any]:
         return {"success": True, **self.store.tail(job_id, n)}
+
+    def summaries(self, limit: int = 20) -> dict[str, Any]:
+        count = max(1, min(int(limit), 100))
+        directories = sorted(
+            (path for path in self.store.root.iterdir() if path.is_dir() and (path / "state.json").is_file()),
+            key=lambda path: path.stat().st_mtime_ns,
+            reverse=True,
+        )[:count]
+        jobs = []
+        for directory in directories:
+            try:
+                state = self.status(directory.name)
+                jobs.append(
+                    {
+                        "job_id": directory.name,
+                        "status": state["status"],
+                        "attempt": state.get("attempt"),
+                        "progress": state.get("progress"),
+                        "worker_pid": state.get("worker_pid"),
+                        "updated_at_epoch": state.get("updated_at_epoch"),
+                        "last_error": state.get("last_error"),
+                    }
+                )
+            except Exception as exc:
+                jobs.append(
+                    {
+                        "job_id": directory.name,
+                        "status": "unreadable",
+                        "error": f"{type(exc).__name__}: {exc}",
+                    }
+                )
+        active = [job for job in jobs if job["status"] in ACTIVE_STATES]
+        return {
+            "available": True,
+            "root": str(self.store.root),
+            "count_returned": len(jobs),
+            "active_count": len(active),
+            "active": active,
+            "recent": jobs,
+        }

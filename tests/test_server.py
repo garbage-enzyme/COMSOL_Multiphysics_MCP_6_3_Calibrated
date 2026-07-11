@@ -1,6 +1,9 @@
 """Tests for MCP server construction without starting a transport."""
 
 import sys
+from pathlib import Path
+import shutil
+import uuid
 
 from mcp.server.fastmcp import FastMCP
 
@@ -22,6 +25,7 @@ def test_server_registration_is_idempotent():
     assert "solver_status" in tool_names
     assert "solver_preflight" in tool_names
     assert "solver_recover_stale_lease" in tool_names
+    assert {"job_submit", "job_status", "job_tail", "job_cancel", "job_resume"} <= tool_names
     assert "model_create" in tool_names
     assert "study_solve" in tool_names
     assert "docs_get" in tool_names
@@ -70,6 +74,8 @@ def test_capabilities_report_risky_operations_without_starting_comsol(monkeypatc
     assert result["profile"] == "default"
     assert result["session"] == {"connected": False, "starting": False}
     assert result["long_jobs"]["real_cancellation"] is False
+    assert result["long_jobs"]["durable_background_jobs"] is True
+    assert "H1 never reports cancelled" in result["long_jobs"]["cooperative_cancel_boundary"]
     assert "pdf_search" in result["disabled_by_default"]
 
 
@@ -87,7 +93,7 @@ def test_startup_capability_summary_is_compact_and_truthful(monkeypatch):
     assert "profile=default" in summary
     assert "semantic_pdf=disabled" in summary
     assert "lexical_manual=enabled" in summary
-    assert "durable_jobs=unavailable" in summary
+    assert "durable_jobs=staged_sweep" in summary
     assert "cancellation=cooperative_only" in summary
 
 
@@ -100,3 +106,24 @@ def test_spawn_child_is_not_a_server_transport_entrypoint(monkeypatch):
     )
 
     assert server_module._is_transport_entrypoint() is False
+
+
+def test_job_read_tools_are_solver_free(monkeypatch):
+    import mph
+    import src.tools.jobs as jobs_module
+    from src.jobs.manager import JobManager
+
+    root = Path("D:/comsol_runtime_test/jobs") / uuid.uuid4().hex
+    try:
+        monkeypatch.setattr(jobs_module, "job_manager", JobManager(root))
+        monkeypatch.setattr(mph, "Client", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not start")))
+        server = FastMCP("job-read-test")
+        jobs_module.register_job_tools(server)
+
+        status = server._tool_manager._tools["job_status"].fn("missing")
+        tail = server._tool_manager._tools["job_tail"].fn("missing", 5)
+
+        assert status["success"] is False
+        assert tail["success"] is False
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
