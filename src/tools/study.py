@@ -268,7 +268,9 @@ def register_study_tools(mcp: FastMCP) -> None:
         """
         Start solving a study in the background (asynchronous).
         
-        Use study_get_progress to monitor progress and study_cancel to stop.
+        Use study_get_progress to inspect synthetic lifecycle checkpoints.
+        study_cancel records a cooperative request but cannot interrupt a
+        blocking COMSOL study.run() call.
         
         Args:
             study_name: Study to solve (None for all studies)
@@ -314,10 +316,13 @@ def register_study_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     def study_get_progress() -> dict:
         """
-        Get the progress of the current solving operation.
+        Get synthetic lifecycle status for the current solving operation.
+
+        The numeric progress field is not COMSOL solver percentage. While
+        study.run() is blocking, it remains at the pre-solve checkpoint.
         
         Returns:
-            Progress information including status, percentage, and elapsed time
+            Status, synthetic checkpoint value, and elapsed time
         """
         progress = async_solver.get_progress()
         return {
@@ -328,9 +333,10 @@ def register_study_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     def study_cancel() -> dict:
         """
-        Cancel the current solving operation.
-        
-        Note: The solver may take a moment to respond to cancellation.
+        Request cooperative cancellation of the current solving operation.
+
+        This cannot interrupt a blocking COMSOL study.run() call. It can only
+        stop work before the blocking call begins or between separate studies.
         
         Returns:
             Cancellation status
@@ -338,7 +344,12 @@ def register_study_tools(mcp: FastMCP) -> None:
         if async_solver.cancel():
             return {
                 "success": True,
-                "message": "Cancellation requested. Solver will stop at next checkpoint.",
+                "requested": True,
+                "interrupts_solver": False,
+                "message": (
+                    "Cancellation flag recorded. A blocking COMSOL study.run() "
+                    "will continue until it returns."
+                ),
             }
         return {
             "success": False,

@@ -133,14 +133,16 @@ class AsyncSolver:
                 else:
                     jm.study(study_name).run()
                 
-                if self._cancel_flag:
-                    self._set_cancelled()
-                    return
-                
                 with self._lock:
                     self._progress.status = SolverStatus.COMPLETED
                     self._progress.progress = 1.0
-                    self._progress.message = "Solving completed successfully."
+                    if self._cancel_flag:
+                        self._progress.message = (
+                            "Solving completed; the cancellation request could not "
+                            "interrupt the blocking COMSOL study.run() call."
+                        )
+                    else:
+                        self._progress.message = "Solving completed successfully."
                     self._progress.end_time = datetime.now()
                 
                 self._notify_progress(progress_callback, 1.0, "Completed")
@@ -189,9 +191,8 @@ class AsyncSolver:
         """
         Request cancellation of the current solving operation.
         
-        Note: This sets a flag but the actual COMSOL solver may continue
-        until the next checkpoint. Full cancellation support depends on
-        the COMSOL version and solver type.
+        This sets a cooperative Python flag. It can prevent a solve before
+        ``study.run()`` begins, but it cannot interrupt a blocking COMSOL solve.
         
         Returns:
             True if cancellation was requested, False if not running
@@ -200,7 +201,10 @@ class AsyncSolver:
             if self._progress.status != SolverStatus.RUNNING:
                 return False
             self._cancel_flag = True
-            self._progress.message = "Cancellation requested..."
+            self._progress.message = (
+                "Cancellation requested. A blocking COMSOL study.run() cannot "
+                "be interrupted by this flag."
+            )
             return True
     
     def wait(self, timeout: Optional[float] = None) -> bool:

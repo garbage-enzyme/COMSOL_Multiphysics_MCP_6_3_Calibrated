@@ -1,5 +1,7 @@
 """Thread-state tests for the asynchronous solver using fake studies."""
 
+import threading
+
 from src.async_handler.solver import AsyncSolver, SolverStatus
 
 
@@ -68,3 +70,30 @@ def test_progress_property_returns_snapshot():
     snapshot.status = SolverStatus.FAILED
 
     assert solver.progress.status is SolverStatus.IDLE
+
+
+def test_cancel_during_blocking_run_reports_completed_truthfully():
+    started = threading.Event()
+    release = threading.Event()
+
+    class BlockingStudy(FakeStudy):
+        def run(self):
+            self.run_count += 1
+            started.set()
+            assert release.wait(timeout=2)
+
+    study = BlockingStudy()
+    solver = AsyncSolver()
+
+    assert solver.start_solve(FakeModel(study), "std1")
+    assert started.wait(timeout=2)
+    assert solver.cancel() is True
+    assert solver.get_progress()["status"] == SolverStatus.RUNNING.value
+
+    release.set()
+    assert solver.wait(timeout=2)
+
+    progress = solver.get_progress()
+    assert progress["status"] == SolverStatus.COMPLETED.value
+    assert progress["progress"] == 1.0
+    assert "could not interrupt" in progress["message"]
