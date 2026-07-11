@@ -3,6 +3,7 @@
 from src.tools.physics import (
     add_boundary_condition,
     add_domain_feature,
+    add_multiphysics_coupling,
     add_physics_interface,
     assign_material,
     list_physics_features,
@@ -561,6 +562,77 @@ def test_assign_material_reuses_existing_material_in_physics_component():
     assert materials.created == []
     assert existing.selection_node.domains == [1]
     assert existing.group.properties["density"] == ["2329[kg/m^3]"]
+
+
+class CouplingList:
+    def __init__(self):
+        self.created = []
+
+    def tags(self):
+        return []
+
+    def create(self, tag, coupling_type, dimension):
+        coupling = FakePhysics(coupling_type)
+        self.created.append((tag, coupling_type, dimension))
+        return coupling
+
+
+class CoupledPhysicsList:
+    def __init__(self, physics):
+        self.physics = physics
+
+    def tags(self):
+        return list(self.physics)
+
+    def get(self, tag):
+        return self.physics[tag]
+
+
+class TaggedPhysics(BoundaryPhysics):
+    def __init__(self, tag, label):
+        super().__init__()
+        self.physics_tag = tag
+        self.physics_label = label
+
+    def tag(self):
+        return self.physics_tag
+
+    def label(self):
+        return self.physics_label
+
+
+class CouplingComponent(DimensionComponent):
+    def __init__(self):
+        super().__init__(3)
+        self.couplings = CouplingList()
+        self.physics_list = CoupledPhysicsList(
+            {
+                "solid": TaggedPhysics("solid", "Solid Mechanics"),
+                "ht": TaggedPhysics("ht", "Heat Transfer in Solids"),
+            }
+        )
+
+    def tag(self):
+        return "comp1"
+
+    def multiphysics(self):
+        return self.couplings
+
+
+def test_add_multiphysics_coupling_uses_component_clientapi():
+    component = CouplingComponent()
+    model = FakeModel(FakeComponent())
+    model.java = MultiComponentJava({"comp1": component})
+
+    result = add_multiphysics_coupling(
+        model,
+        "ThermalExpansion",
+        ["solid", "ht"],
+    )
+
+    assert result["success"] is True
+    assert component.couplings.created == [("mp1", "ThermalExpansion", 3)]
+    assert result["coupling"]["physics"] == ["solid", "ht"]
 
 
 def test_setup_flow_boundaries_uses_clientapi_features():

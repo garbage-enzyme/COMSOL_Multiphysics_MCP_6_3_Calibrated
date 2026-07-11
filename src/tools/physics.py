@@ -280,6 +280,64 @@ def assign_material(
     return result
 
 
+def add_multiphysics_coupling(
+    model,
+    coupling_type: str,
+    physics_list: Sequence[str],
+) -> dict:
+    """Create a coupling through the owning component's clientapi list."""
+    if not coupling_type.strip():
+        return {"success": False, "error": "coupling_type must not be empty."}
+    if len(physics_list) < 2:
+        return {"success": False, "error": "physics_list must contain at least two interfaces."}
+
+    resolved = []
+    owner = None
+    owner_tag = None
+    for identifier in physics_list:
+        comp, physics = _find_physics_context(model.java, identifier)
+        if physics is None:
+            return {
+                "success": False,
+                "error": f"Physics interface not found: {identifier}",
+            }
+        comp_tag = str(comp.tag())
+        if owner is None:
+            owner = comp
+            owner_tag = comp_tag
+        elif comp_tag != owner_tag:
+            return {
+                "success": False,
+                "error": "All coupled physics interfaces must belong to the same component.",
+            }
+        resolved.append(str(physics.tag()))
+
+    coupling_list = owner.multiphysics()
+    existing = {str(tag) for tag in coupling_list.tags()}
+    index = 1
+    tag = f"mp{index}"
+    while tag in existing:
+        index += 1
+        tag = f"mp{index}"
+    dimension = int(_component_sdim(owner))
+    coupling = coupling_list.create(tag, coupling_type, dimension)
+    try:
+        label = str(coupling.label())
+    except Exception:
+        label = coupling_type
+    return {
+        "success": True,
+        "coupling": {
+            "tag": tag,
+            "label": label,
+            "type": coupling_type,
+            "component": owner_tag,
+            "physics": resolved,
+            "entity_dimension": dimension,
+        },
+    }
+
+
 def setup_flow_boundaries(
     model,
     physics_name: str,
@@ -1085,16 +1143,11 @@ def register_physics_tools(mcp: FastMCP) -> None:
             }
         
         try:
-            coupling_node = model.create("multiphysics", coupling_type)
-            
-            return {
-                "success": True,
-                "coupling": {
-                    "name": coupling_node.name() if hasattr(coupling_node, 'name') else coupling_type,
-                    "type": coupling_type,
-                    "physics": list(physics_list),
-                }
-            }
+            return add_multiphysics_coupling(
+                model,
+                coupling_type,
+                physics_list,
+            )
         except Exception as e:
             return {"success": False, "error": f"Failed to add multiphysics: {str(e)}"}
     
