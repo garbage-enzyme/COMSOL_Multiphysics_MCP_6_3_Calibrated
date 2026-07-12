@@ -12,7 +12,7 @@ import time
 from typing import Any
 
 from .process_control import contain_current_process_tree
-from .store import JobStore, cancel_request_targets_attempt, process_identity
+from .store import JobStore, atomic_write_json, cancel_request_targets_attempt, process_identity
 
 
 def _valid_row_count(csv_path: Path, config_id: str) -> int:
@@ -49,6 +49,26 @@ def _runner_kwargs(spec: dict[str, Any], directory: Path) -> dict[str, Any]:
         "physical_bounds": spec.get("physical_bounds"),
         "response_tail": 2,
     }
+
+
+def _record_native_cancel(store: JobStore, job_id: str, attempt: int, result: dict[str, Any]) -> bool:
+    """Merge native-cancel evidence without overwriting coordinator state."""
+    with store.lock(job_id):
+        state = store.read_state(job_id)
+        control = store.read_control(job_id)
+        if (
+            control.get("request") != "cancel_requested"
+            or int(control.get("target_attempt", -1)) != int(attempt)
+            or state.get("status") not in {"cancel_requested", "cancelling"}
+        ):
+            return False
+        cancel = dict(state.get("cancel") or {})
+        cancel["native"] = dict(result)
+        state["cancel"] = cancel
+        state["updated_at_epoch"] = time.time()
+        atomic_write_json(store.job_dir(job_id) / "state.json", state)
+        store._append_event_unlocked(job_id, "native_cancel_attempted", result, state["status"])
+        return True
 
 
 def _run(root: str, job_id: str) -> int:
@@ -127,7 +147,7 @@ def _run(root: str, job_id: str) -> int:
                 from src.jobs.native_cancel_probe import request_native_cancel_once
 
                 result = request_native_cancel_once()
-                store.append_event(job_id, "native_cancel_attempted", result)
+                _record_native_cancel(store, job_id, attempt, result)
                 return
 
         native_monitor = threading.Thread(target=native_cancel_monitor, name="comsol-native-cancel", daemon=True)

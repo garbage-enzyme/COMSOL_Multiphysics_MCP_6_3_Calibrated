@@ -41,7 +41,7 @@ def register_job_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     def job_cancel(job_id: str) -> dict[str, Any]:
-        """Request cooperative stop between solve points; H1 never claims a blocking COMSOL solve was cancelled."""
+        """Cancel one owned durable job; terminal cancelled requires verified process, port, and lease cleanup."""
         try:
             return job_manager.cancel(job_id)
         except Exception as exc:

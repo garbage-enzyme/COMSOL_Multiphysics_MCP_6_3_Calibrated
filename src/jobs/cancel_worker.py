@@ -6,12 +6,15 @@ import os
 from pathlib import Path
 import sys
 import time
-from typing import Any
+from typing import Any, Callable
 
 import psutil
 
 from .process_control import capture_owned_descendants, inspect_identity, terminate_exact, verify_absent
 from .store import JobStore, atomic_write_json, process_identity
+
+
+_RESUMABLE_PHASES = {"terminate", "force_kill", "verifying"}
 
 
 def _claim(store: JobStore, job_id: str, request_id: str, identity: dict[str, Any]) -> dict[str, Any] | None:
@@ -29,8 +32,10 @@ def _claim(store: JobStore, job_id: str, request_id: str, identity: dict[str, An
         if isinstance(coordinator, dict) and coordinator.get("pid") != identity["pid"]:
             if inspect_identity(coordinator)["state"] == "active":
                 return None
+        previous_phase = cancel.get("phase")
         cancel["coordinator"] = identity
-        cancel["phase"] = "native_grace"
+        cancel["phase"] = previous_phase if previous_phase in _RESUMABLE_PHASES else "native_grace"
+        cancel.pop("blocker", None)
         state["cancel"] = cancel
         state["status"] = "cancelling"
         state["updated_at_epoch"] = time.time()
@@ -41,7 +46,42 @@ def _claim(store: JobStore, job_id: str, request_id: str, identity: dict[str, An
             {"request_id": request_id, "coordinator_pid": identity["pid"]},
             "cancelling",
         )
-        return {"state": state, "control": control}
+        return {"state": state, "control": control, "resume_phase": cancel["phase"]}
+
+
+def _checkpoint(
+    store: JobStore,
+    job_id: str,
+    request_id: str,
+    identity: dict[str, Any],
+    phase: str,
+    *,
+    patch: dict[str, Any] | None = None,
+) -> bool:
+    """Persist one restartable phase before its associated side effect."""
+    with store.lock(job_id):
+        state = store.read_state(job_id)
+        control = store.read_control(job_id)
+        cancel = dict(state.get("cancel") or {})
+        if (
+            control.get("request_id") != request_id
+            or state.get("status") != "cancelling"
+            or (cancel.get("coordinator") or {}).get("pid") != identity.get("pid")
+        ):
+            return False
+        cancel["phase"] = phase
+        if patch:
+            cancel.update(patch)
+        state["cancel"] = cancel
+        state["updated_at_epoch"] = time.time()
+        atomic_write_json(store.job_dir(job_id) / "state.json", state)
+        store._append_event_unlocked(
+            job_id,
+            "cancel_phase_checkpoint",
+            {"request_id": request_id, "phase": phase},
+            "cancelling",
+        )
+        return True
 
 
 def _record_blocker(store: JobStore, job_id: str, request_id: str, message: str) -> None:
@@ -136,48 +176,104 @@ def _verified_cancel(store: JobStore, job_id: str, worker_verification: dict[str
     return {**worker_verification, "solver": solver, "absent": bool(worker_verification["absent"] and solver["ok"])}
 
 
-def run(root: str, job_id: str, request_id: str, grace_seconds: float = 10.0, terminate_seconds: float = 5.0) -> int:
+def run(
+    root: str,
+    job_id: str,
+    request_id: str,
+    grace_seconds: float = 10.0,
+    terminate_seconds: float = 5.0,
+    *,
+    phase_hook: Callable[[str], None] | None = None,
+) -> int:
     store = JobStore(Path(root))
     identity = process_identity(os.getpid())
     claimed = _claim(store, job_id, request_id, identity)
     if claimed is None:
         return 0
     control = claimed["control"]
+    resume_phase = claimed["resume_phase"]
+    if phase_hook is not None:
+        phase_hook(resume_phase)
     worker = control.get("target_worker")
     if not isinstance(worker, dict) or worker.get("pid") is None:
         _record_blocker(store, job_id, request_id, "target worker identity is missing")
         return 2
 
-    initial_capture = capture_owned_descendants(worker)
-    initial_descendants = initial_capture["descendants"]
-
-    deadline = time.monotonic() + max(0.0, float(grace_seconds))
-    while time.monotonic() < deadline:
-        if inspect_identity(worker)["state"] != "active":
-            verification = _verified_cancel(store, job_id, verify_absent([worker, *initial_descendants]))
-            if verification["absent"]:
-                return 0 if _commit_cancelled(store, job_id, request_id, verification, []) else 0
-            _record_blocker(store, job_id, request_id, str(verification.get("solver", {}).get("reason") or "worker exited during grace with uncertain descendants"))
+    cancel_evidence = claimed["state"].get("cancel") or {}
+    persisted_descendants = cancel_evidence.get("descendants")
+    if isinstance(persisted_descendants, list):
+        initial_descendants = persisted_descendants
+    else:
+        initial_capture = capture_owned_descendants(worker)
+        if initial_capture["worker"]["state"] == "uncertain":
+            _record_blocker(store, job_id, request_id, initial_capture["worker"]["reason"])
             return 0
-        time.sleep(0.025)
+        initial_descendants = initial_capture["descendants"]
+        if not _checkpoint(
+            store,
+            job_id,
+            request_id,
+            identity,
+            resume_phase,
+            patch={"descendants": initial_descendants},
+        ):
+            return 0
+
+    if resume_phase not in _RESUMABLE_PHASES:
+        deadline = time.monotonic() + max(0.0, float(grace_seconds))
+        while time.monotonic() < deadline:
+            if inspect_identity(worker)["state"] != "active":
+                if not _checkpoint(store, job_id, request_id, identity, "verifying"):
+                    return 0
+                if phase_hook is not None:
+                    phase_hook("verifying")
+                verification = _verified_cancel(store, job_id, verify_absent([worker, *initial_descendants]))
+                if verification["absent"]:
+                    return 0 if _commit_cancelled(store, job_id, request_id, verification, []) else 0
+                _record_blocker(store, job_id, request_id, str(verification.get("solver", {}).get("reason") or "worker exited during grace with uncertain descendants"))
+                return 0
+            time.sleep(0.025)
 
     captured = capture_owned_descendants(worker)
-    if captured["worker"]["state"] != "active":
+    if captured["worker"]["state"] != "active" and resume_phase not in {"terminate", "force_kill"}:
+        if not _checkpoint(store, job_id, request_id, identity, "verifying"):
+            return 0
+        if phase_hook is not None:
+            phase_hook("verifying")
         verification = _verified_cancel(store, job_id, verify_absent([worker, *initial_descendants]))
         if verification["absent"]:
             return 0 if _commit_cancelled(store, job_id, request_id, verification, []) else 0
         _record_blocker(store, job_id, request_id, str(verification.get("solver", {}).get("reason") or captured["worker"]["reason"]))
         return 0
-    descendants = captured["descendants"]
-    actions = [terminate_exact(worker, force=False)]
-    wait_deadline = time.monotonic() + max(0.0, float(terminate_seconds))
-    while time.monotonic() < wait_deadline and inspect_identity(worker)["state"] == "active":
-        time.sleep(0.025)
-    if inspect_identity(worker)["state"] == "active":
-        actions.append(terminate_exact(worker, force=True))
+    descendants = initial_descendants or captured["descendants"]
+    actions = list(cancel_evidence.get("worker_actions") or [])
+    if resume_phase != "verifying":
+        if resume_phase != "force_kill":
+            if not _checkpoint(store, job_id, request_id, identity, "terminate", patch={"descendants": descendants, "worker_actions": actions}):
+                return 0
+            if phase_hook is not None:
+                phase_hook("terminate")
+            actions.append(terminate_exact(worker, force=False))
+            if not _checkpoint(store, job_id, request_id, identity, "terminate", patch={"worker_actions": actions}):
+                return 0
+            wait_deadline = time.monotonic() + max(0.0, float(terminate_seconds))
+            while time.monotonic() < wait_deadline and inspect_identity(worker)["state"] == "active":
+                time.sleep(0.025)
+        if inspect_identity(worker)["state"] == "active":
+            if not _checkpoint(store, job_id, request_id, identity, "force_kill", patch={"worker_actions": actions}):
+                return 0
+            if phase_hook is not None:
+                phase_hook("force_kill")
+            actions.append(terminate_exact(worker, force=True))
+            if not _checkpoint(store, job_id, request_id, identity, "force_kill", patch={"worker_actions": actions}):
+                return 0
     for descendant in descendants:
         if inspect_identity(descendant)["state"] == "active":
             actions.append(terminate_exact(descendant, force=True))
+    if not _checkpoint(store, job_id, request_id, identity, "verifying", patch={"worker_actions": actions}):
+        return 0
+    if phase_hook is not None:
+        phase_hook("verifying")
     verification = _verified_cancel(store, job_id, verify_absent([worker, *descendants]))
     if not verification["absent"]:
         _record_blocker(store, job_id, request_id, str(verification.get("solver", {}).get("reason") or "worker or captured descendant identity remains active/uncertain"))

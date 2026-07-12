@@ -32,6 +32,7 @@ def get_capabilities() -> dict:
             "bounded_lexical_manual_search",
             "solver_ownership_and_preflight",
             "durable_background_staged_sweep_jobs",
+            "durable_job_real_cancellation_and_resume",
         ],
         "experimental": {
             "async_solver": {
@@ -58,12 +59,16 @@ def get_capabilities() -> dict:
             "durable_background_jobs": True,
             "job_types": ["staged_sweep"],
             "control_tools": ["job_submit", "job_status", "job_tail", "job_cancel", "job_resume"],
-            "cooperative_cancel_boundary": (
-                "job_cancel records cancel_requested; the worker checks only between blocking solve points "
-                "and then records interrupted. H1 never reports cancelled."
+            "cancellation_scope": "same-host durable staged_sweep jobs owned by this runtime root",
+            "cancellation_strategy": (
+                "attempt-bound native cancellation on the verified COMSOL 6.4.0.293 profile; "
+                "exact-identity owned-process fallback elsewhere; cancelled is committed only after "
+                "worker/descendant/port/lease cleanup verification"
             ),
             "external_solver_ownership": True,
-            "real_cancellation": False,
+            "real_cancellation": True,
+            "native_cancel_profile": "comsol-6.4.0.293-progress-context-20260712",
+            "cross_host_cancellation": False,
             "staged_csv_resume": True,
         },
         "restart_required_after_source_changes": True,
@@ -78,7 +83,7 @@ def startup_capability_summary() -> str:
         f"profile={capabilities['profile']}; "
         f"target=COMSOL {targets['comsol']} / MPh {targets['mph']}; "
         "lexical_manual=enabled; semantic_pdf=disabled; durable_jobs=staged_sweep; "
-        "solver_ownership=enforced; cancellation=cooperative_only"
+        "solver_ownership=enforced; durable_job_cancellation=verified"
     )
 
 

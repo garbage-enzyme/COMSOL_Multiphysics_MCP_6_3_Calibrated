@@ -73,9 +73,10 @@ def test_capabilities_report_risky_operations_without_starting_comsol(monkeypatc
 
     assert result["profile"] == "default"
     assert result["session"] == {"connected": False, "starting": False}
-    assert result["long_jobs"]["real_cancellation"] is False
+    assert result["long_jobs"]["real_cancellation"] is True
     assert result["long_jobs"]["durable_background_jobs"] is True
-    assert "H1 never reports cancelled" in result["long_jobs"]["cooperative_cancel_boundary"]
+    assert "exact-identity owned-process fallback" in result["long_jobs"]["cancellation_strategy"]
+    assert result["long_jobs"]["cross_host_cancellation"] is False
     assert "pdf_search" in result["disabled_by_default"]
 
 
@@ -94,7 +95,7 @@ def test_startup_capability_summary_is_compact_and_truthful(monkeypatch):
     assert "semantic_pdf=disabled" in summary
     assert "lexical_manual=enabled" in summary
     assert "durable_jobs=staged_sweep" in summary
-    assert "cancellation=cooperative_only" in summary
+    assert "durable_job_cancellation=verified" in summary
 
 
 def test_spawn_child_is_not_a_server_transport_entrypoint(monkeypatch):

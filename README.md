@@ -128,22 +128,24 @@ owns the M2 solver lease, binds CSV/manifest/checkpoint/log artifacts to its
 ASCII-only job directory, validates one or two smoke points against the complete
 immutable M1 manifest, and resumes only matching finite `status=ok` rows.
 
-The cancellation boundary is intentional and machine-readable: `job_cancel`
-records `cancel_requested`; a worker checks it only between blocking solve points
-and then records `interrupted`. H1 never reports `cancelled` and does not claim to
-abort an active COMSOL `study.run()`. Verified native/process cancellation remains
-H2 work.
+`job_cancel` is attempt-bound and can interrupt an active durable-job
+`study.run()`. On the verified COMSOL 6.4.0.293/MPh 1.3.1 profile it uses
+`ProgressContext.cancel()`; other environments retain an exact-identity
+owned-process fallback. A job reaches `cancelled` only after the worker and all
+captured descendants are absent, any recorded server port is closed, and its
+solver lease is absent or safely recovered. This is same-host control for jobs
+under the shared runtime root, not distributed or cross-host cancellation.
 
 ## Verification
 
 Run the isolated unit suite with `python -m pytest -q`. The current refactor gate is
-**134 passing tests**. `python -m pytest --collect-only -q` also leaves the COMSOL
+**160 passing tests**. `python -m pytest --collect-only -q` also leaves the COMSOL
 process set unchanged. Root-level
 `test_*.py` files are manual integration probes that may start COMSOL and are
 explicitly excluded from pytest collection; invoke them individually only when
 a dedicated COMSOL client is available.
 
-Run the three real probes explicitly, one fresh subprocess at a time, with:
+Run the real probes explicitly, one fresh subprocess at a time, with:
 
 ```bash
 python -m pytest -q -m integration tests/integration
@@ -151,7 +153,7 @@ python -m pytest -q -m integration tests/integration
 
 The integration runner owns and time-bounds its exact Python process tree, invokes
 each probe sequentially, and fails if the COMSOL PID set grows after cleanup. The
-third probe verifies `model.java.save()` to a temporary Chinese path under the
+Unicode-save probe verifies `model.java.save()` to a temporary Chinese path under the
 repository, then removes only that temporary artifact after disconnecting.
 
 `test_e2e_cap.py` and `test_study_mesh.py` are standalone verification scripts (drive `mph.Client` directly, no MCP layer). The same recipe was also re-run end-to-end through the MCP tool interface after restarting the MCP host to load the new code:

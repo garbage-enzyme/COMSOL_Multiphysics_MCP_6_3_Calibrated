@@ -234,6 +234,45 @@ def test_unknown_control_request_fails_closed(jobs_root):
     assert store.read_state(job_id)["status"] == "running"
 
 
+def test_native_cancel_evidence_merges_without_overwriting_coordinator(jobs_root):
+    store = JobStore(jobs_root)
+    identity = process_identity(os.getpid())
+    job_id = store.create(
+        {"schema_version": "2", "job_type": "test"},
+        {
+            "schema_version": "2",
+            "status": "running",
+            "attempt": 1,
+            "worker_pid": identity["pid"],
+            "worker_process_create_time": identity["process_create_time"],
+            "worker_command_signature": identity["command_signature"],
+        },
+    )
+    store.request_cancel(job_id, requester_identity=identity)
+    coordinator = {"pid": 123, "process_create_time": 456.0, "command_signature": "coordinator"}
+    store.update_state(
+        job_id,
+        "cancelling",
+        patch={"cancel": {**store.read_state(job_id)["cancel"], "coordinator": coordinator}},
+    )
+
+    recorded = production_worker._record_native_cancel(
+        store,
+        job_id,
+        1,
+        {"attempted": True, "supported": True, "outcome": "returned"},
+    )
+    state = store.read_state(job_id)
+
+    assert recorded is True
+    assert state["cancel"]["coordinator"] == coordinator
+    assert state["cancel"]["native"] == {
+        "attempted": True,
+        "supported": True,
+        "outcome": "returned",
+    }
+
+
 def test_detached_coordinator_force_stops_exact_test_worker_and_allows_resume(jobs_root):
     manager = JobManager(
         jobs_root,
@@ -276,6 +315,51 @@ def test_startup_reconciliation_relaunches_only_existing_stale_cancel_request(jo
 
     assert manager.reconcile_cancellations() == 1
     assert calls == [(job_id, "cancel-existing")]
+
+
+@pytest.mark.parametrize("crash_phase", ["native_grace", "terminate", "force_kill", "verifying"])
+def test_coordinator_loss_at_each_durable_phase_reconciles_safely(jobs_root, monkeypatch, crash_phase):
+    manager = JobManager(
+        jobs_root,
+        allow_test_jobs=True,
+        cancel_grace_seconds=0.02,
+        cancel_terminate_seconds=0.05,
+    )
+    result = manager.submit({"job_type": "test_sequence", "delays": [0.01, 10.0]})
+    running = wait_for(manager, result["job_id"], {"running"})
+    worker_identity = {
+        "pid": running["worker_pid"],
+        "process_create_time": running["worker_process_create_time"],
+        "command_signature": running["worker_command_signature"],
+    }
+
+    normal_launcher = manager._launch_cancel_coordinator
+    monkeypatch.setattr(manager, "_launch_cancel_coordinator", lambda *_args: None)
+    requested = manager.cancel(result["job_id"])
+    monkeypatch.setattr(manager, "_launch_cancel_coordinator", normal_launcher)
+
+    crash_script = (
+        "import os; import src.jobs.cancel_worker as c; "
+        f"phase={crash_phase!r}; real=c.terminate_exact; "
+        "c.terminate_exact=(lambda identity,force=False: real(identity,force=force) if force else "
+        "{'acted':False,'reason':'test_noop_terminate'}) if phase=='force_kill' else real; "
+        "hook=lambda current: os._exit(91) if current==phase else None; "
+        f"c.run({str(jobs_root)!r},{result['job_id']!r},{requested['request_id']!r},0.02,0.05,phase_hook=hook)"
+    )
+    crashed = subprocess.Popen([sys.executable, "-c", crash_script], cwd=Path(__file__).resolve().parents[1])
+    assert crashed.wait(timeout=5) == 91
+    phase_state = manager.store.read_state(result["job_id"])
+    assert phase_state["status"] == "cancelling"
+    assert phase_state["cancel"]["phase"] == crash_phase
+    assert process_identity_state(phase_state["cancel"]["coordinator"])[0] == "stale"
+
+    assert manager.reconcile_cancellations() == 1
+    cancelled = wait_for(manager, result["job_id"], {"cancelled"}, timeout=10)
+
+    assert process_identity_state(worker_identity)[0] == "stale"
+    assert cancelled["cancel"]["verification"]["absent"] is True
+    events = "\n".join(manager.tail(result["job_id"], 100)["events"])
+    assert f'"phase": "{crash_phase}"' in events
 
 
 def test_read_only_manager_construction_skips_startup_reconciliation(jobs_root, monkeypatch):
