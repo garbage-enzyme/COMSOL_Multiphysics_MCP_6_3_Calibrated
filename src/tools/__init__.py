@@ -14,6 +14,7 @@ from .results import register_results_tools
 from .mim_patch import register_mim_patch_tools
 from .workflow import register_workflow_tools
 from .properties import register_property_tools
+from .wave_optics_preflight import register_wave_optics_preflight_tools
 from .profiles import ProfileSelection, register_profiled, resolve_profile, tool_names_for_profile
 
 TOOL_REGISTRARS = (
@@ -31,6 +32,7 @@ TOOL_REGISTRARS = (
     register_mim_patch_tools,
     register_workflow_tools,
     register_property_tools,
+    register_wave_optics_preflight_tools,
 )
 
 
@@ -56,6 +58,7 @@ __all__ = [
     "register_mim_patch_tools",
     "register_workflow_tools",
     "register_property_tools",
+    "register_wave_optics_preflight_tools",
     "TOOL_REGISTRARS",
     "register_tool_modules",
 ]

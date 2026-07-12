@@ -3752,5 +3752,120 @@
     ],
     "title": "troubleshootArguments",
     "type": "object"
+  },
+  "wave_optics_preflight": {
+    "properties": {
+      "expected_component_tag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Component Tag"
+      },
+      "expected_lattice_axes": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Lattice Axes"
+      },
+      "expected_physics_tag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Physics Tag"
+      },
+      "expected_source_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Source Path"
+      },
+      "expected_source_sha256": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Source Sha256"
+      },
+      "expected_study_tag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Study Tag"
+      },
+      "model_name": {
+        "title": "Model Name",
+        "type": "string"
+      },
+      "target_physical_polarization": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Target Physical Polarization"
+      },
+      "target_wavelength_parameter": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Target Wavelength Parameter"
+      }
+    },
+    "required": [
+      "model_name"
+    ],
+    "title": "wave_optics_preflightArguments",
+    "type": "object"
   }
 }

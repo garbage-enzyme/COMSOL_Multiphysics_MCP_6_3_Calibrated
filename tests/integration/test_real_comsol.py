@@ -15,6 +15,7 @@ PROBES = (
     "test_unicode_save.py",
     "tests/integration/h2a_native_cancel_probe.py",
     "tests/integration/h3c_real_properties.py",
+    "tests/integration/h3d_real_preflight.py",
 )
 
 

@@ -89,6 +89,9 @@ _TOOLS_BY_REGISTRAR = {
     "src.tools.properties.register_property_tools": (
         "clientapi_property_get", "clientapi_property_set",
     ),
+    "src.tools.wave_optics_preflight.register_wave_optics_preflight_tools": (
+        "wave_optics_preflight",
+    ),
     "src.knowledge.embedded.register_knowledge_tools": (
         "docs_get", "docs_list", "physics_get_guide", "troubleshoot",
         "modeling_best_practices",
@@ -113,6 +116,7 @@ _GROUP_BY_REGISTRAR = {
     "register_mim_patch_tools": "mim_patch",
     "register_workflow_tools": "workflow",
     "register_property_tools": "clientapi_properties",
+    "register_wave_optics_preflight_tools": "wave_optics_audit",
     "register_knowledge_tools": "embedded_docs",
     "register_lexical_manual_tools": "manuals",
 }
@@ -138,6 +142,7 @@ _EXPERIMENTAL_TOOLS = frozenset({
     "mesh_convergence_study",
     "clientapi_property_get",
     "clientapi_property_set",
+    "wave_optics_preflight",
 })
 
 _SIDE_EFFECTS = {
@@ -246,6 +251,7 @@ _WAVE_OPTICS_ADDITIONS = frozenset({
     "param_sweep_setup", "results_evaluate", "results_inner_values",
     "results_outer_values", "mim_evaluate_spectral",
     "study_staged_parametric_sweep",
+    "wave_optics_preflight",
 })
 
 _EXPERIMENTAL_ADDITIONS = frozenset({
