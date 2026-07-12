@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 from mcp.server.fastmcp import FastMCP
 
+from .property_transport import JSONValue, validate_properties
 from .session import session_manager
 
 
@@ -51,6 +52,11 @@ def add_geometry_feature(
     if not feature_type.strip():
         return {"success": False, "error": "feature_type must not be empty."}
 
+    try:
+        normalized_properties = validate_properties(properties)
+    except (TypeError, ValueError) as exc:
+        return {"success": False, "error": f"Invalid properties: {exc}"}
+
     geom, error = _get_geometry_node(model, geometry_name, component_name)
     if error:
         return {"success": False, "error": error}
@@ -59,7 +65,7 @@ def add_geometry_feature(
     tag = feature_name or f"feat{feature_list.size() + 1}"
     feature = feature_list.create(tag, feature_type)
     property_errors = {}
-    for name, value in (properties or {}).items():
+    for name, value in normalized_properties.items():
         try:
             feature.set(name, value)
         except Exception as exc:
@@ -294,7 +300,7 @@ def register_geometry_tools(mcp: FastMCP) -> None:
         component_name: str = "comp1",
         feature_name: Optional[str] = None,
         model_name: Optional[str] = None,
-        **kwargs
+        properties: Optional[dict[str, JSONValue]] = None,
     ) -> dict:
         """
         Add a geometry feature to a geometry sequence.
@@ -317,7 +323,7 @@ def register_geometry_tools(mcp: FastMCP) -> None:
             component_name: Component containing the geometry (default: comp1)
             feature_name: Name for the feature (auto-generated if None)
             model_name: Model name (default: current model)
-            **kwargs: Feature-specific properties (position, size, etc.)
+            properties: Feature-specific bounded JSON properties (position, size, etc.)
         
         Returns:
             Created feature info
@@ -336,7 +342,7 @@ def register_geometry_tools(mcp: FastMCP) -> None:
                 geometry_name=geometry_name,
                 component_name=component_name,
                 feature_name=feature_name,
-                properties=kwargs,
+                properties=properties,
             )
         except Exception as e:
             return {"success": False, "error": f"Failed to add geometry feature: {str(e)}"}

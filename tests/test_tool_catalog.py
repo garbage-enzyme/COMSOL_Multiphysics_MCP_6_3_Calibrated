@@ -23,6 +23,9 @@ from src.tools.catalog import (
 
 
 SNAPSHOT_PATH = Path(__file__).parent / "snapshots" / "full_tool_schemas.json"
+PRE_H3_SNAPSHOT_PATH = (
+    Path(__file__).parent / "snapshots" / "pre_h3_tool_schemas.json"
+)
 
 
 def test_full_tool_schema_snapshot_is_stable():
@@ -32,6 +35,17 @@ def test_full_tool_schema_snapshot_is_stable():
 
     assert len(actual) == 96
     assert actual == expected
+
+
+def test_pre_h3_compatibility_snapshot_is_preserved():
+    legacy = json.loads(PRE_H3_SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    current = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+
+    assert len(legacy) == 96
+    assert set(legacy) <= set(current)
+    assert legacy["geometry_add_feature"]["properties"]["kwargs"]["type"] == "string"
+    assert "kwargs" not in current["geometry_add_feature"]["properties"]
+    assert current["geometry_add_feature"]["properties"]["properties"]["anyOf"]
 
 
 def test_registered_tool_names_are_unique():

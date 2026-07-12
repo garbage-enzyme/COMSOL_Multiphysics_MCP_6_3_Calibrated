@@ -159,6 +159,22 @@ def test_add_geometry_feature_validates_type():
     assert result == {"success": False, "error": "feature_type must not be empty."}
 
 
+def test_add_geometry_feature_rejects_invalid_properties_before_clientapi():
+    class UntouchableModel:
+        @property
+        def java(self):
+            raise AssertionError("clientapi must not be touched")
+
+    result = add_geometry_feature(
+        UntouchableModel(),
+        "Block",
+        properties={"filename": "unsafe.java"},
+    )
+
+    assert result["success"] is False
+    assert "forbidden" in result["error"]
+
+
 def test_list_geometry_features_returns_tags_and_labels():
     geometry = FakeGeometry()
     geometry.features.create("blk1", "Block")
