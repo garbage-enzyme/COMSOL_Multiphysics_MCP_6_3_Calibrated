@@ -1,0 +1,3535 @@
+{
+  "capabilities": {
+    "properties": {},
+    "title": "capabilitiesArguments",
+    "type": "object"
+  },
+  "comsol_connect": {
+    "properties": {
+      "host": {
+        "default": "localhost",
+        "title": "Host",
+        "type": "string"
+      },
+      "port": {
+        "title": "Port",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "port"
+    ],
+    "title": "comsol_connectArguments",
+    "type": "object"
+  },
+  "comsol_disconnect": {
+    "properties": {},
+    "title": "comsol_disconnectArguments",
+    "type": "object"
+  },
+  "comsol_start": {
+    "properties": {
+      "cores": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cores"
+      },
+      "products": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Products"
+      },
+      "version": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Version"
+      }
+    },
+    "title": "comsol_startArguments",
+    "type": "object"
+  },
+  "comsol_status": {
+    "properties": {},
+    "title": "comsol_statusArguments",
+    "type": "object"
+  },
+  "datasets_list": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "datasets_listArguments",
+    "type": "object"
+  },
+  "docs_get": {
+    "properties": {
+      "topic": {
+        "title": "Topic",
+        "type": "string"
+      }
+    },
+    "required": [
+      "topic"
+    ],
+    "title": "docs_getArguments",
+    "type": "object"
+  },
+  "docs_list": {
+    "properties": {},
+    "title": "docs_listArguments",
+    "type": "object"
+  },
+  "geometry_add_block": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "feature_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Feature Name"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "position": {
+        "default": [
+          0,
+          0,
+          0
+        ],
+        "items": {
+          "type": "number"
+        },
+        "title": "Position",
+        "type": "array"
+      },
+      "size": {
+        "default": [
+          1,
+          1,
+          1
+        ],
+        "items": {
+          "type": "number"
+        },
+        "title": "Size",
+        "type": "array"
+      }
+    },
+    "title": "geometry_add_blockArguments",
+    "type": "object"
+  },
+  "geometry_add_circle": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "feature_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Feature Name"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "position": {
+        "default": [
+          0,
+          0
+        ],
+        "items": {
+          "type": "number"
+        },
+        "title": "Position",
+        "type": "array"
+      },
+      "radius": {
+        "default": 0.5,
+        "title": "Radius",
+        "type": "number"
+      }
+    },
+    "title": "geometry_add_circleArguments",
+    "type": "object"
+  },
+  "geometry_add_cylinder": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "feature_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Feature Name"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "height": {
+        "default": 1.0,
+        "title": "Height",
+        "type": "number"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "position": {
+        "default": [
+          0,
+          0,
+          0
+        ],
+        "items": {
+          "type": "number"
+        },
+        "title": "Position",
+        "type": "array"
+      },
+      "radius": {
+        "default": 0.5,
+        "title": "Radius",
+        "type": "number"
+      }
+    },
+    "title": "geometry_add_cylinderArguments",
+    "type": "object"
+  },
+  "geometry_add_feature": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "feature_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Feature Name"
+      },
+      "feature_type": {
+        "title": "Feature Type",
+        "type": "string"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "kwargs": {
+        "title": "kwargs",
+        "type": "string"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "required": [
+      "feature_type",
+      "kwargs"
+    ],
+    "title": "geometry_add_featureArguments",
+    "type": "object"
+  },
+  "geometry_add_rectangle": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "feature_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Feature Name"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "position": {
+        "default": [
+          0,
+          0
+        ],
+        "items": {
+          "type": "number"
+        },
+        "title": "Position",
+        "type": "array"
+      },
+      "size": {
+        "default": [
+          1,
+          1
+        ],
+        "items": {
+          "type": "number"
+        },
+        "title": "Size",
+        "type": "array"
+      }
+    },
+    "title": "geometry_add_rectangleArguments",
+    "type": "object"
+  },
+  "geometry_add_sphere": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "feature_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Feature Name"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "position": {
+        "default": [
+          0,
+          0,
+          0
+        ],
+        "items": {
+          "type": "number"
+        },
+        "title": "Position",
+        "type": "array"
+      },
+      "radius": {
+        "default": 0.5,
+        "title": "Radius",
+        "type": "number"
+      }
+    },
+    "title": "geometry_add_sphereArguments",
+    "type": "object"
+  },
+  "geometry_boolean_difference": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "feature_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Feature Name"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "input_object": {
+        "title": "Input Object",
+        "type": "string"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "objects_to_subtract": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Objects To Subtract",
+        "type": "array"
+      }
+    },
+    "required": [
+      "input_object",
+      "objects_to_subtract"
+    ],
+    "title": "geometry_boolean_differenceArguments",
+    "type": "object"
+  },
+  "geometry_boolean_union": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "feature_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Feature Name"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "input_objects": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Input Objects",
+        "type": "array"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "required": [
+      "input_objects"
+    ],
+    "title": "geometry_boolean_unionArguments",
+    "type": "object"
+  },
+  "geometry_build": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "geometry_buildArguments",
+    "type": "object"
+  },
+  "geometry_create": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "space_dimension": {
+        "default": 3,
+        "title": "Space Dimension",
+        "type": "integer"
+      }
+    },
+    "title": "geometry_createArguments",
+    "type": "object"
+  },
+  "geometry_get_boundaries": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "geometry_get_boundariesArguments",
+    "type": "object"
+  },
+  "geometry_import": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "feature_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Feature Name"
+      },
+      "file_path": {
+        "title": "File Path",
+        "type": "string"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "import_type": {
+        "default": "CAD",
+        "title": "Import Type",
+        "type": "string"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "required": [
+      "file_path"
+    ],
+    "title": "geometry_importArguments",
+    "type": "object"
+  },
+  "geometry_list": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "geometry_listArguments",
+    "type": "object"
+  },
+  "geometry_list_features": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "geometry_list_featuresArguments",
+    "type": "object"
+  },
+  "geometry_probe_domains": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "geometry_probe_domainsArguments",
+    "type": "object"
+  },
+  "job_cancel": {
+    "properties": {
+      "job_id": {
+        "title": "Job Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "job_id"
+    ],
+    "title": "job_cancelArguments",
+    "type": "object"
+  },
+  "job_resume": {
+    "properties": {
+      "job_id": {
+        "title": "Job Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "job_id"
+    ],
+    "title": "job_resumeArguments",
+    "type": "object"
+  },
+  "job_status": {
+    "properties": {
+      "job_id": {
+        "title": "Job Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "job_id"
+    ],
+    "title": "job_statusArguments",
+    "type": "object"
+  },
+  "job_submit": {
+    "properties": {
+      "spec": {
+        "additionalProperties": true,
+        "title": "Spec",
+        "type": "object"
+      }
+    },
+    "required": [
+      "spec"
+    ],
+    "title": "job_submitArguments",
+    "type": "object"
+  },
+  "job_tail": {
+    "properties": {
+      "job_id": {
+        "title": "Job Id",
+        "type": "string"
+      },
+      "n": {
+        "default": 20,
+        "title": "N",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "job_id"
+    ],
+    "title": "job_tailArguments",
+    "type": "object"
+  },
+  "manual_read_pages": {
+    "properties": {
+      "pages": {
+        "items": {
+          "type": "integer"
+        },
+        "title": "Pages",
+        "type": "array"
+      },
+      "source": {
+        "title": "Source",
+        "type": "string"
+      }
+    },
+    "required": [
+      "source",
+      "pages"
+    ],
+    "title": "manual_read_pagesArguments",
+    "type": "object"
+  },
+  "manual_search": {
+    "properties": {
+      "limit": {
+        "default": 5,
+        "title": "Limit",
+        "type": "integer"
+      },
+      "mode": {
+        "default": "auto",
+        "title": "Mode",
+        "type": "string"
+      },
+      "module": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Module"
+      },
+      "page_end": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Page End"
+      },
+      "page_start": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Page Start"
+      },
+      "query": {
+        "title": "Query",
+        "type": "string"
+      },
+      "source": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Source"
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "title": "manual_searchArguments",
+    "type": "object"
+  },
+  "mesh_convergence_study": {
+    "properties": {
+      "append_csv": {
+        "default": false,
+        "title": "Append Csv",
+        "type": "boolean"
+      },
+      "checkpoint_every": {
+        "default": 1,
+        "title": "Checkpoint Every",
+        "type": "integer"
+      },
+      "checkpoint_model_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Checkpoint Model Path"
+      },
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "continue_on_error": {
+        "default": false,
+        "title": "Continue On Error",
+        "type": "boolean"
+      },
+      "csv_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Csv Path"
+      },
+      "expressions": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Expressions",
+        "type": "array"
+      },
+      "levels": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": "Levels",
+        "type": "array"
+      },
+      "max_retries": {
+        "default": 0,
+        "title": "Max Retries",
+        "type": "integer"
+      },
+      "mesh_name": {
+        "default": "mesh1",
+        "title": "Mesh Name",
+        "type": "string"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "parameter_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Parameter Name"
+      },
+      "parameter_unit": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Parameter Unit"
+      },
+      "parameter_value": {
+        "anyOf": [
+          {},
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Parameter Value"
+      },
+      "resume_csv": {
+        "default": false,
+        "title": "Resume Csv",
+        "type": "boolean"
+      },
+      "save_model_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Save Model Path"
+      },
+      "size_feature_tag": {
+        "default": "sz1",
+        "title": "Size Feature Tag",
+        "type": "string"
+      },
+      "study_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Study Name"
+      },
+      "study_step_property": {
+        "default": "plist",
+        "title": "Study Step Property",
+        "type": "string"
+      },
+      "study_step_tag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Study Step Tag"
+      },
+      "study_step_unit": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Study Step Unit"
+      },
+      "study_step_unit_property": {
+        "default": "punit",
+        "title": "Study Step Unit Property",
+        "type": "string"
+      }
+    },
+    "required": [
+      "levels",
+      "expressions"
+    ],
+    "title": "mesh_convergence_studyArguments",
+    "type": "object"
+  },
+  "mesh_create": {
+    "properties": {
+      "mesh_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mesh Name"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "mesh_createArguments",
+    "type": "object"
+  },
+  "mesh_info": {
+    "properties": {
+      "component_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Component Name"
+      },
+      "mesh_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mesh Name"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "mesh_infoArguments",
+    "type": "object"
+  },
+  "mesh_list": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "mesh_listArguments",
+    "type": "object"
+  },
+  "mesh_sequence_create": {
+    "properties": {
+      "build": {
+        "default": true,
+        "title": "Build",
+        "type": "boolean"
+      },
+      "component_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Component Name"
+      },
+      "element_type": {
+        "default": "FreeTet",
+        "title": "Element Type",
+        "type": "string"
+      },
+      "mesh_name": {
+        "default": "mesh1",
+        "title": "Mesh Name",
+        "type": "string"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "mesh_sequence_createArguments",
+    "type": "object"
+  },
+  "mim_evaluate_spectral": {
+    "properties": {
+      "expressions": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expressions"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "wl_parameter": {
+        "default": "wl",
+        "title": "Wl Parameter",
+        "type": "string"
+      }
+    },
+    "title": "mim_evaluate_spectralArguments",
+    "type": "object"
+  },
+  "mim_patch_build": {
+    "properties": {
+      "air_block_tag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Air Block Tag"
+      },
+      "air_material_tag": {
+        "default": "mat_air",
+        "title": "Air Material Tag",
+        "type": "string"
+      },
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "diff_tag": {
+        "default": "dif1",
+        "title": "Diff Tag",
+        "type": "string"
+      },
+      "ewfd_tag": {
+        "default": "ewfd",
+        "title": "Ewfd Tag",
+        "type": "string"
+      },
+      "geometry_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Geometry Name"
+      },
+      "layered_impedance_tag": {
+        "default": "lib1",
+        "title": "Layered Impedance Tag",
+        "type": "string"
+      },
+      "layered_transition_tag": {
+        "default": "ltr1",
+        "title": "Layered Transition Tag",
+        "type": "string"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "patch_pos": {
+        "items": {
+          "type": "number"
+        },
+        "title": "Patch Pos",
+        "type": "array"
+      },
+      "patch_size": {
+        "items": {
+          "type": "number"
+        },
+        "title": "Patch Size",
+        "type": "array"
+      },
+      "patch_tag": {
+        "default": "b_pat",
+        "title": "Patch Tag",
+        "type": "string"
+      }
+    },
+    "required": [
+      "patch_size",
+      "patch_pos"
+    ],
+    "title": "mim_patch_buildArguments",
+    "type": "object"
+  },
+  "model_clone": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "new_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "New Name"
+      },
+      "set_current": {
+        "default": false,
+        "title": "Set Current",
+        "type": "boolean"
+      }
+    },
+    "title": "model_cloneArguments",
+    "type": "object"
+  },
+  "model_create": {
+    "properties": {
+      "name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Name"
+      },
+      "set_current": {
+        "default": true,
+        "title": "Set Current",
+        "type": "boolean"
+      }
+    },
+    "title": "model_createArguments",
+    "type": "object"
+  },
+  "model_create_component": {
+    "properties": {
+      "component_name": {
+        "default": "comp1",
+        "title": "Component Name",
+        "type": "string"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "space_dimension": {
+        "default": 3,
+        "title": "Space Dimension",
+        "type": "integer"
+      }
+    },
+    "title": "model_create_componentArguments",
+    "type": "object"
+  },
+  "model_inspect": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "model_inspectArguments",
+    "type": "object"
+  },
+  "model_list": {
+    "properties": {},
+    "title": "model_listArguments",
+    "type": "object"
+  },
+  "model_list_components": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "model_list_componentsArguments",
+    "type": "object"
+  },
+  "model_load": {
+    "properties": {
+      "file_path": {
+        "title": "File Path",
+        "type": "string"
+      },
+      "set_current": {
+        "default": true,
+        "title": "Set Current",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "file_path"
+    ],
+    "title": "model_loadArguments",
+    "type": "object"
+  },
+  "model_remove": {
+    "properties": {
+      "model_name": {
+        "title": "Model Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "model_name"
+    ],
+    "title": "model_removeArguments",
+    "type": "object"
+  },
+  "model_save": {
+    "properties": {
+      "file_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "File Path"
+      },
+      "format": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Format"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "model_saveArguments",
+    "type": "object"
+  },
+  "model_save_version": {
+    "properties": {
+      "base_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Base Path"
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "model_save_versionArguments",
+    "type": "object"
+  },
+  "model_set_current": {
+    "properties": {
+      "model_name": {
+        "title": "Model Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "model_name"
+    ],
+    "title": "model_set_currentArguments",
+    "type": "object"
+  },
+  "modeling_best_practices": {
+    "properties": {
+      "category": {
+        "title": "Category",
+        "type": "string"
+      }
+    },
+    "required": [
+      "category"
+    ],
+    "title": "modeling_best_practicesArguments",
+    "type": "object"
+  },
+  "multiphysics_add": {
+    "properties": {
+      "coupling_type": {
+        "title": "Coupling Type",
+        "type": "string"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "physics_list": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Physics List",
+        "type": "array"
+      }
+    },
+    "required": [
+      "coupling_type",
+      "physics_list"
+    ],
+    "title": "multiphysics_addArguments",
+    "type": "object"
+  },
+  "param_description": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string"
+      },
+      "text": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Text"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "param_descriptionArguments",
+    "type": "object"
+  },
+  "param_get": {
+    "properties": {
+      "evaluate": {
+        "default": false,
+        "title": "Evaluate",
+        "type": "boolean"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "param_getArguments",
+    "type": "object"
+  },
+  "param_list": {
+    "properties": {
+      "evaluate": {
+        "default": false,
+        "title": "Evaluate",
+        "type": "boolean"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "param_listArguments",
+    "type": "object"
+  },
+  "param_set": {
+    "properties": {
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string"
+      },
+      "value": {
+        "title": "Value",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "value"
+    ],
+    "title": "param_setArguments",
+    "type": "object"
+  },
+  "param_sweep_setup": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "parameter_name": {
+        "title": "Parameter Name",
+        "type": "string"
+      },
+      "parameter_unit": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Parameter Unit"
+      },
+      "study_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Study Name"
+      },
+      "values": {
+        "items": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "title": "Values",
+        "type": "array"
+      }
+    },
+    "required": [
+      "parameter_name",
+      "values"
+    ],
+    "title": "param_sweep_setupArguments",
+    "type": "object"
+  },
+  "physics_add": {
+    "properties": {
+      "component_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Component Name"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "physics_type": {
+        "title": "Physics Type",
+        "type": "string"
+      }
+    },
+    "required": [
+      "physics_type"
+    ],
+    "title": "physics_addArguments",
+    "type": "object"
+  },
+  "physics_add_domain_feature": {
+    "properties": {
+      "domain_selection": {
+        "items": {
+          "type": "integer"
+        },
+        "title": "Domain Selection",
+        "type": "array"
+      },
+      "feature_tag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Feature Tag"
+      },
+      "feature_type": {
+        "title": "Feature Type",
+        "type": "string"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "physics_name": {
+        "title": "Physics Name",
+        "type": "string"
+      },
+      "properties": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Properties"
+      }
+    },
+    "required": [
+      "physics_name",
+      "feature_type",
+      "domain_selection"
+    ],
+    "title": "physics_add_domain_featureArguments",
+    "type": "object"
+  },
+  "physics_add_electrostatics": {
+    "properties": {
+      "domain_numbers": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Domain Numbers"
+      },
+      "domain_selection": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Domain Selection"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "relpermittivity": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Relpermittivity"
+      }
+    },
+    "title": "physics_add_electrostaticsArguments",
+    "type": "object"
+  },
+  "physics_add_heat_transfer": {
+    "properties": {
+      "domain_selection": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Domain Selection"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "physics_add_heat_transferArguments",
+    "type": "object"
+  },
+  "physics_add_laminar_flow": {
+    "properties": {
+      "domain_selection": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Domain Selection"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "physics_add_laminar_flowArguments",
+    "type": "object"
+  },
+  "physics_add_solid_mechanics": {
+    "properties": {
+      "domain_selection": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Domain Selection"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "physics_add_solid_mechanicsArguments",
+    "type": "object"
+  },
+  "physics_boundary_selection": {
+    "properties": {
+      "boundary_condition_type": {
+        "title": "Boundary Condition Type",
+        "type": "string"
+      },
+      "boundary_numbers": {
+        "items": {
+          "type": "integer"
+        },
+        "title": "Boundary Numbers",
+        "type": "array"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "physics_name": {
+        "title": "Physics Name",
+        "type": "string"
+      },
+      "properties": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Properties"
+      }
+    },
+    "required": [
+      "physics_name",
+      "boundary_condition_type",
+      "boundary_numbers"
+    ],
+    "title": "physics_boundary_selectionArguments",
+    "type": "object"
+  },
+  "physics_configure_boundary": {
+    "properties": {
+      "boundary_condition": {
+        "title": "Boundary Condition",
+        "type": "string"
+      },
+      "boundary_selection": {
+        "items": {
+          "type": "integer"
+        },
+        "title": "Boundary Selection",
+        "type": "array"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "physics_name": {
+        "title": "Physics Name",
+        "type": "string"
+      },
+      "properties": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Properties"
+      }
+    },
+    "required": [
+      "physics_name",
+      "boundary_condition",
+      "boundary_selection"
+    ],
+    "title": "physics_configure_boundaryArguments",
+    "type": "object"
+  },
+  "physics_get_available": {
+    "properties": {},
+    "title": "physics_get_availableArguments",
+    "type": "object"
+  },
+  "physics_get_guide": {
+    "properties": {
+      "physics_type": {
+        "title": "Physics Type",
+        "type": "string"
+      }
+    },
+    "required": [
+      "physics_type"
+    ],
+    "title": "physics_get_guideArguments",
+    "type": "object"
+  },
+  "physics_interactive_setup_flow": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "physics_name": {
+        "default": "Laminar Flow",
+        "title": "Physics Name",
+        "type": "string"
+      }
+    },
+    "title": "physics_interactive_setup_flowArguments",
+    "type": "object"
+  },
+  "physics_interactive_setup_heat": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "physics_name": {
+        "default": "Heat Transfer in Solids",
+        "title": "Physics Name",
+        "type": "string"
+      }
+    },
+    "title": "physics_interactive_setup_heatArguments",
+    "type": "object"
+  },
+  "physics_list": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "physics_listArguments",
+    "type": "object"
+  },
+  "physics_list_features": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "physics_name": {
+        "title": "Physics Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "physics_name"
+    ],
+    "title": "physics_list_featuresArguments",
+    "type": "object"
+  },
+  "physics_remove": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "physics_name": {
+        "title": "Physics Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "physics_name"
+    ],
+    "title": "physics_removeArguments",
+    "type": "object"
+  },
+  "physics_set_material": {
+    "properties": {
+      "domain_selection": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Domain Selection"
+      },
+      "material_name": {
+        "title": "Material Name",
+        "type": "string"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "physics_name": {
+        "title": "Physics Name",
+        "type": "string"
+      },
+      "properties": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Properties"
+      }
+    },
+    "required": [
+      "physics_name",
+      "material_name"
+    ],
+    "title": "physics_set_materialArguments",
+    "type": "object"
+  },
+  "physics_setup_flow_boundaries": {
+    "properties": {
+      "inlet_boundaries": {
+        "items": {
+          "type": "integer"
+        },
+        "title": "Inlet Boundaries",
+        "type": "array"
+      },
+      "inlet_velocity": {
+        "default": "1[mm/s]",
+        "title": "Inlet Velocity",
+        "type": "string"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "outlet_boundaries": {
+        "items": {
+          "type": "integer"
+        },
+        "title": "Outlet Boundaries",
+        "type": "array"
+      },
+      "outlet_pressure": {
+        "default": "0",
+        "title": "Outlet Pressure",
+        "type": "string"
+      },
+      "physics_name": {
+        "title": "Physics Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "physics_name",
+      "inlet_boundaries",
+      "outlet_boundaries"
+    ],
+    "title": "physics_setup_flow_boundariesArguments",
+    "type": "object"
+  },
+  "physics_setup_heat_boundaries": {
+    "properties": {
+      "ambient_temp": {
+        "default": "293.15[K]",
+        "title": "Ambient Temp",
+        "type": "string"
+      },
+      "convection_boundaries": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Convection Boundaries"
+      },
+      "convection_coeff": {
+        "default": "10[W/(m^2*K)]",
+        "title": "Convection Coeff",
+        "type": "string"
+      },
+      "heat_flux_boundaries": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Heat Flux Boundaries"
+      },
+      "heat_flux_value": {
+        "default": "1e6[W/m^2]",
+        "title": "Heat Flux Value",
+        "type": "string"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "physics_name": {
+        "title": "Physics Name",
+        "type": "string"
+      },
+      "temperature_boundaries": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Temperature Boundaries"
+      },
+      "temperature_value": {
+        "default": "293.15[K]",
+        "title": "Temperature Value",
+        "type": "string"
+      }
+    },
+    "required": [
+      "physics_name"
+    ],
+    "title": "physics_setup_heat_boundariesArguments",
+    "type": "object"
+  },
+  "results_evaluate": {
+    "properties": {
+      "dataset": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Dataset"
+      },
+      "expression": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ],
+        "title": "Expression"
+      },
+      "inner": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Inner"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "outer": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Outer"
+      },
+      "unit": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Unit"
+      }
+    },
+    "required": [
+      "expression"
+    ],
+    "title": "results_evaluateArguments",
+    "type": "object"
+  },
+  "results_export_data": {
+    "properties": {
+      "file_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "File Path"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "node_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Node Name"
+      }
+    },
+    "title": "results_export_dataArguments",
+    "type": "object"
+  },
+  "results_export_image": {
+    "properties": {
+      "file_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "File Path"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "node_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Node Name"
+      }
+    },
+    "title": "results_export_imageArguments",
+    "type": "object"
+  },
+  "results_exports_list": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "results_exports_listArguments",
+    "type": "object"
+  },
+  "results_global_evaluate": {
+    "properties": {
+      "dataset": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Dataset"
+      },
+      "expression": {
+        "title": "Expression",
+        "type": "string"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "unit": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Unit"
+      }
+    },
+    "required": [
+      "expression"
+    ],
+    "title": "results_global_evaluateArguments",
+    "type": "object"
+  },
+  "results_inner_values": {
+    "properties": {
+      "dataset": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Dataset"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "results_inner_valuesArguments",
+    "type": "object"
+  },
+  "results_outer_values": {
+    "properties": {
+      "dataset": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Dataset"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "results_outer_valuesArguments",
+    "type": "object"
+  },
+  "results_plots_list": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "results_plots_listArguments",
+    "type": "object"
+  },
+  "session_clear_models": {
+    "properties": {},
+    "title": "session_clear_modelsArguments",
+    "type": "object"
+  },
+  "session_reset": {
+    "properties": {},
+    "title": "session_resetArguments",
+    "type": "object"
+  },
+  "solutions_list": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "solutions_listArguments",
+    "type": "object"
+  },
+  "solver_preflight": {
+    "properties": {
+      "minimum_free_gb": {
+        "default": 2.0,
+        "title": "Minimum Free Gb",
+        "type": "number"
+      },
+      "model_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Path"
+      },
+      "output_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Output Path"
+      },
+      "requested_version": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Requested Version"
+      }
+    },
+    "title": "solver_preflightArguments",
+    "type": "object"
+  },
+  "solver_recover_stale_lease": {
+    "properties": {},
+    "title": "solver_recover_stale_leaseArguments",
+    "type": "object"
+  },
+  "solver_status": {
+    "properties": {},
+    "title": "solver_statusArguments",
+    "type": "object"
+  },
+  "study_cancel": {
+    "properties": {},
+    "title": "study_cancelArguments",
+    "type": "object"
+  },
+  "study_create": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "study_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Study Name"
+      },
+      "study_type": {
+        "default": "Stationary",
+        "title": "Study Type",
+        "type": "string"
+      },
+      "time_list": {
+        "anyOf": [
+          {
+            "items": {},
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Time List"
+      },
+      "time_unit": {
+        "default": "s",
+        "title": "Time Unit",
+        "type": "string"
+      }
+    },
+    "title": "study_createArguments",
+    "type": "object"
+  },
+  "study_get_progress": {
+    "properties": {},
+    "title": "study_get_progressArguments",
+    "type": "object"
+  },
+  "study_list": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      }
+    },
+    "title": "study_listArguments",
+    "type": "object"
+  },
+  "study_solve": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "study_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Study Name"
+      },
+      "timeout": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Timeout"
+      },
+      "wait": {
+        "default": true,
+        "title": "Wait",
+        "type": "boolean"
+      }
+    },
+    "title": "study_solveArguments",
+    "type": "object"
+  },
+  "study_solve_async": {
+    "properties": {
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "study_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Study Name"
+      }
+    },
+    "title": "study_solve_asyncArguments",
+    "type": "object"
+  },
+  "study_staged_parametric_sweep": {
+    "properties": {
+      "allow_legacy_resume": {
+        "default": false,
+        "title": "Allow Legacy Resume",
+        "type": "boolean"
+      },
+      "append_csv": {
+        "default": false,
+        "title": "Append Csv",
+        "type": "boolean"
+      },
+      "checkpoint_every": {
+        "default": 1,
+        "title": "Checkpoint Every",
+        "type": "integer"
+      },
+      "checkpoint_model_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Checkpoint Model Path"
+      },
+      "config_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config Id"
+      },
+      "continue_on_error": {
+        "default": false,
+        "title": "Continue On Error",
+        "type": "boolean"
+      },
+      "csv_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Csv Path"
+      },
+      "expressions": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Expressions",
+        "type": "array"
+      },
+      "manifest_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Manifest Path"
+      },
+      "max_retries": {
+        "default": 0,
+        "title": "Max Retries",
+        "type": "integer"
+      },
+      "model_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Model Name"
+      },
+      "parameter_name": {
+        "title": "Parameter Name",
+        "type": "string"
+      },
+      "parameter_unit": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Parameter Unit"
+      },
+      "parameter_values": {
+        "items": {},
+        "title": "Parameter Values",
+        "type": "array"
+      },
+      "physical_bounds": {
+        "anyOf": [
+          {
+            "additionalProperties": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Physical Bounds"
+      },
+      "record_wavelength_controls": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Record Wavelength Controls"
+      },
+      "response_tail": {
+        "default": 5,
+        "title": "Response Tail",
+        "type": "integer"
+      },
+      "resume_csv": {
+        "default": false,
+        "title": "Resume Csv",
+        "type": "boolean"
+      },
+      "save_model_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Save Model Path"
+      },
+      "source_model_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Source Model Path"
+      },
+      "study_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Study Name"
+      },
+      "study_step_property": {
+        "default": "plist",
+        "title": "Study Step Property",
+        "type": "string"
+      },
+      "study_step_tag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Study Step Tag"
+      },
+      "study_step_unit": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Study Step Unit"
+      },
+      "study_step_unit_property": {
+        "default": "punit",
+        "title": "Study Step Unit Property",
+        "type": "string"
+      }
+    },
+    "required": [
+      "parameter_name",
+      "parameter_values",
+      "expressions"
+    ],
+    "title": "study_staged_parametric_sweepArguments",
+    "type": "object"
+  },
+  "study_wait": {
+    "properties": {
+      "timeout": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Timeout"
+      }
+    },
+    "title": "study_waitArguments",
+    "type": "object"
+  },
+  "troubleshoot": {
+    "properties": {
+      "context": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Context"
+      },
+      "error_type": {
+        "title": "Error Type",
+        "type": "string"
+      }
+    },
+    "required": [
+      "error_type"
+    ],
+    "title": "troubleshootArguments",
+    "type": "object"
+  }
+}
