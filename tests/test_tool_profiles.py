@@ -20,12 +20,19 @@ def _tool_names(server) -> list[str]:
     return sorted(tool.name for tool in asyncio.run(server.list_tools()))
 
 
-def test_default_profile_remains_full(monkeypatch):
+def test_default_profile_is_core_after_h3_cutover(monkeypatch):
     monkeypatch.delenv(PROFILE_ENV_VAR, raising=False)
-    server = create_server("default-full-profile-test")
+    server = create_server("default-core-profile-test")
 
-    assert DEFAULT_PROFILE == "full"
-    assert len(_tool_names(server)) == 99
+    assert DEFAULT_PROFILE == "core"
+    assert len(_tool_names(server)) == 38
+    names = set(_tool_names(server))
+    assert {"solver_status", "job_cancel", "model_load", "study_solve"} <= names
+    assert {
+        "wave_optics_preflight", "wave_optics_point_audit",
+        "mim_patch_build", "mim_evaluate_spectral", "study_solve_async",
+        "clientapi_property_set",
+    }.isdisjoint(names)
 
 
 def test_invalid_profile_fails_without_fallback():
@@ -42,7 +49,7 @@ def test_environment_profile_is_normalized(monkeypatch):
     assert selection.default_used is False
 
     server = create_server("environment-wave-profile-test")
-    assert len(_tool_names(server)) == 45
+    assert len(_tool_names(server)) == 46
 
 
 def test_profile_name_and_schema_snapshots_are_exact():
@@ -69,7 +76,7 @@ def test_profile_registration_has_no_cross_server_leakage():
     experimental = create_server("isolated-experimental", profile="experimental")
 
     assert len(_tool_names(core)) == 38
-    assert len(_tool_names(full)) == 99
+    assert len(_tool_names(full)) == 100
     assert len(_tool_names(experimental)) == 64
     assert _tool_names(core) != _tool_names(experimental)
 
@@ -94,4 +101,4 @@ def test_capabilities_are_bound_to_each_server_profile(monkeypatch):
     assert core_result["tool_count"] == 38
     assert core_result["profile_source"]["source"] == "explicit_argument"
     assert wave_result["active_profile"] == "wave_optics"
-    assert wave_result["tool_count"] == 45
+    assert wave_result["tool_count"] == 46

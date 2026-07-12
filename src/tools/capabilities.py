@@ -4,6 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .catalog import PROFILE_NAMES, TOOL_METADATA
 from .profiles import (
+    DEFAULT_PROFILE,
     PROFILE_DESCRIPTIONS,
     PROFILE_MATURITY,
     ProfileSelection,
@@ -73,6 +74,8 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
             "solver_ownership_and_preflight",
             "durable_background_staged_sweep_jobs",
             "durable_job_real_cancellation_and_resume",
+            "wave_optics_read_only_preflight",
+            "wave_optics_one_point_policy_separated_audit",
         ],
         "experimental": {
             "async_solver": {
@@ -89,6 +92,22 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
             "pdf_search_status",
             "pdf_list_modules",
         ],
+        "profile_guidance": {
+            "default_profile": DEFAULT_PROFILE,
+            "wave_optics_recommended_profile": "wave_optics",
+            "backward_compatibility_profile": "full",
+            "selection_environment_variable": "COMSOL_MCP_PROFILE",
+            "restart_required": True,
+        },
+        "wave_optics_audit": {
+            "preflight_tool": "wave_optics_preflight",
+            "point_tool": "wave_optics_point_audit",
+            "profiles": ["wave_optics", "full"],
+            "default_assessment": "evidence_only",
+            "explicit_policy_supported": True,
+            "source_immutability": True,
+            "durable_one_row_artifacts": True,
+        },
         "manual_search": {
             "backend": "sqlite_fts5_bm25",
             "isolated_worker": True,

@@ -114,6 +114,36 @@ class TestSessionManager:
         status = sm.get_status()
         assert status["connected"] is False
 
+    def test_get_status_normalizes_model_paths_for_mcp_json(self, tmp_path):
+        import json
+
+        from src.tools.session import SessionManager
+
+        class FakeClient:
+            version = "6.4"
+            cores = 4
+            standalone = True
+
+            def names(self):
+                return ["model"]
+
+        class FakeModel:
+            def file(self):
+                return tmp_path / "model.mph"
+
+        sm = SessionManager()
+        sm._client = FakeClient()
+        sm._models = {"model": FakeModel()}
+        sm._current_model = "model"
+        try:
+            status = sm.get_status()
+            json.dumps(status)
+            assert status["models"][0]["file"] == str(tmp_path / "model.mph")
+        finally:
+            sm._client = None
+            sm._models = {}
+            sm._current_model = None
+
     def test_disconnect_releases_client(self):
         from src.tools.session import SessionManager
 

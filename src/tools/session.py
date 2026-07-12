@@ -324,7 +324,8 @@ class SessionManager:
             model_info = {"name": name}
             if name in self._models:
                 model = self._models[name]
-                model_info["file"] = model.file() if hasattr(model, 'file') else None
+                model_file = model.file() if hasattr(model, 'file') else None
+                model_info["file"] = str(model_file) if model_file is not None else None
             model_list.append(model_info)
         
         return {

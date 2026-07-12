@@ -65,9 +65,14 @@ The refactor covers the following stable paths:
 
 ### Default server profile
 
-- The dependency-free `capabilities` tool reports the COMSOL/MPh target, verified
-  areas, experimental async semantics, disabled tools, and missing long-job
-  guarantees without starting COMSOL.
+- The deployed default is the 38-tool `core` profile. It keeps mature solver
+  ownership, durable H1/H2 job control, session/model inspection, parameters,
+  geometry/physics/mesh/study inspection, one-point solve/global evaluation, and
+  bounded lexical manual search. It excludes generic creation, async solve,
+  arbitrary property mutation, MIM-specific helpers, and Wave Optics audit tools.
+- The dependency-free `capabilities` tool reports the exact active profile/count,
+  all available profiles, COMSOL/MPh target, verified operations, disabled groups,
+  restart requirement, and H1/H2 cancellation status without starting COMSOL.
 - `pdf_search`, `pdf_search_status`, and `pdf_list_modules` are disabled by
   default because they can initialize ChromaDB and an embedding model in the
   COMSOL control process. Their source remains available for an explicit isolated
@@ -78,9 +83,9 @@ The refactor covers the following stable paths:
   Torch, or SentenceTransformer in the COMSOL control process. Long natural-
   language queries first use strict significant-term matching, then automatically
   relax and rerank by term coverage plus BM25 instead of silently returning zero.
-- Startup logs print a compact capability summary. The current default profile
-  exposes 96 tools, including explicit `session_clear_models` and
-  `session_reset` lifecycle operations.
+- Startup logs print the selected profile and exact tool count. Profile selection
+  is static for one server process; invalid names fail startup and profile changes
+  require a restart.
 - A failed local startup is retained as an error and cannot silently create
   another worker; call `session_reset` before an explicit retry.
 - `solver_status` merges MCP session state, an ASCII-path process lease, external
@@ -97,6 +102,49 @@ The refactor covers the following stable paths:
   placed in its `jobs` subdirectory. `COMSOL_MCP_JOBS_DIR` is a compatibility
   override and, when used with `COMSOL_MCP_RUNTIME_DIR`, must equal
   `<runtime>\jobs` so jobs and the solver lease remain coordinated.
+
+Select a static profile with `COMSOL_MCP_PROFILE`:
+
+| Profile | Tools | Intended use |
+| --- | ---: | --- |
+| `core` (default) | 38 | Mature control plane and compact general inspection/one-point surface. |
+| `basic_fem` | 71 | Core plus typed conventional FEM construction and bounded exports. |
+| `wave_optics` | 46 | Recommended metasurface profile: core plus preflight, point audit, and staged workflow. |
+| `experimental` | 64 | Explicit generic, async, property escape-hatch, and project-helper surface. |
+| `full` | 100 | Backward-compatible discovery containing every legacy and H3 tool. |
+
+For existing clients that depended on the former broad default, set
+`COMSOL_MCP_PROFILE=full` and restart. The rollback changes only discovery; it
+does not revert durable jobs, ownership, cancellation, or source-integrity checks.
+
+### Wave Optics evidence workflow
+
+The `wave_optics` profile adds two cross-project tools:
+
+1. `wave_optics_preflight` reads an exact loaded model without solving or
+   mutation. It reports source provenance, topology, PeriodicStructure/Floquet
+   selections, periodic ports and `rdir1`, incidence labels, structural wavelength
+   linkage, mesh/study/solution metadata, and explicit unknowns.
+2. `wave_optics_point_audit` solves exactly one declared wavelength after M2
+   ownership and source-hash checks. It writes a pre-solve `running` manifest, one
+   fsync'd CSV row, and a final manifest under an ASCII runtime directory. Raw
+   evidence includes requested/evaluated/frequency wavelengths, caller-provenanced
+   R/T/A and flux directions, closure, explicit loss expressions, bounded complex
+   top-air field statistics, evidence level, mesh state, and source/config/policy
+   hashes.
+
+Without a validation policy the point audit is evidence-only and emits no project
+pass/fail or long-sweep recommendation. An optional versioned JSON policy evaluates
+declared assumptions and tolerances rule by rule without changing raw evidence.
+S/P labels and structure total fields remain `label_only`/
+`structure_total_field`; only a matching incident-reference artifact promotes the
+evidence level.
+
+Recommended Agent sequence:
+
+```text
+solver_status -> wave_optics_preflight -> wave_optics_point_audit
+```
 
 ### Repo hygiene
 
@@ -138,8 +186,8 @@ under the shared runtime root, not distributed or cross-host cancellation.
 
 ## Verification
 
-Run the isolated unit suite with `python -m pytest -q`. The current refactor gate is
-**160 passing tests**. `python -m pytest --collect-only -q` also leaves the COMSOL
+Run the isolated unit suite with `python -m pytest -q`. The H3f refactor gate is
+**228 passing tests** with 9 real probes deselected. `python -m pytest --collect-only -q` also leaves the COMSOL
 process set unchanged. Root-level
 `test_*.py` files are manual integration probes that may start COMSOL and are
 explicitly excluded from pytest collection; invoke them individually only when
@@ -154,7 +202,11 @@ python -m pytest -q -m integration tests/integration
 The integration runner owns and time-bounds its exact Python process tree, invokes
 each probe sequentially, and fails if the COMSOL PID set grows after cleanup. The
 Unicode-save probe verifies `model.java.save()` to a temporary Chinese path under the
-repository, then removes only that temporary artifact after disconnecting.
+repository, then removes only that temporary artifact after disconnecting. H3 adds
+immutable Chen/Zhou/Sun preflight, four-case one-point audit, and fresh-host H3f
+profile/three-call probes, including
+air-reference polarization evidence and preservation of the archived scattered-
+field `A>1` failure before an explicit policy classifies it.
 
 `test_e2e_cap.py` and `test_study_mesh.py` are standalone verification scripts (drive `mph.Client` directly, no MCP layer). The same recipe was also re-run end-to-end through the MCP tool interface after restarting the MCP host to load the new code:
 
@@ -216,11 +268,18 @@ Start COMSOL Multiphysics first (MCP bridges via MPh/JPype), then point your MCP
   "mcp": {
     "comsol": {
       "type": "local",
-      "command": ["python", "-m", "src.server"]
+      "command": ["python", "-m", "src.server"],
+      "environment": {
+        "COMSOL_MCP_PROFILE": "wave_optics"
+      }
     }
   }
 }
 ```
+
+Omit `COMSOL_MCP_PROFILE` for the compact `core` default, or choose
+`basic_fem`, `experimental`, or compatibility `full`. A Codex TOML example is
+provided at `config/codex-mcp.example.toml`.
 
 ## Relationship to upstream
 

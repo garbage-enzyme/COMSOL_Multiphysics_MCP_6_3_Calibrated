@@ -20,17 +20,20 @@ def test_server_registration_is_idempotent():
 
     assert "comsol_start" in tool_names
     assert "capabilities" in tool_names
-    assert "session_clear_models" in tool_names
+    assert "session_clear_models" not in tool_names
     assert "session_reset" in tool_names
     assert "solver_status" in tool_names
     assert "solver_preflight" in tool_names
     assert "solver_recover_stale_lease" in tool_names
     assert {"job_submit", "job_status", "job_tail", "job_cancel", "job_resume"} <= tool_names
-    assert "model_create" in tool_names
+    assert "model_load" in tool_names
     assert "study_solve" in tool_names
-    assert "docs_get" in tool_names
     assert "manual_search" in tool_names
     assert "manual_read_pages" in tool_names
+    assert "model_create" not in tool_names
+    assert "docs_get" not in tool_names
+    assert "wave_optics_preflight" not in tool_names
+    assert "wave_optics_point_audit" not in tool_names
     assert "pdf_search" not in tool_names
     assert "pdf_search_status" not in tool_names
     assert "pdf_list_modules" not in tool_names
@@ -72,9 +75,9 @@ def test_capabilities_report_risky_operations_without_starting_comsol(monkeypatc
 
     result = get_capabilities()
 
-    assert result["profile"] == "full"
-    assert result["active_profile"] == "full"
-    assert result["tool_count"] == 99
+    assert result["profile"] == "core"
+    assert result["active_profile"] == "core"
+    assert result["tool_count"] == 38
     assert result["profile_source"]["default_used"] is True
     assert [item["name"] for item in result["available_profiles"]] == [
         "core", "basic_fem", "wave_optics", "experimental", "full"
@@ -85,6 +88,9 @@ def test_capabilities_report_risky_operations_without_starting_comsol(monkeypatc
     assert "exact-identity owned-process fallback" in result["long_jobs"]["cancellation_strategy"]
     assert result["long_jobs"]["cross_host_cancellation"] is False
     assert "pdf_search" in result["disabled_by_default"]
+    assert result["profile_guidance"]["default_profile"] == "core"
+    assert result["profile_guidance"]["wave_optics_recommended_profile"] == "wave_optics"
+    assert result["wave_optics_audit"]["default_assessment"] == "evidence_only"
 
 
 def test_startup_capability_summary_is_compact_and_truthful(monkeypatch):
@@ -99,8 +105,8 @@ def test_startup_capability_summary_is_compact_and_truthful(monkeypatch):
 
     summary = startup_capability_summary()
 
-    assert "profile=full" in summary
-    assert "tools=99" in summary
+    assert "profile=core" in summary
+    assert "tools=38" in summary
     assert "semantic_pdf=disabled" in summary
     assert "lexical_manual=enabled" in summary
     assert "durable_jobs=staged_sweep" in summary

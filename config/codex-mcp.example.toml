@@ -1,0 +1,13 @@
+# Codex MCP example. Replace paths for the local installation.
+[mcp_servers.comsol]
+command = 'D:\condaenvs\comsol-mcp\python.exe'
+args = ["-m", "src.server"]
+cwd = 'C:\path\to\COMSOL_Multiphysics_MCP'
+
+[mcp_servers.comsol.env]
+# Omit this variable for the compact 38-tool core default.
+# Use "wave_optics" for metasurface preflight and one-point audits.
+COMSOL_MCP_PROFILE = "wave_optics"
+COMSOL_MCP_RUNTIME_DIR = 'D:\comsol_runtime'
+JAVA_HOME = 'D:\COMSOL64\Multiphysics\java\win64\jre'
+JDK_HOME = 'D:\COMSOL64\Multiphysics\java\win64\jre'

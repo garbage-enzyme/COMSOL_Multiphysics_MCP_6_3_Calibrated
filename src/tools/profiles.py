@@ -10,14 +10,14 @@ from .catalog import PROFILE_NAMES, TOOL_METADATA
 
 
 PROFILE_ENV_VAR = "COMSOL_MCP_PROFILE"
-DEFAULT_PROFILE = "full"
+DEFAULT_PROFILE = "core"
 
 PROFILE_DESCRIPTIONS = {
-    "core": "Mature ownership, job, session, inspection, one-point solve, and manual tools.",
+    "core": "Default mature ownership, job, session, inspection, one-point solve, and manual surface.",
     "basic_fem": "Core plus typed conventional FEM construction and bounded exports.",
-    "wave_optics": "Core plus current Wave Optics evaluation and staged-workflow helpers.",
+    "wave_optics": "Recommended metasurface profile: core plus Wave Optics preflight, point audit, and staged workflows.",
     "experimental": "Core plus explicitly risky, generic, asynchronous, and project helpers.",
-    "full": "Backward-compatible discovery surface containing every pre-H3 tool.",
+    "full": "Backward-compatible discovery surface containing every legacy and H3 tool.",
 }
 
 PROFILE_MATURITY = {
