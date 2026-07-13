@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -17,6 +18,7 @@ from src.evidence.visual_review import (
     normalize_codex_capability,
     normalize_opencode_capability,
     validate_reviewer_capability,
+    validate_visual_review_receipt,
     validate_visual_review_request,
 )
 from src.tools.visual_review import register_visual_review_tools
@@ -285,6 +287,41 @@ def test_complete_receipt_requires_calibration_delivery_hashes_inspection_and_fi
     assert "known_answer_calibration_incomplete" in no_calibration["incomplete_reasons"]
     assert "received_artifacts_incomplete_or_mismatched" in missing_artifact["incomplete_reasons"]
     assert "visual_inspection_not_performed" in no_inspection["incomplete_reasons"]
+
+
+def test_visual_contract_hashes_survive_json_number_round_trip():
+    request = _request("dual_blind")
+    request["numerical_summary"]["integral_float"] = 4.0
+    request.pop("contract_sha256")
+    request = build_visual_review_request(
+        request_id=request["request_id"],
+        configuration_sha256=request["configuration_sha256"],
+        artifacts=request["artifacts"],
+        views=request["views"],
+        numerical_summary=request["numerical_summary"],
+        questions=request["questions"],
+        review_mode=request["review_mode"],
+    )
+    transported_request = json.loads(json.dumps(request))
+    transported_capability = json.loads(json.dumps(_codex()))
+
+    assert validate_visual_review_request(transported_request)["contract_sha256"] == request["contract_sha256"]
+    receipt = build_visual_review_receipt(
+        review_id="json-round-trip-review",
+        request=transported_request,
+        capability=transported_capability,
+        session_id="json-round-trip-session",
+        received_artifacts=_refs(),
+        visual_inspection_performed=True,
+        findings=_findings(),
+        uncertainties=["Transport-only regression fixture."],
+        rejected_claims=["No numerical policy claim."],
+        prior_review_exposure=False,
+        timestamp="2026-07-13T12:05:00Z",
+    )
+    transported_receipt = json.loads(json.dumps(receipt))
+
+    assert validate_visual_review_receipt(transported_receipt)["status"] == "visual_review_complete"
 
 
 def test_dual_blind_review_requires_two_independent_complete_receipts():

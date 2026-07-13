@@ -75,6 +75,27 @@ _RECEIPT_HOST_FIELDS = {
 }
 
 
+def _json_number_stable(value: Any) -> Any:
+    """Normalize JSON-equivalent integral floats before hashing.
+
+    JSON transports do not preserve an integer-versus-integral-float type
+    distinction.  In particular, a tool result containing ``1.0`` commonly
+    returns to the server as ``1`` on the next MCP call.  Visual contracts must
+    therefore hash those JSON-equivalent values identically.
+    """
+    if isinstance(value, float) and math.isfinite(value) and value.is_integer():
+        return int(value)
+    if isinstance(value, list):
+        return [_json_number_stable(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _json_number_stable(item) for key, item in value.items()}
+    return value
+
+
+def _visual_contract_sha256(value: Any) -> str:
+    return canonical_sha256(_json_number_stable(value))
+
+
 def _mapping(value: Any, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{label} must be a JSON object")
@@ -221,7 +242,7 @@ def _capability_payload(
         "capability_state": state,
         "inspection_status": "ready_for_inspection" if delivery_confirmed else "not_ready",
     }
-    payload["contract_sha256"] = canonical_sha256(payload)
+    payload["contract_sha256"] = _visual_contract_sha256(payload)
     return validate_reviewer_capability(payload)
 
 
@@ -370,7 +391,7 @@ def validate_reviewer_capability(value: Any) -> dict[str, Any]:
         raise ValueError("reviewer_capability.inspection_status is inconsistent")
     supplied = _hash(item.get("contract_sha256"), "reviewer_capability.contract_sha256")
     unhashed = dict(item); unhashed.pop("contract_sha256", None)
-    if supplied != canonical_sha256(unhashed):
+    if supplied != _visual_contract_sha256(unhashed):
         raise ValueError("reviewer_capability.contract_sha256 does not match")
     canonical_json_bytes(item)
     return deepcopy(item)
@@ -457,7 +478,7 @@ def build_visual_review_request(
         "review_mode": review_mode,
         "status": "visual_review_required",
     }
-    payload["contract_sha256"] = canonical_sha256(payload)
+    payload["contract_sha256"] = _visual_contract_sha256(payload)
     return validate_visual_review_request(payload)
 
 
@@ -495,7 +516,7 @@ def validate_visual_review_request(value: Any) -> dict[str, Any]:
     canonical_json_bytes(_mapping(item.get("numerical_summary"), "visual_review_request.numerical_summary"))
     supplied = _hash(item.get("contract_sha256"), "visual_review_request.contract_sha256")
     unhashed = dict(item); unhashed.pop("contract_sha256", None)
-    if supplied != canonical_sha256(unhashed):
+    if supplied != _visual_contract_sha256(unhashed):
         raise ValueError("visual_review_request.contract_sha256 does not match")
     if normalized_artifacts != artifacts or normalized_views != views or questions != item.get("questions"):
         raise ValueError("visual_review_request is not canonical")
@@ -595,7 +616,7 @@ def build_visual_review_receipt(
             ),
         },
     }
-    payload["contract_sha256"] = canonical_sha256(payload)
+    payload["contract_sha256"] = _visual_contract_sha256(payload)
     return validate_visual_review_receipt(payload)
 
 
@@ -631,7 +652,7 @@ def validate_visual_review_receipt(value: Any) -> dict[str, Any]:
         raise ValueError("complete visual review cannot contain incomplete reasons")
     supplied = _hash(item.get("contract_sha256"), "visual_review_receipt.contract_sha256")
     unhashed = dict(item); unhashed.pop("contract_sha256", None)
-    if supplied != canonical_sha256(unhashed):
+    if supplied != _visual_contract_sha256(unhashed):
         raise ValueError("visual_review_receipt.contract_sha256 does not match")
     canonical_json_bytes(item)
     return deepcopy(item)
@@ -682,7 +703,7 @@ def evaluate_dual_visual_review(
         "reasons": reasons,
         "numerical_policy_authority": False,
     }
-    payload["contract_sha256"] = canonical_sha256(payload)
+    payload["contract_sha256"] = _visual_contract_sha256(payload)
     return payload
 
 
