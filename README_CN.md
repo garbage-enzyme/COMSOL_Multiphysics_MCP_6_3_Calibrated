@@ -1,96 +1,125 @@
-# COMSOL MCP Server — 6.4+ ClientAPI 适配 Fork
+# COMSOL 6.4+ MCP Server
 
 [English](README.md) | 中文
 
 [![GitHub stars](https://img.shields.io/github/stars/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated?style=social)](https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated/stargazers)
 
-> **本仓库是 [wjc9011/COMSOL_Multiphysics_MCP](https://github.com/wjc9011/COMSOL_Multiphysics_MCP) 的 Fork。**
-> 本分支为 **COMSOL 6.4+ 及 MPh 1.3.1 standalone 模式**（`clientapi` 包装层）校准 MCP server 工具，并记录/使用 COMSOL 6.4+ 的求解器能力，例如 cuDSS GPU 加速直接求解器。上游代码面向直接的 `com.comsol.model.Model` API，在 standalone clientapi 下会运行时报错。
+> [wjc9011/COMSOL_Multiphysics_MCP](https://github.com/wjc9011/COMSOL_Multiphysics_MCP) 的维护型 Fork，面向 **COMSOL Multiphysics 6.4+** 和 **MPh 1.3.1 standalone/clientapi**。
 
-## 为什么要有这个 Fork
+该服务器为 AI agent 提供更安全、更紧凑的 COMSOL 接口，用于模型检查、受控单点验证、可恢复的分段扫描与离线手册检索。它适配 `mph.Client()` 返回的 `model.java` clientapi 对象；该对象与上游面向的直接 `com.comsol.model.Model` API 有实质差异。
 
-在 `mph.Client(cores=...)`（MPh 1.3+ standalone）下，`model.java` 返回的是 `com.comsol.clientapi.impl.ModelClient` —— 真实 model 外面的**包装层**。每一次 `component()` / `physics()` / `geom()` 调用返回的都是 `*Client` 类，其方法重载与上游代码所写的直接 `com.comsol.model.*` API 不同。结果：standalone clientapi 下大部分 geometry/physics/study/mesh 工具运行时失败。
+## 主要能力
 
-本 Fork 修复了 `src/tools/` 下所有已知的 clientapi 不匹配，并补了两个缺失的工具。已通过 MCP 端到端验证：平行板电容器返回 **C = 1.8593794414 pF**，与理论值（1.8593794407 pF，误差 4 × 10⁻¹⁰ pF）一致。
+- **ClientAPI 适配。** 几何、物理场、材料、网格、研究、结果、模型克隆和 Unicode 安全的 `.mph` 保存均已适配 COMSOL 6.4+ clientapi。
+- **安全的求解器所有权。** ASCII 路径租约、进程身份核验、外部客户端检测、状态和预检可避免意外启动并发 COMSOL 客户端。
+- **持久化后台任务。** 分段扫描在独立 worker 中执行，具有不可变规格、原子状态、`fsync` CSV 日志、检查点、校验后的恢复，以及已验证的同主机取消能力。
+- **Wave Optics 验证。** 专用 profile 支持只读模型预检，以及用于周期性超表面的单波长证据审计。
+- **有界离线手册检索。** SQLite FTS5/BM25 检索和页读取不在 COMSOL 控制进程中运行，返回紧凑的来源/页码引用。
+- **如实标注的可选语义检索。** 隔离式语义 profile 已具备进程隔离，但当前 MiniLM 基线未通过质量和内存的晋级门槛；推荐默认使用词法手册检索。
 
-> ⚠️ **来源说明：** 本 Fork 的代码改动由 AI 助手（opencode + glm-5.2）在人工指导下完成，随后通过 MCP 工具接口端到端验证。详细改动分解见 `git log`。
+## Profile
 
-## 改了什么
+在启动服务器前设置 `COMSOL_MCP_PROFILE`。一个 profile 在该服务器进程的整个生命周期内固定；更改后需重启。
 
-所有修复都位于 `src/tools/`，针对 `clientapi` 包装类。按文件汇总：
+| Profile | 工具数 | 适用场景 |
+| --- | ---: | --- |
+| `core`（默认） | 38 | 紧凑且成熟的控制面：状态、所有权、会话/模型检查、单点求解/求值及词法手册检索。 |
+| `basic_fem` | 71 | 在 `core` 基础上增加传统 FEM 的类型化构建和有界导出。 |
+| `wave_optics` | 46 | 超表面推荐：在 `core` 基础上增加 Wave Optics 预检、单点审计和分段工作流。 |
+| `semantic_docs` | 41 | 在 `core` 基础上增加隔离的实验性向量辅助手册检索。 |
+| `experimental` | 64 | 显式选择的通用创建、异步、属性逃生口和项目辅助工具。 |
+| `full` | 100 | 宽兼容/发现界面，包含可选语义工具。 |
 
-### `model.py`
-- `list_components`：用 `tags()` 遍历组件，而不是 int 索引 —— `ModelEntityListClient.get` 只接受 String tag。
+调用 `capabilities` 可在不启动 COMSOL 的情况下获知当前 profile、精确注册工具、目标版本、禁用工具组和重启要求。
 
-### `geometry.py`
-- 5 处 `len(geom.feature())` → `geom.feature().size()` —— clientapi 的 list 不支持 `len()`。
-- 涉及 `add_block`、`add_cylinder`、`add_sphere`、`add_rectangle`、`boolean_difference`。
+## 推荐工作流
 
-### `physics.py`
-- 新增 helper `_first_component(jm)` 与 `_component_sdim(comp)` —— `getSDim()` 返回 int，而 physics `create` 需要的是 **String**。
-- 所有 `comp.get(int)` → `tags()` 遍历。
-- `physics().create(tag, type, sdim_string)` —— **三参数**，第三个是形如 `"3"` 的 String。两参数会报"物理场接口不支持空间维度: 0维"；第三参数传 int 会报 "No matching overloads"。
-- `geometry_get_boundaries`：`getNboundary()` → `getNBoundaries()`，`getNdomain()` → `getNDomains()`（clientapi 中首字母大写）。
-- `physics_add_electrostatics`：新增 `relpermittivity` + `domain_numbers` 参数。传入时自动创建 `ChargeConservation` feature + 材料节点 —— 必须这么做，因为 **COMSOL 6.3+/6.4 的 Electrostatics 默认 domain feature 是 `fsp1` (FreeSpace)，用真空 ε₀，忽略材料的 `relpermittivity`**。
-- 新增通用工具 `physics_add_domain_feature`（ChargeConservation / LinearElasticMaterial / Solid 等）。
+### 常规求解
 
-### `study.py`
-- Study step type 用**完整名**（`Stationary` / `TimeDependent` / `Eigenfrequency` / `Frequency` / `Perturbation`），通过 `SHORT_TO_FULL` 映射。短名（`stat` / `time` / `eig` / `freq` / `pert`）在直接 Model API 下可用，但在 clientapi 下报 `Operation_cannot_be_created_in_this_context`。
+1. 调用 `solver_status`。
+2. 在连接、启动 COMSOL 或提交较重任务前调用 `solver_preflight`。
+3. 使用会话/模型工具，或提交持久化分段扫描。
 
-### `mesh.py`
-- 新增 `mesh_sequence_create` 工具。COMSOL **不会**自动创建 mesh 序列 —— 上游的 `mesh_create` 只能 run 已有序列。新工具做 `comp.mesh().create()` + `feature().create('FreeTet')` + `run()`，并通过 `getNumElem()` / `getNumVertex()`（clientapi，非 `getElement().size()`）报告单元数。
+当检测到外部 MPh/COMSOL 所有者或有效租约时，服务器会拒绝继续启动。`solver_recover_stale_lease` 只有在进程身份信息证明租约过期时才移除它，绝不会终止不属于本服务器的进程。
 
-### 仓库清理
-- 新增 `.gitignore`：`__pycache__/`、`*.pyc`、`opencode.json`（机器相关路径）、`knowledge_base/`（可重建）、`*.mph`。
-- 不再跟踪 `opencode.json` 和 `knowledge_base/chroma.sqlite3` —— 二者均为本地专属 / 可重建。
+持久化扫描控制工具为 `job_submit`、`job_status`、`job_tail`、`job_cancel` 和 `job_resume`。每个任务在 ASCII-only runtime 目录中保存不可变规格、状态、CSV 日志、检查点和日志文件。恢复时只接受规格一致、数值有限且成功完成的行。只有 worker/相关进程清理和租约释放都得到验证后，取消才会进入终态。此协调机制仅适用于同一台主机上共享 runtime 目录的任务，不是分布式或跨主机取消。
+
+### Wave Optics 超表面
+
+使用 `wave_optics` profile，并遵循下面的有界流程：
+
+```text
+solver_status -> wave_optics_preflight -> wave_optics_point_audit
+```
+
+`wave_optics_preflight` 只读且不求解，报告来源溯源、拓扑、周期/Floquet 选择、端口、波长关联、网格/研究元数据和明确的未知项。
+
+`wave_optics_point_audit` 会在所有权和源文件哈希检查通过后，恰好求解一个指定波长。它写入运行中 manifest、一行经 `fsync` 的 CSV 和最终 manifest。原始证据可包括请求/实际波长、频率关联、调用方溯源的 R/T/A 与通量方向、闭合误差、损耗表达式、上方空气区域的有界场统计、网格状态以及源/配置/policy 哈希。
+
+若调用方未提供版本化 validation policy，审计仅输出证据：不会宣称模型通过/失败，也不会建议开始长扫描。在有独立的入射场参考 artifact 前，S/P 标签和结构总场都会被明确限定其证据等级。
+
+## 手册检索
+
+`manual_search` 和 `manual_read_pages` 是正式的文档检索路径。它们使用离线 SQLite FTS5/BM25 索引、有截止时间的 worker 进程以及紧凑的来源/页码引用；此路径不会在 MCP 控制进程中导入 ChromaDB、Torch 或 SentenceTransformer。
+
+`semantic_docs` 是可选的隔离 profile，不会干扰 COMSOL 控制。当前 CPU-only MiniLM 实现只是英文诊断基线，并非多语言或生产质量声明：冻结基准中它提高了精确匹配召回率，却降低了改述/多概念召回，直接中文检索无命中，负查询没有正确弃答，长时间运行时内存也显著增长。常规工作请使用 `core` 加词法手册检索。
+
+## ClientAPI 适配要点
+
+本 Fork 已修复测试和真实 COMSOL 验证所覆盖的 clientapi 路径，包括：
+
+- 使用 `tags()` 遍历、`feature().size()` 计数，替代直接 Model API 的索引和 `len()`。
+- 物理场接口使用 `physics().create(tag, type, sdim_string)`；子 feature 使用整数实体维度。
+- 使用 `getNumElem()` / `getNumVertex()` 检查网格，并显式创建 mesh sequence。
+- 使用完整 study type 名称，以及 `model.java.study('std1').run()`。
+- 对 Java 字符串、本地化标签、实数/NumPy/复数值和模型元数据进行 JSON 安全转换。
+- 使用 `model.java.save(full_path)` 安全保存 Unicode 路径 `.mph` 文件，并正确清理 clientapi 模型克隆。
+- 在正确组件中创建/复用材料和多物理场耦合。
+
+静电场 helper 可创建 `ChargeConservation` 和材料节点，因为 COMSOL 6.3+/6.4 默认的 `fsp1` FreeSpace domain feature 使用真空介电常数，而不会使用材料的相对介电常数。
 
 ## 验证
 
-`test_e2e_cap.py` 与 `test_study_mesh.py` 是独立验证脚本（直接驱动 `mph.Client`，不走 MCP 层）。同一 recipe 也在重启 opencode 加载新代码后，通过 MCP 工具接口端到端复跑：
+当前完整自动化门槛为 **270 passed, 9 deselected**。单元测试无副作用：测试收集不会启动 COMSOL；integration probe 仅在显式请求时运行，并在全新的串行子进程中对精确进程树进行清理。
 
-| 步骤 | MCP 工具 |
-| --- | --- |
-| 建模型 + 3D 组件 | `model_create` → `model_create_component(3D)` |
-| 几何：10mm × 10mm × 1mm 块 | `geometry_create(3D)` → `geometry_add_block([0.01,0.01,0.001])` → `geometry_build` |
-| 静电场，ε_r = 2.1 | `physics_add_electrostatics(relpermittivity=2.1, domain_numbers=[1])` |
-| 边界条件：Ground @ z=0 (bnd 3)，V=1V @ z=1mm (bnd 4) | `physics_configure_boundary(Ground,[3])`，`physics_configure_boundary(ElectricPotential,[4],{V0:'1[V]'})` |
-| 网格 | `mesh_sequence_create(FreeTet, build=True)` → 约 1663 单元 |
-| 求解 | `study_create(Stationary)` → `study_solve` |
-| 电容 | `results_global_evaluate('2*es.intWe/(1[V])^2','pF')` |
+```bash
+python -m pytest -q
+python -m pytest -q -m integration tests/integration
+```
 
-**结果：** `1.8593794414 pF`，理论值 `ε₀·ε_r·L²/d = 1.8593794407 pF` —— 误差 4 × 10⁻¹⁰ pF。
+真实 COMSOL 验证包括：本地化 JSON 传输、Circle/Union 几何、DXF 导入、参数扫描属性、多物理场耦合、模型克隆清理、Unicode 路径保存、求解器所有权、持久化中断/重启/恢复/取消、profile 发现、Wave Optics 预检与单点审计，以及有界手册检索。
 
-### 6.3+/6.4 clientapi 避坑（源码注释中有）
+平行板回归结果为 **1.8593794419540652 pF**；理论值为 **1.8593794406880002 pF**。
 
-1. **Electrostatics `fsp1` FreeSpace 陷阱** —— 默认 domain feature 用真空 ε₀，忽略材料 `relpermittivity`。必须加一个 `ChargeConservation` feature（`materialType='from_mat'`）+ 一个材料节点（`propertyGroup('def').set('relpermittivity', ...)`）。
-2. **Block 边界编号不是 1–6 ↔ −x/+x/−y/+y/−z/+z。** 对于 `Block size [0.01,0.01,0.001] pos [0,0,0]`：**bnd 3 = z=0 面，bnd 4 = z=0.001 面**；1/2/5/6 是侧面。用 `Box` selection（`condition='inside'`）按坐标确认。
-3. **`Terminal` feature 的 `V0` 没正确约束电压**（V0=1V 时实测 ΔV ≈ 0.16 V）。电容验证请用 `ElectricPotential` 边界条件。
-4. **表达式语法：** clientapi 下 `1[V]^2` 是语法错误 —— 必须写成 `(1[V])^2`。
-5. **mph 1.3.1 的 `Model` 没有 `.study()` 方法** —— 用 `model.java.study('std1').run()`。
+## 环境要求与安装
 
-## 环境要求
-
-- **COMSOL Multiphysics 6.4 或更新版本**。本 Fork 面向 COMSOL 6.4+ standalone clientapi，因为当前工作流可能调用 **cuDSS** GPU 加速直接求解器等 6.4+ 求解器能力。
-- **Python 3.10+**（不要用 Windows Store 版）
-- **Java 运行时** —— COMSOL 6.4 自带 Java 21；已验证环境下 JPype 可直接使用。更老 COMSOL/Java 组合不在本 Fork 重点范围内。
-- **MPh 1.3.1**，加 `mcp`、`pydantic`。离线手册索引构建可选安装
-  `pymupdf`；旧版语义 PDF 搜索还需要 `chromadb`、`sentence-transformers`。
-
-## 安装
+- COMSOL Multiphysics 6.4 或更新版本
+- Python 3.10+（不要使用 Windows Store 版本）
+- MPh 1.3.1、`mcp`、`pydantic` 和 `psutil>=5.9.0`
+- 已验证配置中使用 COMSOL 自带的 Java 21 runtime
 
 ```bash
 git clone https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated.git
 cd COMSOL_Multiphysics_MCP_6_4_Calibrated
 python -m pip install .
-# 推荐：离线 lexical 手册索引（输出路径必须仅含 ASCII）
+
+# 推荐离线手册索引；输出目录必须只含 ASCII 字符。
 python -m pip install ".[manuals]"
 python -m src.knowledge.lexical_manual build --index D:\comsol_docs_fts\manuals.sqlite3
-# 可选：旧版 semantic PDF profile
-python -m pip install ".[semantic-pdf]"
-python scripts/build_knowledge_base.py
 ```
 
-先启动 COMSOL Multiphysics（MCP 通过 MPh/JPype 桥接），然后把 MCP 客户端（opencode / Claude Desktop）指向 server：
+如需可选的隔离语义检索：
+
+```powershell
+python -m pip install ".[semantic-docs]"
+$env:COMSOL_MCP_PROFILE = "semantic_docs"
+$env:COMSOL_SEMANTIC_ROOT = "D:\comsol_semantic"
+$env:COMSOL_SEMANTIC_LEXICAL_INDEX = "D:\comsol_docs_fts\manuals.sqlite3"
+```
+
+若 Windows 用户目录含非 ASCII 字符，请避免 editable install。源码变化后运行 `python -m pip install . --no-deps`，并重启 MCP host；服务器不会热加载 `src/tools/`。
+
+MCP 客户端配置示例：
 
 ```json
 {
@@ -98,18 +127,31 @@ python scripts/build_knowledge_base.py
   "mcp": {
     "comsol": {
       "type": "local",
-      "command": ["python", "-m", "src.server"]
+      "command": ["python", "-m", "src.server"],
+      "environment": { "COMSOL_MCP_PROFILE": "wave_optics" }
     }
   }
 }
 ```
 
-## 与上游的关系
+省略 `COMSOL_MCP_PROFILE` 即使用 `core`。Codex TOML 示例见 `config/codex-mcp.example.toml`。
 
-本 Fork 跟踪 `wjc9011/COMSOL_Multiphysics_MCP`，定位是 **6.4+ standalone clientapi 兼容 Fork**，不是通用功能 Fork。上游 README（原仓库的 `README.md`，本 Fork 保留为 `README_upstream.md` / `README_CN_upstream.md`）描述了更完整的功能集、知识库、5.x 工作流，本 Fork 原样继承。
+## 与上游 Fork 的区别
 
-如果你在 **6.4+ standalone** 下用上游工具报 `No matching overloads`、`Operation_cannot_be_created_in_this_context`、或 `'ComponentGeomListClient' object is not subscriptable` —— 请用本 Fork。最后一个错在本 Fork 已修复：`geometry_get_boundaries` 现在返回每个边界的 `normal`（法向）+ `center`（中心坐标）+ 整体 `bounding_box`（通过参数中点调 `faceNormal`/`faceX`/`edgeNormal`/`edgeX`），可直接判断哪个边界是哪个面（如 z=0 面法向 `[0,0,-1]`），无需手动建 `Box` selection。
+这是面向 COMSOL 6.4+ standalone/clientapi 的兼容性和可靠性 Fork，而非上游项目的通用替代品。它保留上游项目的基础能力，但为 agent 驱动的 COMSOL 工作流提供了更窄、更安全的执行界面。
+
+| 方面 | 上游定位 | 本 Fork |
+| --- | --- | --- |
+| COMSOL API 目标 | 假定直接使用 `com.comsol.model.Model` API。 | 适配 MPh 1.3.1 standalone 的 `model.java` clientapi 包装层，包括不同的方法重载、tag、列表和 Java 字符串传输。 |
+| 工具界面 | 默认提供较宽的功能发现面。 | 默认采用紧凑 `core`；较大的构建和兼容界面须显式选择 profile。 |
+| 求解器并发 | 没有同主机所有权协议。 | 通过进程感知租约、外部客户端检测、状态、预检和过期租约恢复来防止冲突；不会终止不属于本服务器的进程。 |
+| 长任务 | 以交互式/当前进程工作流为主。 | 使用独立的持久化任务：不可变规格、`fsync` 行日志、检查点、校验恢复和已验证的取消清理。 |
+| Wave Optics | 只有通用工具。 | 提供周期性超表面专用的预检和单点证据审计，原始证据与调用方 policy 分离。 |
+| 手册检索 | 旧式进程内语义 PDF 路径可能加载重依赖。 | 默认使用有界、隔离的词法手册检索；实验性语义检索被隔离且明确未晋级。 |
+| Windows 路径 | 不特别保证 Unicode 保存路径。 | 通过 clientapi Java 保存 Unicode `.mph`；原生/持久化 runtime 和索引使用 ASCII-only 根目录。 |
+
+若在 MPh standalone 下使用上游工具时遇到 `No matching overloads`、`Operation_cannot_be_created_in_this_context` 或 client-list 索引错误，请使用本 Fork。只有确实需要宽泛旧接口兼容时才选择 `full`。
 
 ## 许可证
 
-继承上游许可证。详见原仓库。
+继承上游许可证，详见原仓库。
