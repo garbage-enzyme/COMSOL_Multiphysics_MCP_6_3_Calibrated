@@ -12,6 +12,7 @@ from .profiles import (
     tool_names_for_profile,
 )
 from .session import session_manager
+from src.knowledge.semantic_runtime import semantic_capability_status
 
 
 def _profile_inventory(selection: ProfileSelection) -> dict:
@@ -49,6 +50,8 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
     """Describe supported, experimental, and disabled behavior without startup."""
     active_selection = selection or resolve_profile()
     status = session_manager.get_status()
+    semantic_profile_active = active_selection.name in {"semantic_docs", "full"}
+    semantic = semantic_capability_status(profile_active=semantic_profile_active)
     result = {
         "success": True,
         "profile": active_selection.name,
@@ -85,16 +88,20 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
                     "COMSOL study.run()"
                 ),
             },
-            "semantic_pdf_search": "source retained for an explicit isolated profile",
+            "semantic_manual_search": semantic,
         },
         "disabled_by_default": [
             "pdf_search",
             "pdf_search_status",
             "pdf_list_modules",
+            *([] if semantic_profile_active else [
+                "semantic_search", "semantic_status", "semantic_worker_reset",
+            ]),
         ],
         "profile_guidance": {
             "default_profile": DEFAULT_PROFILE,
             "wave_optics_recommended_profile": "wave_optics",
+            "semantic_docs_opt_in_profile": "semantic_docs",
             "backward_compatibility_profile": "full",
             "selection_environment_variable": "COMSOL_MCP_PROFILE",
             "restart_required": True,
@@ -114,6 +121,7 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
             "hard_deadline": True,
             "semantic_embeddings": False,
         },
+        "semantic_search": semantic,
         "long_jobs": {
             "durable_background_jobs": True,
             "job_types": ["staged_sweep"],
@@ -144,7 +152,8 @@ def startup_capability_summary(selection: ProfileSelection | None = None) -> str
         f"profile={capabilities['profile']}; "
         f"tools={capabilities['tool_count']}; "
         f"target=COMSOL {targets['comsol']} / MPh {targets['mph']}; "
-        "lexical_manual=enabled; semantic_pdf=disabled; durable_jobs=staged_sweep; "
+        f"lexical_manual=enabled; semantic_docs={'active' if capabilities['semantic_search']['profile_active'] else 'disabled'}; "
+        "durable_jobs=staged_sweep; "
         "solver_ownership=enforced; durable_job_cancellation=verified"
     )
 

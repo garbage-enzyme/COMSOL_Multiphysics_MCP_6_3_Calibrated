@@ -80,7 +80,7 @@ def test_capabilities_report_risky_operations_without_starting_comsol(monkeypatc
     assert result["tool_count"] == 38
     assert result["profile_source"]["default_used"] is True
     assert [item["name"] for item in result["available_profiles"]] == [
-        "core", "basic_fem", "wave_optics", "experimental", "full"
+        "core", "basic_fem", "wave_optics", "semantic_docs", "experimental", "full"
     ]
     assert result["session"] == {"connected": False, "starting": False}
     assert result["long_jobs"]["real_cancellation"] is True
@@ -90,6 +90,9 @@ def test_capabilities_report_risky_operations_without_starting_comsol(monkeypatc
     assert "pdf_search" in result["disabled_by_default"]
     assert result["profile_guidance"]["default_profile"] == "core"
     assert result["profile_guidance"]["wave_optics_recommended_profile"] == "wave_optics"
+    assert result["profile_guidance"]["semantic_docs_opt_in_profile"] == "semantic_docs"
+    assert result["semantic_search"]["profile_active"] is False
+    assert result["semantic_search"]["available"] is False
     assert result["wave_optics_audit"]["default_assessment"] == "evidence_only"
 
 
@@ -107,7 +110,7 @@ def test_startup_capability_summary_is_compact_and_truthful(monkeypatch):
 
     assert "profile=core" in summary
     assert "tools=38" in summary
-    assert "semantic_pdf=disabled" in summary
+    assert "semantic_docs=disabled" in summary
     assert "lexical_manual=enabled" in summary
     assert "durable_jobs=staged_sweep" in summary
     assert "durable_job_cancellation=verified" in summary

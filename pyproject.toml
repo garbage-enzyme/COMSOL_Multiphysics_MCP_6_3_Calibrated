@@ -20,6 +20,10 @@ semantic-pdf = [
     "chromadb>=0.4.0",
     "sentence-transformers>=2.2.0",
 ]
+semantic-docs = [
+    "numpy>=2.0,<3.0",
+    "sentence-transformers>=3.4,<3.5",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",

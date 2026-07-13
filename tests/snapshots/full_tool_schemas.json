@@ -3233,6 +3233,88 @@
     "title": "results_plots_listArguments",
     "type": "object"
   },
+  "semantic_search": {
+    "properties": {
+      "limit": {
+        "default": 5,
+        "title": "Limit",
+        "type": "integer"
+      },
+      "module": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Module"
+      },
+      "page_end": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Page End"
+      },
+      "page_start": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Page Start"
+      },
+      "query": {
+        "title": "Query",
+        "type": "string"
+      },
+      "source": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Source"
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "title": "semantic_searchArguments",
+    "type": "object"
+  },
+  "semantic_status": {
+    "properties": {
+      "warm": {
+        "default": false,
+        "title": "Warm",
+        "type": "boolean"
+      }
+    },
+    "title": "semantic_statusArguments",
+    "type": "object"
+  },
+  "semantic_worker_reset": {
+    "properties": {},
+    "title": "semantic_worker_resetArguments",
+    "type": "object"
+  },
   "session_clear_models": {
     "properties": {},
     "title": "session_clear_modelsArguments",

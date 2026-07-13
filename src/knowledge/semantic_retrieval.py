@@ -135,6 +135,8 @@ class HybridRetriever:
         if int(self.encoder.dimension) != int(self.manifest["vector_dimension"]):
             raise ValueError("query encoder dimension mismatch")
         self.load_count = 1
+        self.device = str(getattr(self.encoder, "device", "cpu"))
+        self.runtime_dependencies = dict(getattr(self.encoder, "dependency_versions", {}))
         self.query_count = 0
         self.loaded_at_epoch = time.time()
         self.last_error: str | None = None
@@ -164,7 +166,8 @@ class HybridRetriever:
             "chunk_count": self.manifest["chunk_count"],
             "ranker_version": RANKER_VERSION,
             "ranker_sha256": RANKER_SHA256,
-            "device": "cpu",
+            "device": self.device,
+            "runtime_dependencies": self.runtime_dependencies,
             "last_error": self.last_error,
         }
 
@@ -259,6 +262,7 @@ class HybridRetriever:
                 "model_id": self.manifest["model_id"],
                 "model_revision": self.manifest["model_revision"],
                 "model_fingerprint": self.manifest["model_fingerprint"],
+                "runtime_dependencies": self.runtime_dependencies,
             },
         )
         self.query_count += 1

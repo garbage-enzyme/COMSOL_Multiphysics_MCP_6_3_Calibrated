@@ -7,7 +7,12 @@ cwd = 'C:\path\to\COMSOL_Multiphysics_MCP'
 [mcp_servers.comsol.env]
 # Omit this variable for the compact 38-tool core default.
 # Use "wave_optics" for metasurface preflight and one-point audits.
+# Use "semantic_docs" for the isolated immutable manual retriever.
 COMSOL_MCP_PROFILE = "wave_optics"
 COMSOL_MCP_RUNTIME_DIR = 'D:\comsol_runtime'
+# Required only when COMSOL_MCP_PROFILE = "semantic_docs":
+# COMSOL_SEMANTIC_ROOT = 'D:\comsol_semantic'
+# COMSOL_SEMANTIC_LEXICAL_INDEX = 'D:\comsol_docs_fts\manuals.sqlite3'
+# COMSOL_SEMANTIC_MODEL_PATH = 'D:\comsol_semantic\models\all-MiniLM-L6-v2\1110a243fdf4706b3f48f1d95db1a4f5529b4d41'
 JAVA_HOME = 'D:\COMSOL64\Multiphysics\java\win64\jre'
 JDK_HOME = 'D:\COMSOL64\Multiphysics\java\win64\jre'

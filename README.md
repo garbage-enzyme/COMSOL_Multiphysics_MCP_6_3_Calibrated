@@ -73,10 +73,10 @@ The refactor covers the following stable paths:
 - The dependency-free `capabilities` tool reports the exact active profile/count,
   all available profiles, COMSOL/MPh target, verified operations, disabled groups,
   restart requirement, and H1/H2 cancellation status without starting COMSOL.
-- `pdf_search`, `pdf_search_status`, and `pdf_list_modules` are disabled by
-  default because they can initialize ChromaDB and an embedding model in the
-  COMSOL control process. Their source remains available for an explicit isolated
-  profile.
+- Legacy `pdf_search`, `pdf_search_status`, and `pdf_list_modules` remain disabled
+  because they can initialize ChromaDB and an embedding model in the COMSOL
+  control process. The new `semantic_docs` profile uses an exact-identity isolated
+  worker and an immutable offline index instead; neither path is enabled by default.
 - `manual_search` and `manual_read_pages` provide the default documentation
   path through an offline SQLite FTS5/BM25 index. Each read runs in a bounded
   worker process, returns source/page references, and never imports ChromaDB,
@@ -110,8 +110,9 @@ Select a static profile with `COMSOL_MCP_PROFILE`:
 | `core` (default) | 38 | Mature control plane and compact general inspection/one-point surface. |
 | `basic_fem` | 71 | Core plus typed conventional FEM construction and bounded exports. |
 | `wave_optics` | 46 | Recommended metasurface profile: core plus preflight, point audit, and staged workflow. |
+| `semantic_docs` | 41 | Core plus isolated immutable BM25/vector manual retrieval and exact worker controls. |
 | `experimental` | 64 | Explicit generic, async, property escape-hatch, and project-helper surface. |
-| `full` | 100 | Backward-compatible discovery containing every legacy and H3 tool. |
+| `full` | 103 | Complete compatibility discovery, including the opt-in semantic tools. |
 
 For existing clients that depended on the former broad default, set
 `COMSOL_MCP_PROFILE=full` and restart. The rollback changes only discovery; it
@@ -145,6 +146,45 @@ Recommended Agent sequence:
 ```text
 solver_status -> wave_optics_preflight -> wave_optics_point_audit
 ```
+
+### Optional isolated semantic manual retrieval
+
+`semantic_docs` is a static opt-in profile. It adds exactly three tools without
+changing the 38-tool default:
+
+1. `semantic_search` accepts only a query and bounded module/source/page filters.
+   Model paths, index paths, rebuilds, and deletion are never public parameters.
+2. `semantic_status(warm=false)` reports configuration and worker state without
+   starting a process. `warm=true` explicitly loads and validates the isolated
+   worker; availability remains false until that health gate passes.
+3. `semantic_worker_reset` stops only the recorded PID/create-time/command-bound
+   worker tree. It never deletes or rebuilds an index.
+
+The worker binds a random `127.0.0.1` port with a per-process 256-bit token and
+uses hard deadlines and bounded messages. The MCP host imports no Torch,
+SentenceTransformers, Chroma, or model code. Retrieval combines the unchanged
+SQLite FTS5/BM25 path with a read-only `embeddings.npy` index and returns exact
+`source + page`, raw lexical/vector scores, deterministic ranker identity, and
+model/index provenance. `manual_search` and `manual_read_pages` remain available
+as the independent fallback.
+
+Install the isolated runtime dependencies and configure ASCII-only local paths:
+
+```powershell
+python -m pip install ".[semantic-docs]"
+$env:COMSOL_MCP_PROFILE = "semantic_docs"
+$env:COMSOL_SEMANTIC_ROOT = "D:\comsol_semantic"
+$env:COMSOL_SEMANTIC_LEXICAL_INDEX = "D:\comsol_docs_fts\manuals.sqlite3"
+$env:COMSOL_SEMANTIC_MODEL_PATH = "D:\comsol_semantic\models\all-MiniLM-L6-v2\1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+python -m src.server
+```
+
+The current MiniLM deployment is CPU-only by design: warm retrieval is already
+well below the deadline and avoiding CUDA prevents contention with COMSOL/cuDSS.
+It is an English retrieval baseline, not a multilingual claim. Agents may rewrite
+Chinese questions into explicit English technical queries, but promotion still
+requires the frozen cross-language benchmark; otherwise keep lexical-only search
+or deploy a separately benchmarked multilingual model.
 
 ### Repo hygiene
 
@@ -250,7 +290,7 @@ python -m pip install .
 # Recommended offline lexical manual index (ASCII-only output path)
 python -m pip install ".[manuals]"
 python -m src.knowledge.lexical_manual build --index D:\comsol_docs_fts\manuals.sqlite3
-# Optional legacy semantic profile
+# Optional legacy in-process semantic source (not the isolated H4 profile)
 python -m pip install ".[semantic-pdf]"
 python scripts/build_knowledge_base.py
 ```
@@ -278,7 +318,7 @@ Start COMSOL Multiphysics first (MCP bridges via MPh/JPype), then point your MCP
 ```
 
 Omit `COMSOL_MCP_PROFILE` for the compact `core` default, or choose
-`basic_fem`, `experimental`, or compatibility `full`. A Codex TOML example is
+`basic_fem`, `wave_optics`, `semantic_docs`, `experimental`, or compatibility `full`. A Codex TOML example is
 provided at `config/codex-mcp.example.toml`.
 
 ## Relationship to upstream

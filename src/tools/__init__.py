@@ -16,6 +16,7 @@ from .workflow import register_workflow_tools
 from .properties import register_property_tools
 from .wave_optics_preflight import register_wave_optics_preflight_tools
 from .wave_optics_audit import register_wave_optics_audit_tools
+from .semantic_docs import register_semantic_doc_tools
 from .profiles import ProfileSelection, register_profiled, resolve_profile, tool_names_for_profile
 
 TOOL_REGISTRARS = (
@@ -35,6 +36,7 @@ TOOL_REGISTRARS = (
     register_property_tools,
     register_wave_optics_preflight_tools,
     register_wave_optics_audit_tools,
+    register_semantic_doc_tools,
 )
 
 
@@ -62,6 +64,7 @@ __all__ = [
     "register_property_tools",
     "register_wave_optics_preflight_tools",
     "register_wave_optics_audit_tools",
+    "register_semantic_doc_tools",
     "TOOL_REGISTRARS",
     "register_tool_modules",
 ]

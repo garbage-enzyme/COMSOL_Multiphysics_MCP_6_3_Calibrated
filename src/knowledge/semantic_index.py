@@ -246,10 +246,17 @@ class SentenceTransformerEncoder:
         path = _require_ascii_absolute(model_path, "model_path")
         os.environ["HF_HUB_OFFLINE"] = "1"
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        import sentence_transformers
+        import torch
         from sentence_transformers import SentenceTransformer
 
         self._model = SentenceTransformer(str(path), local_files_only=True, device="cpu")
         self.dimension = int(dimension)
+        self.device = str(self._model.device)
+        self.dependency_versions = {
+            "sentence_transformers": sentence_transformers.__version__,
+            "torch": torch.__version__,
+        }
 
     def encode(self, texts: Sequence[str]) -> Any:
         return self._model.encode(

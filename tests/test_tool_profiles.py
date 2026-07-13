@@ -73,12 +73,16 @@ def test_profile_name_and_schema_snapshots_are_exact():
 def test_profile_registration_has_no_cross_server_leakage():
     core = create_server("isolated-core", profile="core")
     full = create_server("isolated-full", profile="full")
+    semantic = create_server("isolated-semantic", profile="semantic_docs")
     experimental = create_server("isolated-experimental", profile="experimental")
 
     assert len(_tool_names(core)) == 38
-    assert len(_tool_names(full)) == 100
+    assert len(_tool_names(full)) == 103
+    assert len(_tool_names(semantic)) == 41
     assert len(_tool_names(experimental)) == 64
     assert _tool_names(core) != _tool_names(experimental)
+    assert {"semantic_search", "semantic_status", "semantic_worker_reset"} <= set(_tool_names(semantic))
+    assert {"semantic_search", "semantic_status", "semantic_worker_reset"}.isdisjoint(_tool_names(core))
 
 
 def test_registered_server_profile_is_immutable():

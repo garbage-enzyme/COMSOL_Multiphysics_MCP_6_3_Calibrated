@@ -7,7 +7,7 @@ from types import MappingProxyType
 from typing import Any
 
 
-PROFILE_NAMES = ("core", "basic_fem", "wave_optics", "experimental", "full")
+PROFILE_NAMES = ("core", "basic_fem", "wave_optics", "semantic_docs", "experimental", "full")
 
 
 @dataclass(frozen=True)
@@ -95,6 +95,9 @@ _TOOLS_BY_REGISTRAR = {
     "src.tools.wave_optics_audit.register_wave_optics_audit_tools": (
         "wave_optics_point_audit",
     ),
+    "src.tools.semantic_docs.register_semantic_doc_tools": (
+        "semantic_search", "semantic_status", "semantic_worker_reset",
+    ),
     "src.knowledge.embedded.register_knowledge_tools": (
         "docs_get", "docs_list", "physics_get_guide", "troubleshoot",
         "modeling_best_practices",
@@ -121,6 +124,7 @@ _GROUP_BY_REGISTRAR = {
     "register_property_tools": "clientapi_properties",
     "register_wave_optics_preflight_tools": "wave_optics_audit",
     "register_wave_optics_audit_tools": "wave_optics_audit",
+    "register_semantic_doc_tools": "semantic_docs",
     "register_knowledge_tools": "embedded_docs",
     "register_lexical_manual_tools": "manuals",
 }
@@ -148,6 +152,7 @@ _EXPERIMENTAL_TOOLS = frozenset({
     "clientapi_property_set",
     "wave_optics_preflight",
     "wave_optics_point_audit",
+    "semantic_search", "semantic_status", "semantic_worker_reset",
 })
 
 _SIDE_EFFECTS = {
@@ -215,6 +220,9 @@ _SIDE_EFFECTS = {
     "wave_optics_point_audit": "solver_execution",
     "manual_search": "read_only_subprocess",
     "manual_read_pages": "read_only_subprocess",
+    "semantic_search": "read_only_subprocess",
+    "semantic_status": "read_only_process_status",
+    "semantic_worker_reset": "process_control",
 }
 
 _STARTS_SOLVER = frozenset({
@@ -275,6 +283,10 @@ _EXPERIMENTAL_ADDITIONS = frozenset({
     "clientapi_property_get", "clientapi_property_set",
 })
 
+_SEMANTIC_DOCS_ADDITIONS = frozenset({
+    "semantic_search", "semantic_status", "semantic_worker_reset",
+})
+
 
 def _build_registry() -> dict[str, ToolMetadata]:
     all_names = {
@@ -284,6 +296,7 @@ def _build_registry() -> dict[str, ToolMetadata]:
         "core": _CORE_TOOLS,
         "basic_fem": _CORE_TOOLS | _BASIC_FEM_ADDITIONS,
         "wave_optics": _CORE_TOOLS | _WAVE_OPTICS_ADDITIONS,
+        "semantic_docs": _CORE_TOOLS | _SEMANTIC_DOCS_ADDITIONS,
         "experimental": _CORE_TOOLS | _EXPERIMENTAL_ADDITIONS,
         "full": frozenset(all_names),
     }
