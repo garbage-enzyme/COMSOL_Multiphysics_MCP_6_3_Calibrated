@@ -31,6 +31,20 @@ from .study import _resolve_study_tag
 
 SWEEP_SCHEMA_VERSION = "2"
 DEFAULT_RESPONSE_TAIL = 5
+_SWEEP_HOOK_ACTIONS = frozenset(
+    {"start_point", "skip_completed", "await_confirmation", "checkpoint_no_start"}
+)
+_SWEEP_HOOK_RESULT_FIELDS = frozenset(
+    {
+        "stage",
+        "point_id",
+        "action",
+        "start_authorized",
+        "journal_entries_appended",
+        "latest_entry_sha256",
+        "next_attempt_sequence",
+    }
+)
 
 
 def _format_parameter_value(value: Any, unit: Optional[str] = None) -> str:
@@ -433,6 +447,79 @@ def _completed_keys(csv_path: Optional[str], key: str) -> set[str]:
     return completed
 
 
+def _sweep_point_id(parameter_name: str, parameter_value: str) -> str:
+    """Return an exact, journal-safe identity for one formatted sweep point."""
+    payload = json.dumps(
+        [parameter_name, parameter_value],
+        ensure_ascii=True,
+        separators=(",", ":"),
+    ).encode("ascii")
+    return f"point:{hashlib.sha256(payload).hexdigest()}"
+
+
+def _run_bounded_sweep_hook(
+    hook: Callable[[dict[str, Any]], object],
+    *,
+    phase: str,
+    stage: str,
+    point_id: str,
+    parameter_name: str,
+    parameter_value: str,
+    config_id: str,
+    row_status: Optional[str] = None,
+    row_attempt: Optional[int] = None,
+) -> str:
+    """Run one in-process gate and validate only the bounded M4 action surface."""
+    context = {
+        "phase": phase,
+        "stage": stage,
+        "point_id": point_id,
+        "parameter_name": parameter_name,
+        "parameter_value": parameter_value,
+        "config_id": config_id,
+        "row_status": row_status,
+        "row_attempt": row_attempt,
+    }
+    result = hook(context)
+    if not isinstance(result, dict):
+        raise ValueError(f"{phase} hook must return an action object")
+    unknown = sorted(set(result) - _SWEEP_HOOK_RESULT_FIELDS)
+    if unknown:
+        raise ValueError(f"{phase} hook returned unsupported fields: {unknown}")
+    action = result.get("action")
+    if action not in _SWEEP_HOOK_ACTIONS:
+        raise ValueError(f"{phase} hook returned unsupported action: {action!r}")
+    if "stage" in result and result["stage"] != stage:
+        raise ValueError(f"{phase} hook returned a mismatched stage")
+    if "point_id" in result and result["point_id"] != point_id:
+        raise ValueError(f"{phase} hook returned a mismatched point_id")
+    if "start_authorized" in result:
+        authorized = result["start_authorized"]
+        if not isinstance(authorized, bool) or authorized != (action == "start_point"):
+            raise ValueError(f"{phase} hook returned inconsistent start_authorized")
+    if "journal_entries_appended" in result:
+        count = result["journal_entries_appended"]
+        if isinstance(count, bool) or not isinstance(count, int) or not 0 <= count <= 2:
+            raise ValueError(f"{phase} hook journal_entries_appended is out of bounds")
+    if "next_attempt_sequence" in result:
+        sequence = result["next_attempt_sequence"]
+        if (
+            isinstance(sequence, bool)
+            or not isinstance(sequence, int)
+            or not 0 <= sequence <= 4096
+        ):
+            raise ValueError(f"{phase} hook next_attempt_sequence is out of bounds")
+    if "latest_entry_sha256" in result:
+        digest = result["latest_entry_sha256"]
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            raise ValueError(f"{phase} hook latest_entry_sha256 is invalid")
+    return str(action)
+
+
 def _save_model(model, file_path: str) -> None:
     """Save through the Java clientapi to preserve non-ASCII Windows paths."""
     _ensure_parent_dir(file_path)
@@ -469,6 +556,8 @@ def run_staged_parametric_sweep(
     max_new_points: Optional[int] = None,
     should_stop: Optional[Callable[[], bool]] = None,
     on_durable_row: Optional[Callable[[dict[str, Any]], None]] = None,
+    before_point_hook: Optional[Callable[[dict[str, Any]], object]] = None,
+    after_durable_row_hook: Optional[Callable[[dict[str, Any]], object]] = None,
 ) -> dict[str, Any]:
     """Run a parameter sweep one point at a time and append CSV rows eagerly."""
     if not parameter_values:
@@ -577,9 +666,15 @@ def run_staged_parametric_sweep(
     stopped_early = False
     stop_reason = None
     processed = 0
+    hook_skipped = 0
+    hook_action_counts = {
+        "before_point": {action: 0 for action in sorted(_SWEEP_HOOK_ACTIONS)},
+        "after_durable_row": {action: 0 for action in sorted(_SWEEP_HOOK_ACTIONS)},
+    }
 
     for value in parameter_values:
         parameter_value = _format_parameter_value(value, parameter_unit)
+        point_id = _sweep_point_id(parameter_name, parameter_value)
         if parameter_value in completed_values:
             skipped += 1
             continue
@@ -591,9 +686,29 @@ def run_staged_parametric_sweep(
             stopped_early = True
             stop_reason = "control_request"
             break
+        if before_point_hook is not None:
+            action = _run_bounded_sweep_hook(
+                before_point_hook,
+                phase="before_point",
+                stage="pre_solve",
+                point_id=point_id,
+                parameter_name=parameter_name,
+                parameter_value=parameter_value,
+                config_id=manifest["config_id"],
+            )
+            hook_action_counts["before_point"][action] += 1
+            if action == "skip_completed":
+                skipped += 1
+                hook_skipped += 1
+                continue
+            if action in {"await_confirmation", "checkpoint_no_start"}:
+                stopped_early = True
+                stop_reason = f"before_point_{action}"
+                break
 
         for attempt in range(1, max_retries + 2):
             solve_start = time.time()
+            terminal_error: Optional[Exception] = None
             try:
                 jm.param().set(parameter_name, parameter_value)
 
@@ -646,9 +761,6 @@ def run_staged_parametric_sweep(
                     _save_model(model, checkpoint_model_path)
                     checkpointed_at = len(rows)
                 processed += 1
-                if on_durable_row is not None:
-                    on_durable_row(dict(row))
-                break
             except Exception as exc:
                 if attempt <= max_retries:
                     continue
@@ -670,10 +782,33 @@ def run_staged_parametric_sweep(
                 journal_tail.append(row)
                 _write_rows_csv(csv_path, fieldnames, [row], append=True)
                 processed += 1
-                if on_durable_row is not None:
-                    on_durable_row(dict(row))
-                if not continue_on_error:
-                    raise
+                terminal_error = exc
+
+            # The row is already durable here.  Hook/callback failures must not
+            # retry the solve or append a contradictory second row.
+            if on_durable_row is not None:
+                on_durable_row(dict(row))
+            if after_durable_row_hook is not None:
+                action = _run_bounded_sweep_hook(
+                    after_durable_row_hook,
+                    phase="after_durable_row",
+                    stage="post_solve",
+                    point_id=point_id,
+                    parameter_name=parameter_name,
+                    parameter_value=parameter_value,
+                    config_id=manifest["config_id"],
+                    row_status=str(row["status"]),
+                    row_attempt=int(row["attempt"]),
+                )
+                hook_action_counts["after_durable_row"][action] += 1
+                if action in {"await_confirmation", "checkpoint_no_start"}:
+                    stopped_early = True
+                    stop_reason = f"after_durable_row_{action}"
+            if terminal_error is not None and not continue_on_error:
+                raise terminal_error
+            break
+        if stopped_early:
+            break
 
     if save_model_path:
         _save_model(model, save_model_path)
@@ -689,10 +824,12 @@ def run_staged_parametric_sweep(
         "n_points": len(rows),
         "n_failed": len(failed_rows),
         "n_skipped": skipped,
+        "n_hook_skipped": hook_skipped,
         "n_invalid_existing": invalid_existing_rows,
         "n_processed": processed,
         "stopped_early": stopped_early,
         "stop_reason": stop_reason,
+        "hook_action_counts": hook_action_counts,
         "csv_path": csv_path,
         "manifest_path": str(resolved_manifest_path) if resolved_manifest_path else None,
         "config_id": manifest["config_id"],

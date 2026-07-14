@@ -7,11 +7,13 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from src.tools.workflow import (
     _model_identity,
     _csv_value,
     _scalarize,
+    _sweep_point_id,
     run_mesh_convergence,
     run_staged_parametric_sweep,
 )
@@ -313,6 +315,95 @@ def test_staged_sweep_cooperative_stop_is_checked_between_points(tmp_path):
     assert result["stop_reason"] == "control_request"
     assert result["n_processed"] == 1
     assert model.java.study_node.run_count == 1
+
+
+def test_staged_sweep_hook_actions_are_bounded_and_stop_before_solve(tmp_path):
+    csv_path = tmp_path / "hook-stop.csv"
+    model = FakeModel()
+    contexts = []
+
+    def before_point(context):
+        contexts.append(context)
+        actions = {
+            "1[m]": "skip_completed",
+            "2[m]": "checkpoint_no_start",
+        }
+        return {"action": actions[context["parameter_value"]]}
+
+    result = run_staged_parametric_sweep(
+        model,
+        "wl",
+        [1, 2, 3],
+        ["A"],
+        parameter_unit="m",
+        csv_path=str(csv_path),
+        before_point_hook=before_point,
+    )
+
+    assert result["stopped_early"] is True
+    assert result["stop_reason"] == "before_point_checkpoint_no_start"
+    assert result["n_skipped"] == 1
+    assert result["n_hook_skipped"] == 1
+    assert result["n_processed"] == 0
+    assert result["hook_action_counts"]["before_point"]["skip_completed"] == 1
+    assert result["hook_action_counts"]["before_point"]["checkpoint_no_start"] == 1
+    assert model.java.study_node.run_count == 0
+    assert [context["stage"] for context in contexts] == ["pre_solve", "pre_solve"]
+    assert contexts[0]["point_id"] == _sweep_point_id("wl", "1[m]")
+
+
+def test_invalid_after_durable_hook_does_not_retry_or_append_error_row(tmp_path):
+    csv_path = tmp_path / "invalid-after-hook.csv"
+    model = FakeModel()
+
+    with pytest.raises(ValueError, match="unsupported action"):
+        run_staged_parametric_sweep(
+            model,
+            "wl",
+            [1],
+            ["A"],
+            parameter_unit="m",
+            csv_path=str(csv_path),
+            max_retries=2,
+            after_durable_row_hook=lambda _context: {"action": "launch_anyway"},
+        )
+
+    assert model.java.study_node.run_count == 1
+    assert [row["status"] for row in read_csv(csv_path)] == ["ok"]
+
+
+@pytest.mark.parametrize(
+    ("hook_result", "message"),
+    [
+        (None, "action object"),
+        ({"action": "start_point", "unbounded": []}, "unsupported fields"),
+        ({"action": "start_point", "stage": "post_solve"}, "mismatched stage"),
+        ({"action": "start_point", "point_id": "point:wrong"}, "mismatched point_id"),
+        ({"action": "start_point", "start_authorized": False}, "inconsistent start_authorized"),
+        ({"action": "start_point", "journal_entries_appended": 3}, "out of bounds"),
+        ({"action": "start_point", "next_attempt_sequence": 4097}, "out of bounds"),
+        ({"action": "start_point", "latest_entry_sha256": "not-a-hash"}, "is invalid"),
+    ],
+)
+def test_staged_sweep_hook_rejects_unbounded_or_mismatched_results(
+    tmp_path,
+    hook_result,
+    message,
+):
+    model = FakeModel()
+
+    with pytest.raises(ValueError, match=message):
+        run_staged_parametric_sweep(
+            model,
+            "wl",
+            [1],
+            ["A"],
+            parameter_unit="m",
+            csv_path=str(tmp_path / "bounded-hook.csv"),
+            before_point_hook=lambda _context: hook_result,
+        )
+
+    assert model.java.study_node.run_count == 0
 
 
 def test_error_row_is_retried_but_valid_row_is_skipped(tmp_path):

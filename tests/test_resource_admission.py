@@ -21,6 +21,8 @@ from src.jobs.resource_admission import (
     replay_resource_journal,
 )
 from src.jobs.store import JobStore
+from src.tools.workflow import _sweep_point_id, run_staged_parametric_sweep
+from tests.test_workflow import FakeModel, read_csv
 
 
 POLICY = {
@@ -660,3 +662,57 @@ def test_stage_adapter_rejects_provider_stage_mismatch_without_appending(ascii_j
     with pytest.raises(ValueError, match="mismatched stage"):
         adapter.evaluate(stage="pre_solve", point_id="wl:4.25")
     assert store.read_resource_journal(job_id) == []
+
+
+def test_stage_adapter_gates_in_process_fake_comsol_sweep(ascii_jobs_root):
+    store = JobStore(ascii_jobs_root / "jobs")
+    job_id = store.create({}, {"attempt": 1, "status": "running"}, job_id="job-sweep-hook")
+    csv_path = ascii_jobs_root / "hooked-sweep.csv"
+    completed = set()
+    available = {
+        _sweep_point_id("wl", "1[m]"): 30,
+        _sweep_point_id("wl", "2[m]"): 20,
+    }
+
+    def telemetry_provider(stage, point_id):
+        return sample(stage=stage, available_memory_bytes=available[point_id])
+
+    adapter = ResourceStageAdapter(
+        store=store,
+        job_id=job_id,
+        attempt=1,
+        policy=POLICY,
+        telemetry_provider=telemetry_provider,
+        completed_point_ids_provider=lambda: completed,
+    )
+
+    def gate(context):
+        return adapter.evaluate(stage=context["stage"], point_id=context["point_id"])
+
+    def record_completed(row):
+        if row["status"] == "ok":
+            completed.add(_sweep_point_id("wl", row["parameter_value"]))
+
+    model = FakeModel()
+    result = run_staged_parametric_sweep(
+        model,
+        "wl",
+        [1, 2],
+        ["A"],
+        parameter_unit="m",
+        csv_path=str(csv_path),
+        before_point_hook=gate,
+        on_durable_row=record_completed,
+        after_durable_row_hook=gate,
+    )
+
+    assert result["success"] is True
+    assert result["stopped_early"] is True
+    assert result["stop_reason"] == "before_point_await_confirmation"
+    assert result["n_processed"] == 1
+    assert model.java.study_node.run_count == 1
+    assert [row["parameter_value"] for row in read_csv(csv_path)] == ["1[m]"]
+    assert result["hook_action_counts"]["before_point"]["start_point"] == 1
+    assert result["hook_action_counts"]["after_durable_row"]["skip_completed"] == 1
+    assert result["hook_action_counts"]["before_point"]["await_confirmation"] == 1
+    assert len(store.read_resource_journal(job_id)) == 6
