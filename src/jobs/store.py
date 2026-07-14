@@ -308,12 +308,14 @@ class JobStore:
                         "control": control,
                     }
                 request_id = control.get("request_id") or f"cancel-{uuid.uuid4().hex}"
+                requested_at = control.get("requested_at_epoch") or time.time()
                 if not control.get("request_id"):
                     control = {
                         **control,
                         "schema_version": JOB_SCHEMA_VERSION,
                         "request_id": request_id,
                         "target_attempt": attempt,
+                        "requested_at_epoch": requested_at,
                         "updated_at_epoch": time.time(),
                     }
                     atomic_write_json(self.job_dir(job_id) / "control.json", control)
@@ -330,7 +332,8 @@ class JobStore:
                         "request_id": request_id,
                         "target_attempt": attempt,
                         "phase": "requested",
-                        "requested_at_epoch": control.get("requested_at_epoch"),
+                        "requested_at_epoch": requested_at,
+                        "phase_timestamps": {"requested": requested_at},
                     }
                     state["updated_at_epoch"] = time.time()
                     atomic_write_json(self.job_dir(job_id) / "state.json", state)
@@ -383,6 +386,7 @@ class JobStore:
                 "requested_at_epoch": now,
                 "requester_identity": requester_identity,
                 "phase": "requested",
+                "phase_timestamps": {"requested": now},
                 "native": {"candidate": None, "supported": None, "attempted": False},
                 "worker": {"exact_identity": target_worker},
             }

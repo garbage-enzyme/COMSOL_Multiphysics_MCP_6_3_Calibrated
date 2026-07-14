@@ -127,6 +127,16 @@ def test_cooperative_cancel_is_truthful_and_resumable(jobs_root):
     assert requested["status"] == "cancel_requested"
     assert terminal["cancel"]["verification"]["absent"] is True
     assert terminal["cancel"]["cooperative_observation"]["target_attempt"] == 1
+    timestamps = terminal["cancel"]["phase_timestamps"]
+    assert set(timestamps) >= {"requested", "native_grace", "verifying", "verified", "terminal_commit"}
+    assert timestamps["requested"] <= timestamps["native_grace"] <= timestamps["terminal_commit"]
+    assert terminal["cancel"]["timing_policy"] == {
+        "native_grace_budget_s": 10.0,
+        "terminate_budget_s": 5.0,
+    }
+    assert terminal["cancel"]["teardown_latency"]["requested_to_terminal_s"] >= 0
+    assert terminal["cancel"]["teardown_latency"]["coordinator_to_terminal_s"] >= 0
+    assert terminal["cancel"]["teardown_latency"]["verification_to_terminal_s"] >= 0
     manager.resume(result["job_id"])
     wait_for(manager, result["job_id"], {"completed"})
 
@@ -451,6 +461,7 @@ def test_coordinator_loss_at_each_durable_phase_reconciles_safely(jobs_root, mon
     phase_state = manager.store.read_state(result["job_id"])
     assert phase_state["status"] == "cancelling"
     assert phase_state["cancel"]["phase"] == crash_phase
+    entered_at = phase_state["cancel"]["phase_timestamps"][crash_phase]
     assert process_identity_state(phase_state["cancel"]["coordinator"])[0] == "stale"
 
     assert manager.reconcile_cancellations() == 1
@@ -458,6 +469,7 @@ def test_coordinator_loss_at_each_durable_phase_reconciles_safely(jobs_root, mon
 
     assert process_identity_state(worker_identity)[0] == "stale"
     assert cancelled["cancel"]["verification"]["absent"] is True
+    assert cancelled["cancel"]["phase_timestamps"][crash_phase] == entered_at
     events = "\n".join(manager.tail(result["job_id"], 100)["events"])
     assert f'"phase": "{crash_phase}"' in events
 

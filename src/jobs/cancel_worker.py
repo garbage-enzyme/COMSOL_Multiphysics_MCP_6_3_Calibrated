@@ -17,7 +17,24 @@ from .store import JobStore, atomic_write_json, process_identity
 _RESUMABLE_PHASES = {"terminate", "force_kill", "verifying"}
 
 
-def _claim(store: JobStore, job_id: str, request_id: str, identity: dict[str, Any]) -> dict[str, Any] | None:
+def _enter_phase(cancel: dict[str, Any], phase: str, now: float) -> dict[str, Any]:
+    updated = dict(cancel)
+    timestamps = dict(updated.get("phase_timestamps") or {})
+    timestamps.setdefault(phase, float(now))
+    updated["phase"] = phase
+    updated["phase_timestamps"] = timestamps
+    return updated
+
+
+def _claim(
+    store: JobStore,
+    job_id: str,
+    request_id: str,
+    identity: dict[str, Any],
+    *,
+    grace_seconds: float,
+    terminate_seconds: float,
+) -> dict[str, Any] | None:
     with store.lock(job_id):
         state = store.read_state(job_id)
         control = store.read_control(job_id)
@@ -33,12 +50,21 @@ def _claim(store: JobStore, job_id: str, request_id: str, identity: dict[str, An
             if inspect_identity(coordinator)["state"] == "active":
                 return None
         previous_phase = cancel.get("phase")
+        now = time.time()
         cancel["coordinator"] = identity
-        cancel["phase"] = previous_phase if previous_phase in _RESUMABLE_PHASES else "native_grace"
+        cancel = _enter_phase(
+            cancel,
+            previous_phase if previous_phase in _RESUMABLE_PHASES else "native_grace",
+            now,
+        )
+        cancel["timing_policy"] = {
+            "native_grace_budget_s": max(0.0, float(grace_seconds)),
+            "terminate_budget_s": max(0.0, float(terminate_seconds)),
+        }
         cancel.pop("blocker", None)
         state["cancel"] = cancel
         state["status"] = "cancelling"
-        state["updated_at_epoch"] = time.time()
+        state["updated_at_epoch"] = now
         atomic_write_json(store.job_dir(job_id) / "state.json", state)
         store._append_event_unlocked(
             job_id,
@@ -69,11 +95,12 @@ def _checkpoint(
             or (cancel.get("coordinator") or {}).get("pid") != identity.get("pid")
         ):
             return False
-        cancel["phase"] = phase
+        now = time.time()
+        cancel = _enter_phase(cancel, phase, now)
         if patch:
             cancel.update(patch)
         state["cancel"] = cancel
-        state["updated_at_epoch"] = time.time()
+        state["updated_at_epoch"] = now
         atomic_write_json(store.job_dir(job_id) / "state.json", state)
         store._append_event_unlocked(
             job_id,
@@ -91,10 +118,11 @@ def _record_blocker(store: JobStore, job_id: str, request_id: str, message: str)
         if control.get("request_id") != request_id or state.get("status") != "cancelling":
             return
         cancel = dict(state.get("cancel") or {})
-        cancel["phase"] = "blocked"
+        now = time.time()
+        cancel = _enter_phase(cancel, "blocked", now)
         cancel["blocker"] = message
         state["cancel"] = cancel
-        state["updated_at_epoch"] = time.time()
+        state["updated_at_epoch"] = now
         atomic_write_json(store.job_dir(job_id) / "state.json", state)
         store._append_event_unlocked(job_id, "cancel_blocked", {"request_id": request_id, "message": message}, "cancelling")
 
@@ -108,10 +136,48 @@ def _commit_cancelled(
         if control.get("request_id") != request_id or state.get("status") != "cancelling":
             return False
         cancel = dict(state.get("cancel") or {})
-        cancel.update({"phase": "verified", "worker_actions": actions, "verification": verification, "completed_at_epoch": time.time()})
+        completed_at = time.time()
+        cancel = _enter_phase(cancel, "verified", completed_at)
+        cancel = _enter_phase(cancel, "terminal_commit", completed_at)
+        timestamps = dict(cancel.get("phase_timestamps") or {})
+        requested_at = timestamps.get("requested", cancel.get("requested_at_epoch"))
+        coordinator_at = min(
+            (
+                float(value)
+                for phase, value in timestamps.items()
+                if phase not in {"requested", "terminal_commit"}
+            ),
+            default=None,
+        )
+        verifying_at = timestamps.get("verifying")
+        cancel.update(
+            {
+                "phase": "verified",
+                "worker_actions": actions,
+                "verification": verification,
+                "completed_at_epoch": completed_at,
+                "teardown_latency": {
+                    "requested_to_terminal_s": (
+                        max(0.0, completed_at - float(requested_at))
+                        if requested_at is not None
+                        else None
+                    ),
+                    "coordinator_to_terminal_s": (
+                        max(0.0, completed_at - coordinator_at)
+                        if coordinator_at is not None
+                        else None
+                    ),
+                    "verification_to_terminal_s": (
+                        max(0.0, completed_at - float(verifying_at))
+                        if verifying_at is not None
+                        else None
+                    ),
+                },
+            }
+        )
         state["status"] = "cancelled"
         state["cancel"] = cancel
-        state["updated_at_epoch"] = time.time()
+        state["updated_at_epoch"] = completed_at
         atomic_write_json(store.job_dir(job_id) / "state.json", state)
         store._append_event_unlocked(job_id, "cancelled", {"request_id": request_id}, "cancelled")
         return True
@@ -187,7 +253,14 @@ def run(
 ) -> int:
     store = JobStore(Path(root))
     identity = process_identity(os.getpid())
-    claimed = _claim(store, job_id, request_id, identity)
+    claimed = _claim(
+        store,
+        job_id,
+        request_id,
+        identity,
+        grace_seconds=grace_seconds,
+        terminate_seconds=terminate_seconds,
+    )
     if claimed is None:
         return 0
     control = claimed["control"]
