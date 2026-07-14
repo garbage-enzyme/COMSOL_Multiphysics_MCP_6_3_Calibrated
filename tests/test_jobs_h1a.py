@@ -234,6 +234,85 @@ def test_unknown_control_request_fails_closed(jobs_root):
     assert store.read_state(job_id)["status"] == "running"
 
 
+def test_cooperative_cancel_observation_is_attempt_bound_and_nonterminal(jobs_root):
+    store = JobStore(jobs_root)
+    identity = process_identity(os.getpid())
+    job_id = store.create(
+        {"schema_version": "2", "job_type": "test"},
+        {
+            "schema_version": "2",
+            "status": "running",
+            "attempt": 1,
+            "worker_pid": identity["pid"],
+            "worker_process_create_time": identity["process_create_time"],
+            "worker_command_signature": identity["command_signature"],
+        },
+    )
+    request = store.request_cancel(job_id, requester_identity=identity)
+
+    observed = store.record_cooperative_cancel_observed(
+        job_id,
+        attempt=1,
+        message="Stopped between points",
+    )
+    repeated = store.record_cooperative_cancel_observed(
+        job_id,
+        attempt=1,
+        message="A repeated observation must not replace the first",
+    )
+    state = store.read_state(job_id)
+
+    assert request["accepted"] is True
+    assert observed["recorded"] is True
+    assert observed["idempotent"] is False
+    assert repeated["recorded"] is True
+    assert repeated["idempotent"] is True
+    assert state["status"] == "cancel_requested"
+    assert state["cancel"]["phase"] == "requested"
+    assert state["cancel"]["cooperative_observation"] == {
+        "request_id": request["control"]["request_id"],
+        "target_attempt": 1,
+        "observed_at_epoch": state["cancel"]["cooperative_observation"]["observed_at_epoch"],
+        "message": "Stopped between points",
+        "worker": identity,
+    }
+
+
+def test_stale_attempt_cannot_record_cooperative_cancel_observation(jobs_root):
+    store = JobStore(jobs_root)
+    identity = process_identity(os.getpid())
+    job_id = store.create(
+        {"schema_version": "2", "job_type": "test"},
+        {
+            "schema_version": "2",
+            "status": "cancel_requested",
+            "attempt": 2,
+            "worker_pid": identity["pid"],
+            "worker_process_create_time": identity["process_create_time"],
+            "worker_command_signature": identity["command_signature"],
+            "cancel": {"request_id": "cancel-old", "target_attempt": 1, "phase": "requested"},
+        },
+    )
+    store.write_control(
+        job_id,
+        "cancel_requested",
+        fields={"request_id": "cancel-old", "target_attempt": 1},
+    )
+
+    observed = store.record_cooperative_cancel_observed(
+        job_id,
+        attempt=2,
+        message="Must be ignored",
+    )
+
+    assert observed == {
+        "recorded": False,
+        "reason": "no_matching_cancel_request",
+        "state": observed["state"],
+    }
+    assert "cooperative_observation" not in store.read_state(job_id)["cancel"]
+
+
 def test_native_cancel_evidence_merges_without_overwriting_coordinator(jobs_root):
     store = JobStore(jobs_root)
     identity = process_identity(os.getpid())

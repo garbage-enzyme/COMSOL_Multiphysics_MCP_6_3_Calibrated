@@ -396,6 +396,61 @@ class JobStore:
             )
             return {"accepted": True, "idempotent": False, "state": state, "control": control}
 
+    def record_cooperative_cancel_observed(
+        self,
+        job_id: str,
+        *,
+        attempt: int,
+        message: str,
+    ) -> dict[str, Any]:
+        """Record that the target worker observed its matching cancel request.
+
+        This is nonterminal evidence.  Only the detached coordinator may commit
+        ``cancelled`` after worker, descendant, server-port, and lease cleanup is
+        proved.  A stale-attempt request is ignored rather than being allowed to
+        affect a resumed worker.
+        """
+        with self.lock(job_id):
+            state = self.read_state(job_id)
+            control = self.read_control(job_id)
+            if int(state.get("attempt", -1)) != int(attempt):
+                return {"recorded": False, "reason": "state_attempt_mismatch", "state": state}
+            if not cancel_request_targets_attempt(control, attempt):
+                return {"recorded": False, "reason": "no_matching_cancel_request", "state": state}
+            if state.get("status") not in {"cancel_requested", "cancelling"}:
+                return {"recorded": False, "reason": "state_not_cancelling", "state": state}
+
+            cancel = dict(state.get("cancel") or {})
+            request_id = control.get("request_id")
+            if cancel.get("request_id") not in (None, request_id):
+                return {"recorded": False, "reason": "state_request_mismatch", "state": state}
+            existing = cancel.get("cooperative_observation")
+            if isinstance(existing, dict) and existing.get("request_id") == request_id:
+                return {"recorded": True, "idempotent": True, "state": state}
+
+            observed_at = time.time()
+            cancel["cooperative_observation"] = {
+                "request_id": request_id,
+                "target_attempt": int(attempt),
+                "observed_at_epoch": observed_at,
+                "message": str(message),
+                "worker": {
+                    "pid": state.get("worker_pid"),
+                    "process_create_time": state.get("worker_process_create_time"),
+                    "command_signature": state.get("worker_command_signature"),
+                },
+            }
+            state["cancel"] = cancel
+            state["updated_at_epoch"] = observed_at
+            atomic_write_json(self.job_dir(job_id) / "state.json", state)
+            self._append_event_unlocked(
+                job_id,
+                "cooperative_cancel_observed",
+                {"request_id": request_id, "target_attempt": int(attempt)},
+                str(state["status"]),
+            )
+            return {"recorded": True, "idempotent": False, "state": state}
+
     @contextmanager
     def lock(self, job_id: str, timeout: float = 5.0) -> Iterator[None]:
         with JobLock(self.job_dir(job_id) / ".state.lock", timeout=timeout):
