@@ -35,10 +35,10 @@ Set `COMSOL_MCP_PROFILE` before starting the server. A profile is fixed for the 
 | --- | ---: | --- |
 | `core` (default) | 38 | Compact, mature control plane: status, ownership, session/model inspection, one-point solve/evaluation, and lexical manuals. |
 | `basic_fem` | 76 | `core` plus typed conventional FEM construction, derived-geometry edits, and bounded exports. |
-| `wave_optics` | 58 | Recommended for metasurfaces: `core` plus derived-geometry edits, material preview, periodic-mesh audit/smoke, visual-review contracts, Wave Optics preflight, point audit, and staged workflows. |
+| `wave_optics` | 61 | Recommended for metasurfaces: `core` plus derived-geometry edits, material preview, periodic-mesh audit/smoke, visual-review contracts, Wave Optics preflight, point/reference audits, and staged workflows. |
 | `semantic_docs` | 41 | `core` plus isolated experimental vector-assisted manual retrieval. |
 | `experimental` | 64 | Explicit opt-in generic creation, async, property escape hatches, and project helpers. |
-| `full` | 115 | Broad compatibility/discovery surface, including optional semantic tools. |
+| `full` | 118 | Broad compatibility/discovery surface, including optional semantic tools. |
 
 Call `capabilities` to discover the active profile, exact registered tools, target versions, disabled groups, and restart requirements without starting COMSOL. Its bounded `deployment_identity` reports source-tree versus installed-package loading plus frozen profile/schema and catalog hashes, so a host restart can detect same-version stale installs or source shadowing without exposing local paths.
 
@@ -61,12 +61,14 @@ Durable sweep controls are `job_submit`, `job_status`, `job_tail`, `job_cancel`,
 Use the `wave_optics` profile and follow this bounded sequence:
 
 ```text
-solver_status -> wave_optics_preflight -> wave_optics_point_audit
+solver_status -> wave_optics_preflight -> wave_optics_reference_audit (optional) -> wave_optics_point_audit
 ```
 
 `wave_optics_preflight` is read-only and solver-free. It reports source provenance, topology, periodic/Floquet selections, ports, wavelength linkage, mesh/study metadata, and explicit unknowns.
 
 `wave_optics_point_audit` solves exactly one declared wavelength after ownership and source-hash checks. It writes a running manifest, one fsync'd CSV row, and a final manifest. Raw evidence can include requested/evaluated wavelength, frequency linkage, caller-provenanced R/T/A and flux direction, closure, loss expressions, bounded top-air field statistics, mesh state, and source/config/policy hashes.
+
+`wave_optics_reference_audit` is an experimental H1 tool. It creates a fresh provenance-tracked clone, requires exact caller material/domain declarations, replaces clone component materials with lossless air, samples a bounded homogeneous region, and removes the clone before method evidence can pass. It never mutates the source model; licensed acceptance is version/model-specific.
 
 Without a caller-supplied versioned validation policy, an audit is evidence-only: it does not declare a model pass/fail or recommend a long sweep. S/P labels and structure total fields stay explicitly qualified until an incident-reference artifact supports a stronger claim.
 

@@ -177,7 +177,8 @@
     "wave_optics_periodic_mesh_audit",
     "wave_optics_periodic_mesh_smoke",
     "wave_optics_point_audit",
-    "wave_optics_preflight"
+    "wave_optics_preflight",
+    "wave_optics_reference_audit"
   ],
   "semantic_docs": [
     "capabilities",
@@ -405,6 +406,7 @@
     "wave_optics_periodic_mesh_audit",
     "wave_optics_periodic_mesh_smoke",
     "wave_optics_point_audit",
-    "wave_optics_preflight"
+    "wave_optics_preflight",
+    "wave_optics_reference_audit"
   ]
 }

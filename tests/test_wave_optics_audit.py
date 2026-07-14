@@ -11,8 +11,10 @@ import pytest
 from src.evidence.contracts import example_validation_policies
 from src.tools.wave_optics_audit import (
     _load_air_reference,
+    _replace_clone_materials_with_air,
     evaluate_validation_policy,
     run_wave_optics_point_audit,
+    run_wave_optics_reference_audit,
 )
 
 
@@ -512,3 +514,222 @@ def test_source_hash_drift_after_solve_is_an_integrity_blocker(tmp_path, monkeyp
     assert result["audit_status"] == "integrity_blocked"
     assert result["measurement"]["integrity"]["source_unchanged"] is False
     assert _hash(source) == result["measurement"]["provenance"]["source_sha256_after"]
+
+
+class MaterialSelection:
+    def __init__(self):
+        self.values = []
+
+    def set(self, values):
+        self.values = list(values)
+
+    def entities(self):
+        return self.values
+
+
+class MaterialGroup:
+    def __init__(self):
+        self.values = {}
+
+    def set(self, name, value):
+        self.values[name] = value
+
+
+class Material:
+    def __init__(self):
+        self.group = MaterialGroup()
+        self.selection_value = MaterialSelection()
+
+    def propertyGroup(self, tag):
+        assert tag == "def"
+        return self.group
+
+    def selection(self):
+        return self.selection_value
+
+
+class Materials:
+    def __init__(self, tags):
+        self.items = {tag: Material() for tag in tags}
+
+    def tags(self):
+        return list(self.items)
+
+    def remove(self, tag):
+        del self.items[tag]
+
+    def create(self, tag, kind):
+        assert kind == "Common"
+        self.items[tag] = Material()
+        return self.items[tag]
+
+
+class MaterialComponent:
+    def __init__(self, tags):
+        self.materials = Materials(tags)
+
+    def material(self):
+        return self.materials
+
+
+class MaterialJava:
+    def __init__(self, tags):
+        self.component_value = MaterialComponent(tags)
+
+    def component(self, tag):
+        assert tag == "comp1"
+        return self.component_value
+
+
+class MaterialClone:
+    def __init__(self, tags):
+        self.java = MaterialJava(tags)
+
+
+def test_all_air_mutation_is_clone_only_and_requires_exact_material_tags():
+    clone = MaterialClone(["mat2", "mat1"])
+
+    result = _replace_clone_materials_with_air(
+        clone,
+        component_tag="comp1",
+        expected_material_tags=["mat1", "mat2"],
+        all_domain_ids=[1, 2, 3],
+    )
+
+    assert result["removed_material_tags"] == ["mat1", "mat2"]
+    assert clone.java.component_value.materials.tags() == ["h1_air"]
+    air = clone.java.component_value.materials.items["h1_air"]
+    assert air.group.values == {
+        "relpermittivity": "1",
+        "relpermeability": "1",
+        "electricconductivity": "0[S/m]",
+    }
+    assert air.selection_value.values == [1, 2, 3]
+
+    untouched = MaterialClone(["mat1"])
+    with pytest.raises(ValueError, match="exact caller declaration"):
+        _replace_clone_materials_with_air(
+            untouched,
+            component_tag="comp1",
+            expected_material_tags=["different"],
+            all_domain_ids=[1],
+        )
+    assert untouched.java.component_value.materials.tags() == ["mat1"]
+
+
+def _run_reference(tmp_path, monkeypatch, *, material_error=False, cleanup_result=True):
+    source = tmp_path / "reference_source.mph"
+    source.write_bytes(b"immutable-reference")
+    source_model = AuditModel(source, absorption=0.0)
+    cleanup_calls = []
+
+    def clone_factory(_source, _client, new_name):
+        clone_path = tmp_path / f"{new_name}.mph"
+        clone_path.write_bytes(b"derived-clone")
+        clone = AuditModel(clone_path, absorption=0.0)
+        return clone, {
+            "derived_model_id": "derived-unit-reference",
+            "model_name": clone.name(),
+            "source_path": str(source),
+            "source_sha256": _hash(source),
+            "backing_path": str(clone_path),
+            "backing_sha256": _hash(clone_path),
+        }
+
+    def material_mutator(_clone, **_kwargs):
+        if material_error:
+            raise ValueError("material readback mismatch")
+        return {
+            "method": "all_air_clone",
+            "removed_material_tags": ["mat1"],
+            "air_material_tag": "h1_air",
+            "domain_ids": [1, 2, 3],
+            "readback_complete": True,
+        }
+
+    def cleanup(name):
+        cleanup_calls.append(name)
+        return cleanup_result
+
+    monkeypatch.setattr(
+        "src.tools.wave_optics_audit._validate_ascii_dir",
+        lambda _value: tmp_path / "reference_artifacts",
+    )
+    result = run_wave_optics_reference_audit(
+        source_model,
+        object(),
+        model_name="AuditModel",
+        component_tag="comp1",
+        physics_tag="ewfd",
+        study_tag="std1",
+        study_step_tag="wl_step",
+        study_step_property="plist",
+        wavelength_value=4.37,
+        wavelength_unit="um",
+        wavelength_parameter="wl",
+        expected_source_sha256=_hash(source),
+        config_id="unit-reference",
+        reference_method="all_air_clone",
+        expected_material_tags=["mat1"],
+        all_domain_ids=[1, 2, 3],
+        top_air_domain_ids=[3],
+        top_air_coordinate_range={"x": [0, 1], "y": [0, 1], "z": [0.7, 1]},
+        target_axis="x",
+        aggregation="rms_abs",
+        artifact_dir=str(tmp_path / "ascii_reference"),
+        validation_policy=example_validation_policies()["reference_air_polarization_ratio"],
+        clone_factory=clone_factory,
+        clone_register=lambda clone, _path: clone.name(),
+        clone_cleanup=cleanup,
+        material_mutator=material_mutator,
+        preflight_collector=lambda *_args, **_kwargs: {
+            "inspection_status": "complete",
+            "ports": {"features": ["port1", "port2"]},
+            "incidence": {"alpha1_evaluated_deg": 0.0, "alpha2_evaluated_deg": 0.0},
+        },
+    )
+    return result, source, cleanup_calls
+
+
+def test_reference_audit_uses_fresh_clone_and_persists_dominant_component(tmp_path, monkeypatch):
+    result, source, cleanup_calls = _run_reference(tmp_path, monkeypatch)
+
+    assert result["audit_status"] == "measurement_complete"
+    assert result["cleanup"] == {"attempted": True, "removed": True}
+    assert cleanup_calls == ["AuditModel"]
+    assert result["reference"]["method"] == "all_air_clone"
+    assert result["reference"]["component_amplitudes"]["x"] == pytest.approx(1.0)
+    assert result["reference"]["target_to_transverse_ratio"] > 1e100
+    assert result["assessment"]["overall"] == "pass"
+    evidence = result["physical_evidence"]["evidence"]
+    assert evidence["polarization.reference_air_method_valid"]["value"] is True
+    assert evidence["integrity.clone_cleanup_proved"]["value"] is True
+    manifest = json.loads(open(result["artifacts"]["manifest"], encoding="utf-8").read())
+    assert manifest["clone_provenance"]["source_sha256"] == _hash(source)
+    assert manifest["source_unchanged"] is True
+
+
+def test_reference_audit_cleans_clone_after_material_error(tmp_path, monkeypatch):
+    result, source, cleanup_calls = _run_reference(
+        tmp_path, monkeypatch, material_error=True
+    )
+
+    assert result["audit_status"] == "measurement_partial"
+    assert cleanup_calls == ["AuditModel"]
+    assert result["cleanup"]["removed"] is True
+    assert result["physical_evidence"]["evidence"]["polarization.reference_air_method_valid"]["value"] is False
+    manifest = json.loads(open(result["artifacts"]["manifest"], encoding="utf-8").read())
+    assert manifest["measurement_errors"][0]["code"] == "reference_audit_failed"
+    assert manifest["source_sha256_before"] == manifest["source_sha256_after"] == _hash(source)
+
+
+def test_reference_audit_refuses_terminal_success_when_cleanup_is_unproved(tmp_path, monkeypatch):
+    result, _source, cleanup_calls = _run_reference(
+        tmp_path, monkeypatch, cleanup_result=False
+    )
+
+    assert cleanup_calls == ["AuditModel"]
+    assert result["audit_status"] == "integrity_blocked"
+    assert result["cleanup"]["removed"] is False
+    manifest = json.loads(open(result["artifacts"]["manifest"], encoding="utf-8").read())
+    assert manifest["integrity_errors"][0]["code"] == "reference_clone_cleanup_unproved"

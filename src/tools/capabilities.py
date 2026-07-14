@@ -194,6 +194,7 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
         "wave_optics_audit": {
             "preflight_tool": "wave_optics_preflight",
             "point_tool": "wave_optics_point_audit",
+            "reference_tool": "wave_optics_reference_audit",
             "material_expression_tool": "wave_optics_material_expression_preview",
             "profiles": ["wave_optics", "full"],
             "default_assessment": "evidence_only",

@@ -5543,5 +5543,280 @@
     ],
     "title": "wave_optics_preflightArguments",
     "type": "object"
+  },
+  "wave_optics_reference_audit": {
+    "$defs": {
+      "CoordinateLimits": {
+        "properties": {
+          "x": {
+            "items": {
+              "type": "number"
+            },
+            "title": "X",
+            "type": "array"
+          },
+          "y": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Y",
+            "type": "array"
+          },
+          "z": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Z",
+            "type": "array"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "CoordinateLimits",
+        "type": "object"
+      },
+      "StrictPolicyRule": {
+        "properties": {
+          "assumptions": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Assumptions",
+            "type": "object"
+          },
+          "required_measurements": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Measurements",
+            "type": "array"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "rule_type": {
+            "title": "Rule Type",
+            "type": "string"
+          },
+          "tolerances": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Tolerances",
+            "type": "object"
+          }
+        },
+        "required": [
+          "rule_id",
+          "rule_type",
+          "required_measurements",
+          "tolerances",
+          "assumptions"
+        ],
+        "title": "StrictPolicyRule",
+        "type": "object"
+      },
+      "StrictValidationPolicy": {
+        "properties": {
+          "policy_id": {
+            "title": "Policy Id",
+            "type": "string"
+          },
+          "policy_sha256": {
+            "title": "Policy Sha256",
+            "type": "string"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/$defs/StrictPolicyRule"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "schema_name": {
+            "title": "Schema Name",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_name",
+          "schema_version",
+          "policy_id",
+          "rules",
+          "policy_sha256"
+        ],
+        "title": "StrictValidationPolicy",
+        "type": "object"
+      }
+    },
+    "properties": {
+      "aggregation": {
+        "enum": [
+          "rms_abs",
+          "median_abs"
+        ],
+        "title": "Aggregation",
+        "type": "string"
+      },
+      "all_domain_ids": {
+        "items": {
+          "type": "integer"
+        },
+        "title": "All Domain Ids",
+        "type": "array"
+      },
+      "artifact_dir": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Artifact Dir"
+      },
+      "component_tag": {
+        "title": "Component Tag",
+        "type": "string"
+      },
+      "config_id": {
+        "title": "Config Id",
+        "type": "string"
+      },
+      "expected_material_tags": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Expected Material Tags",
+        "type": "array"
+      },
+      "expected_source_sha256": {
+        "title": "Expected Source Sha256",
+        "type": "string"
+      },
+      "model_name": {
+        "title": "Model Name",
+        "type": "string"
+      },
+      "physics_tag": {
+        "title": "Physics Tag",
+        "type": "string"
+      },
+      "r_expression": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "R Expression"
+      },
+      "reference_method": {
+        "const": "all_air_clone",
+        "default": "all_air_clone",
+        "title": "Reference Method",
+        "type": "string"
+      },
+      "study_step_property": {
+        "default": "plist",
+        "title": "Study Step Property",
+        "type": "string"
+      },
+      "study_step_tag": {
+        "title": "Study Step Tag",
+        "type": "string"
+      },
+      "study_tag": {
+        "title": "Study Tag",
+        "type": "string"
+      },
+      "t_expression": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "T Expression"
+      },
+      "target_axis": {
+        "enum": [
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "Target Axis",
+        "type": "string"
+      },
+      "top_air_coordinate_range": {
+        "$ref": "#/$defs/CoordinateLimits"
+      },
+      "top_air_domain_ids": {
+        "items": {
+          "type": "integer"
+        },
+        "title": "Top Air Domain Ids",
+        "type": "array"
+      },
+      "validation_policy": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/StrictValidationPolicy"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "wavelength_parameter": {
+        "title": "Wavelength Parameter",
+        "type": "string"
+      },
+      "wavelength_unit": {
+        "title": "Wavelength Unit",
+        "type": "string"
+      },
+      "wavelength_value": {
+        "title": "Wavelength Value",
+        "type": "number"
+      }
+    },
+    "required": [
+      "model_name",
+      "component_tag",
+      "physics_tag",
+      "study_tag",
+      "wavelength_value",
+      "wavelength_unit",
+      "wavelength_parameter",
+      "study_step_tag",
+      "expected_source_sha256",
+      "config_id",
+      "expected_material_tags",
+      "all_domain_ids",
+      "top_air_domain_ids",
+      "top_air_coordinate_range",
+      "target_axis",
+      "aggregation"
+    ],
+    "title": "wave_optics_reference_auditArguments",
+    "type": "object"
   }
 }

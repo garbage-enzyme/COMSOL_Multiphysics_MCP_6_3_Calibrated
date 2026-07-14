@@ -23,10 +23,10 @@ ARTIFACT_DIR = RUNTIME / "H3f"
 PROFILE_COUNTS = {
     "core": 38,
     "basic_fem": 76,
-    "wave_optics": 60,
+    "wave_optics": 61,
     "semantic_docs": 41,
     "experimental": 64,
-    "full": 117,
+    "full": 118,
 }
 ITERATIONS = Path(r"C:\Users\陆星\Desktop\iterations")
 CASES = (

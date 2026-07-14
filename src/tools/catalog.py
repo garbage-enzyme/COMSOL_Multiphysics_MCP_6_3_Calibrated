@@ -103,7 +103,7 @@ _TOOLS_BY_REGISTRAR = {
         "wave_optics_incidence_preview", "wave_optics_incidence_apply",
     ),
     "src.tools.wave_optics_audit.register_wave_optics_audit_tools": (
-        "wave_optics_point_audit",
+        "wave_optics_point_audit", "wave_optics_reference_audit",
     ),
     "src.tools.material_expressions.register_material_expression_tools": (
         "wave_optics_material_expression_preview",
@@ -176,6 +176,7 @@ _EXPERIMENTAL_TOOLS = frozenset({
     "wave_optics_periodic_mesh_audit",
     "wave_optics_periodic_mesh_smoke",
     "wave_optics_point_audit",
+    "wave_optics_reference_audit",
     "geometry_derived_clone", "geometry_fin_preview", "geometry_fin_apply",
     "geometry_blocks_preview", "geometry_blocks_apply",
     "wave_optics_incidence_preview",
@@ -246,6 +247,7 @@ _SIDE_EFFECTS = {
     "mesh_convergence_study": "solver_execution",
     "clientapi_property_set": "model_mutation",
     "wave_optics_point_audit": "solver_execution",
+    "wave_optics_reference_audit": "solver_execution",
     "wave_optics_periodic_mesh_smoke": "filesystem_write_model_mutation",
     "geometry_derived_clone": "filesystem_write_model_mutation",
     "geometry_fin_apply": "model_mutation",
@@ -261,7 +263,7 @@ _SIDE_EFFECTS = {
 _STARTS_SOLVER = frozenset({
     "job_submit", "job_resume", "comsol_start", "study_solve",
     "study_solve_async", "study_staged_parametric_sweep", "mesh_convergence_study",
-    "wave_optics_point_audit",
+    "wave_optics_point_audit", "wave_optics_reference_audit",
 })
 
 _CORE_TOOLS = frozenset({
@@ -309,6 +311,7 @@ _WAVE_OPTICS_ADDITIONS = frozenset({
     "wave_optics_incidence_preview",
     "wave_optics_incidence_apply",
     "wave_optics_point_audit",
+    "wave_optics_reference_audit",
     "wave_optics_material_expression_preview",
     "visual_review_capability_normalize", "visual_review_request_create",
     "visual_review_receipt_create", "visual_review_dual_evaluate",

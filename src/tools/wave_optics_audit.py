@@ -9,8 +9,9 @@ import math
 import os
 from pathlib import Path
 import re
+import sys
 import time
-from typing import Any, Optional
+from typing import Any, Callable, Literal, Optional
 import uuid
 
 import numpy as np
@@ -18,7 +19,10 @@ from mcp.server.fastmcp import FastMCP
 from typing_extensions import TypedDict
 
 from src.evidence.contracts import (
+    PHYSICAL_EVIDENCE_SCHEMA_NAME,
+    PHYSICAL_EVIDENCE_SCHEMA_VERSION,
     VALIDATION_POLICY_SCHEMA_NAME,
+    build_physical_evidence,
     build_point_audit_physical_evidence,
     canonical_json_bytes,
     evaluate_physical_evidence_policy,
@@ -30,6 +34,7 @@ from src.evidence.power_audit import (
 )
 from src.utils.runtime_paths import default_runtime_dir
 from .ownership import ownership_manager
+from .derived_geometry import create_derived_geometry_clone
 from .session import session_manager
 from .wave_optics_preflight import collect_wave_optics_preflight
 from .workflow import _atomic_write_json, _write_rows_csv
@@ -1277,6 +1282,350 @@ def run_wave_optics_point_audit(
     }
 
 
+def _replace_clone_materials_with_air(
+    clone: Any,
+    *,
+    component_tag: str,
+    expected_material_tags: list[str],
+    all_domain_ids: list[int],
+) -> dict[str, Any]:
+    component = clone.java.component(component_tag)
+    materials = component.material()
+    before = sorted(str(value) for value in list(materials.tags()))
+    expected = sorted(_validate_tag(value, "expected_material_tags item") for value in expected_material_tags)
+    if before != expected:
+        raise ValueError(f"clone material tags differ from the exact caller declaration: {before} != {expected}")
+    for tag in before:
+        materials.remove(tag)
+    if list(materials.tags()):
+        raise ValueError("clone material removal readback is not empty")
+    air = materials.create("h1_air", "Common")
+    group = air.propertyGroup("def")
+    group.set("relpermittivity", "1")
+    group.set("relpermeability", "1")
+    group.set("electricconductivity", "0[S/m]")
+    air.selection().set(all_domain_ids)
+    after = sorted(str(value) for value in list(materials.tags()))
+    if after != ["h1_air"]:
+        raise ValueError(f"all-air clone material readback is unexpected: {after}")
+    selected = sorted(int(value) for value in list(air.selection().entities()))
+    if selected != all_domain_ids:
+        raise ValueError(f"all-air material selection readback differs: {selected} != {all_domain_ids}")
+    return {
+        "method": "all_air_clone",
+        "removed_material_tags": before,
+        "air_material_tag": "h1_air",
+        "air_properties": {
+            "relpermittivity": "1",
+            "relpermeability": "1",
+            "electricconductivity": "0[S/m]",
+        },
+        "domain_ids": all_domain_ids,
+        "readback_complete": True,
+    }
+
+
+def _clone_record_dict(record: Any) -> dict[str, Any]:
+    fields = (
+        "derived_model_id",
+        "model_name",
+        "source_path",
+        "source_sha256",
+        "backing_path",
+        "backing_sha256",
+    )
+    if isinstance(record, dict):
+        return {field: record.get(field) for field in fields}
+    return {field: getattr(record, field, None) for field in fields}
+
+
+def run_wave_optics_reference_audit(
+    source_model: Any,
+    client: Any,
+    *,
+    model_name: str,
+    component_tag: str,
+    physics_tag: str,
+    study_tag: str,
+    study_step_tag: str,
+    study_step_property: str,
+    wavelength_value: float,
+    wavelength_unit: str,
+    wavelength_parameter: str,
+    expected_source_sha256: str,
+    config_id: str,
+    reference_method: Literal["all_air_clone"],
+    expected_material_tags: list[str],
+    all_domain_ids: list[int],
+    top_air_domain_ids: list[int],
+    top_air_coordinate_range: dict[str, Any],
+    target_axis: Literal["x", "y", "z"],
+    aggregation: Literal["rms_abs", "median_abs"],
+    artifact_dir: str | None,
+    r_expression: str | None = None,
+    t_expression: str | None = None,
+    validation_policy: dict[str, Any] | None = None,
+    clone_factory: Callable[..., tuple[Any, Any]] | None = None,
+    clone_register: Callable[[Any, str | None], str] | None = None,
+    clone_cleanup: Callable[[str], bool] | None = None,
+    material_mutator: Callable[..., dict[str, Any]] = _replace_clone_materials_with_air,
+    preflight_collector: Callable[..., dict[str, Any]] = collect_wave_optics_preflight,
+) -> dict[str, Any]:
+    """Solve a bounded all-air reference on a fresh clone and prove cleanup."""
+    if reference_method != "all_air_clone":
+        raise ValueError("reference_method must be exactly all_air_clone")
+    component_tag = _validate_tag(component_tag, "component_tag")
+    physics_tag = _validate_tag(physics_tag, "physics_tag")
+    study_tag = _validate_tag(study_tag, "study_tag")
+    study_step_tag = _validate_tag(study_step_tag, "study_step_tag")
+    wavelength_parameter = _validate_tag(wavelength_parameter, "wavelength_parameter")
+    if not isinstance(study_step_property, str) or not _TAG.fullmatch(study_step_property):
+        raise ValueError("study_step_property must be one exact property name")
+    if target_axis not in {"x", "y", "z"} or aggregation not in {"rms_abs", "median_abs"}:
+        raise ValueError("target_axis/aggregation is unsupported")
+    coordinate_range = _validate_coordinate_range(top_air_coordinate_range)
+    domains = sorted({int(value) for value in all_domain_ids})
+    top_domains = sorted({int(value) for value in top_air_domain_ids})
+    if not domains or not top_domains or any(value <= 0 for value in domains + top_domains):
+        raise ValueError("all_domain_ids and top_air_domain_ids must be non-empty positive integer lists")
+    if not set(top_domains).issubset(domains):
+        raise ValueError("top_air_domain_ids must be a subset of all_domain_ids")
+    wavelength_value = float(wavelength_value)
+    if not math.isfinite(wavelength_value) or wavelength_value <= 0.0:
+        raise ValueError("wavelength_value must be finite and positive")
+    if not isinstance(wavelength_unit, str) or not wavelength_unit.strip() or len(wavelength_unit) > 32:
+        raise ValueError("wavelength_unit must be non-empty")
+    if not isinstance(config_id, str) or not config_id.strip() or len(config_id) > 128:
+        raise ValueError("config_id must be non-empty and at most 128 characters")
+    expected_hash = expected_source_sha256.strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_hash):
+        raise ValueError("expected_source_sha256 must be exactly 64 hexadecimal characters")
+    policy = validate_validation_policy(validation_policy) if validation_policy is not None else None
+    root = _validate_ascii_dir(artifact_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    source_path = Path(str(source_model.file())).resolve()
+    source_hash_before = _sha256_file(source_path)
+    if source_hash_before != expected_hash:
+        return {
+            "success": True,
+            "audit_status": "integrity_blocked",
+            "integrity_errors": [{"code": "source_hash_mismatch", "expected": expected_hash, "actual": source_hash_before}],
+        }
+    r_expression = r_expression or f"{physics_tag}.Rtotal"
+    t_expression = t_expression or f"{physics_tag}.Ttotal"
+    _bounded_expression(r_expression, "r_expression")
+    _bounded_expression(t_expression, "t_expression")
+    config_spec = {
+        "model_name": model_name,
+        "component_tag": component_tag,
+        "physics_tag": physics_tag,
+        "study_tag": study_tag,
+        "study_step_tag": study_step_tag,
+        "study_step_property": study_step_property,
+        "wavelength": {"value": wavelength_value, "unit": wavelength_unit, "parameter": wavelength_parameter},
+        "reference_method": reference_method,
+        "expected_material_tags": sorted(expected_material_tags),
+        "all_domain_ids": domains,
+        "top_air_domain_ids": top_domains,
+        "top_air_coordinate_range": coordinate_range,
+        "target_axis": target_axis,
+        "aggregation": aggregation,
+        "R_expression": r_expression,
+        "T_expression": t_expression,
+    }
+    config_sha256 = _canonical_hash(config_spec)
+    audit_id = f"{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}"
+    directory = root / re.sub(r"[^A-Za-z0-9_.-]", "_", config_id) / audit_id
+    directory.mkdir(parents=True, exist_ok=False)
+    manifest_path = directory / "reference.json"
+    _atomic_write_json(manifest_path, {"audit_status": "running", "config_spec": config_spec})
+
+    factory = clone_factory or (
+        lambda source, active_client, new_name: create_derived_geometry_clone(
+            source, active_client, new_name=new_name
+        )
+    )
+    clone = None
+    clone_name = None
+    clone_record: dict[str, Any] = {}
+    material_evidence = None
+    preflight = None
+    reference = None
+    measurement_errors: list[dict[str, Any]] = []
+    integrity_errors: list[dict[str, Any]] = []
+    cleanup = {"attempted": False, "removed": False}
+    started = time.perf_counter()
+    try:
+        clone, record = factory(source_model, client, f"h1_reference_{uuid.uuid4().hex[:8]}")
+        clone_record = _clone_record_dict(record)
+        clone_name = str(clone.name())
+        if clone_register is not None:
+            clone_name = clone_register(clone, clone_record.get("backing_path"))
+        material_evidence = material_mutator(
+            clone,
+            component_tag=component_tag,
+            expected_material_tags=expected_material_tags,
+            all_domain_ids=domains,
+        )
+        preflight = preflight_collector(
+            clone,
+            model_name=clone_name,
+            session_state={"connected": True},
+            active_profile="wave_optics",
+            expected_component_tag=component_tag,
+            expected_physics_tag=physics_tag,
+            expected_study_tag=study_tag,
+            target_wavelength_parameter=wavelength_parameter,
+        )
+        if preflight.get("inspection_status") == "integrity_blocked":
+            raise ValueError("all-air clone preflight is integrity_blocked")
+        jm = clone.java
+        component = jm.component(component_tag)
+        study = jm.study(study_tag)
+        parameter_value = f"{wavelength_value}[{wavelength_unit}]"
+        jm.param().set(wavelength_parameter, parameter_value)
+        study.feature().get(study_step_tag).set(study_step_property, wavelength_parameter)
+        study.run()
+        requested = _single_complex(clone.evaluate(parameter_value), parameter_value)
+        controls = clone.evaluate([wavelength_parameter, f"c_const/{physics_tag}.freq"])
+        evaluated = _single_complex(controls[0], wavelength_parameter)
+        solved = _single_complex(controls[1], f"c_const/{physics_tag}.freq")
+        r_value = float(_single_complex(clone.evaluate(r_expression), r_expression).real)
+        t_value = float(_single_complex(clone.evaluate(t_expression), t_expression).real)
+        field = _sample_structure_field(
+            clone,
+            component=component,
+            physics_tag=physics_tag,
+            coordinate_range=coordinate_range,
+            domain_ids=top_domains,
+            named_selection=None,
+        )
+        amplitudes = {
+            axis: float(field["component_statistics"][axis][aggregation])
+            for axis in ("x", "y", "z")
+        }
+        transverse = max(value for axis, value in amplitudes.items() if axis != target_axis)
+        ratio = amplitudes[target_axis] / max(transverse, sys.float_info.min)
+        reference = {
+            "config_id": config_id,
+            "method": reference_method,
+            "method_valid": True,
+            "requested_wavelength_m": float(requested.real),
+            "evaluated_wavelength_m": float(evaluated.real),
+            "solved_frequency_wavelength_m": float(solved.real),
+            "port_settings": {
+                "ports": preflight.get("ports"),
+                "incidence": preflight.get("incidence"),
+            },
+            "R": r_value,
+            "T": t_value,
+            "R_plus_T_residual_abs": abs(r_value + t_value - 1.0),
+            "target_axis": target_axis,
+            "aggregation": aggregation,
+            "component_amplitudes": amplitudes,
+            "target_to_transverse_ratio": ratio,
+            "transverse_denominator_zero": transverse == 0.0,
+            "field": field,
+        }
+    except FloatingPointError as exc:
+        integrity_errors.append({"code": "nonfinite_reference_evidence", "error": str(exc)[:500]})
+    except Exception as exc:
+        measurement_errors.append({"code": "reference_audit_failed", "error": str(exc)[:1000]})
+    finally:
+        if clone is not None and clone_name is not None:
+            cleanup["attempted"] = True
+            try:
+                if clone_cleanup is not None:
+                    cleanup["removed"] = bool(clone_cleanup(clone_name))
+                else:
+                    client.remove(clone)
+                    cleanup["removed"] = True
+                    backing = clone_record.get("backing_path")
+                    if backing:
+                        path = Path(backing)
+                        path.unlink(missing_ok=True)
+                        try:
+                            path.parent.rmdir()
+                        except OSError:
+                            pass
+            except Exception as exc:
+                cleanup["error"] = str(exc)[:500]
+        if clone is not None and not cleanup["removed"]:
+            integrity_errors.append({"code": "reference_clone_cleanup_unproved", "cleanup": cleanup})
+
+    source_hash_after = _sha256_file(source_path)
+    source_unchanged = source_hash_after == source_hash_before
+    if not source_unchanged:
+        integrity_errors.append({"code": "source_hash_drift", "before": source_hash_before, "after": source_hash_after})
+    method_valid = bool(reference and reference.get("method_valid") and material_evidence and cleanup["removed"] and source_unchanged)
+    evidence = {
+        "polarization.reference_air_method_valid": (
+            {"state": "measured", "value": method_valid, "source": "wave_optics_reference_audit"}
+        ),
+        "polarization.target_to_transverse_ratio": (
+            {"state": "measured", "value": reference["target_to_transverse_ratio"], "unit": "1", "source": "wave_optics_reference_audit"}
+            if reference is not None
+            else {"state": "unknown", "limitations": ["Reference field sampling was incomplete."]}
+        ),
+        "reference_air.R": (
+            {"state": "measured", "value": reference["R"], "unit": "1", "expression": r_expression}
+            if reference is not None else {"state": "unknown"}
+        ),
+        "reference_air.T": (
+            {"state": "measured", "value": reference["T"], "unit": "1", "expression": t_expression}
+            if reference is not None else {"state": "unknown"}
+        ),
+        "integrity.source_unchanged": {"state": "measured", "value": source_unchanged},
+        "integrity.clone_cleanup_proved": {"state": "measured", "value": cleanup["removed"]},
+    }
+    physical_evidence = build_physical_evidence(
+        {
+            "schema_name": PHYSICAL_EVIDENCE_SCHEMA_NAME,
+            "schema_version": PHYSICAL_EVIDENCE_SCHEMA_VERSION,
+            "artifact_type": "wave_optics_reference_audit",
+            "producer": {"tool": "wave_optics_reference_audit", "tool_schema_version": "1"},
+            "identity": {"config_id": config_id, "config_sha256": config_sha256, "source_sha256": source_hash_before},
+            "model": {"component_tag": component_tag, "physics_tag": physics_tag, "study_tag": study_tag, "study_step_tag": study_step_tag},
+            "evidence": evidence,
+            "limitations": ["Physical classification requires caller policy; the all-air clone does not validate the target structure."],
+        }
+    )
+    assessment = (
+        evaluate_physical_evidence_policy(physical_evidence, policy)
+        if policy is not None else {"mode": "evidence_only", "overall": None}
+    )
+    audit_status = "integrity_blocked" if integrity_errors else ("measurement_partial" if measurement_errors else "measurement_complete")
+    manifest = {
+        "schema_version": "1",
+        "audit_status": audit_status,
+        "config_spec": config_spec,
+        "config_sha256": config_sha256,
+        "clone_provenance": clone_record,
+        "material_replacement": material_evidence,
+        "preflight": preflight,
+        "reference": reference,
+        "cleanup": cleanup,
+        "source_sha256_before": source_hash_before,
+        "source_sha256_after": source_hash_after,
+        "source_unchanged": source_unchanged,
+        "measurement_errors": measurement_errors,
+        "integrity_errors": integrity_errors,
+        "physical_evidence": physical_evidence,
+        "assessment": assessment,
+        "elapsed_seconds": time.perf_counter() - started,
+    }
+    _atomic_write_json(manifest_path, manifest)
+    return {
+        "success": True,
+        "audit_status": audit_status,
+        "reference": reference,
+        "cleanup": cleanup,
+        "physical_evidence": physical_evidence,
+        "assessment": assessment,
+        "artifacts": {"directory": str(directory), "manifest": str(manifest_path)},
+    }
+
+
 def register_wave_optics_audit_tools(mcp: FastMCP) -> None:
     """Register the public one-point Wave Optics physical evidence audit."""
 
@@ -1367,10 +1716,91 @@ def register_wave_optics_audit_tools(mcp: FastMCP) -> None:
         except Exception as exc:
             return {"success": False, "error": f"Wave Optics point audit failed safely: {str(exc)[:1000]}"}
 
+    @mcp.tool()
+    def wave_optics_reference_audit(
+        model_name: str,
+        component_tag: str,
+        physics_tag: str,
+        study_tag: str,
+        wavelength_value: float,
+        wavelength_unit: str,
+        wavelength_parameter: str,
+        study_step_tag: str,
+        expected_source_sha256: str,
+        config_id: str,
+        expected_material_tags: list[str],
+        all_domain_ids: list[int],
+        top_air_domain_ids: list[int],
+        top_air_coordinate_range: CoordinateLimits,
+        target_axis: Literal["x", "y", "z"],
+        aggregation: Literal["rms_abs", "median_abs"],
+        reference_method: Literal["all_air_clone"] = "all_air_clone",
+        study_step_property: str = "plist",
+        artifact_dir: Optional[str] = None,
+        r_expression: Optional[str] = None,
+        t_expression: Optional[str] = None,
+        validation_policy: Optional[StrictValidationPolicy] = None,
+    ) -> dict[str, Any]:
+        """Solve one all-air reference on a fresh clone and prove clone cleanup."""
+        source = session_manager.get_model(model_name)
+        client = session_manager.client
+        if source is None or client is None:
+            return {"success": False, "error": "source model or COMSOL client unavailable"}
+        try:
+            ownership_preflight = session_manager.preflight_long_operation(
+                model_path=str(source.file()) if source.file() else None
+            )
+            if not ownership_preflight.get("ready"):
+                return {
+                    "success": True,
+                    "audit_status": "integrity_blocked",
+                    "integrity_errors": [
+                        {
+                            "code": "solver_ownership_blocked",
+                            "blockers": ownership_preflight.get("blockers", []),
+                        }
+                    ],
+                }
+            return run_wave_optics_reference_audit(
+                source,
+                client,
+                model_name=model_name,
+                component_tag=component_tag,
+                physics_tag=physics_tag,
+                study_tag=study_tag,
+                study_step_tag=study_step_tag,
+                study_step_property=study_step_property,
+                wavelength_value=wavelength_value,
+                wavelength_unit=wavelength_unit,
+                wavelength_parameter=wavelength_parameter,
+                expected_source_sha256=expected_source_sha256,
+                config_id=config_id,
+                reference_method=reference_method,
+                expected_material_tags=expected_material_tags,
+                all_domain_ids=all_domain_ids,
+                top_air_domain_ids=top_air_domain_ids,
+                top_air_coordinate_range=top_air_coordinate_range,
+                target_axis=target_axis,
+                aggregation=aggregation,
+                artifact_dir=artifact_dir,
+                r_expression=r_expression,
+                t_expression=t_expression,
+                validation_policy=validation_policy,
+                clone_register=lambda clone, path: session_manager.add_model(
+                    clone, cleanup_path=path
+                ),
+                clone_cleanup=session_manager.remove_model,
+            )
+        except (ValueError, TypeError, FileNotFoundError, json.JSONDecodeError) as exc:
+            return {"success": False, "error": str(exc)}
+        except Exception as exc:
+            return {"success": False, "error": f"Wave Optics reference audit failed safely: {str(exc)[:1000]}"}
+
 
 __all__ = [
     "AUDIT_SCHEMA_VERSION",
     "evaluate_validation_policy",
     "register_wave_optics_audit_tools",
     "run_wave_optics_point_audit",
+    "run_wave_optics_reference_audit",
 ]
