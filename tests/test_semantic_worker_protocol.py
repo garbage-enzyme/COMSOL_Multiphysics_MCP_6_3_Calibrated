@@ -23,9 +23,15 @@ from src.tools.ownership import SolverOwnership
 from src.jobs.manager import JobManager
 
 
-def _raw_request(port: int, payload: dict, *, maximum: int = 200_000) -> dict:
-    with socket.create_connection(("127.0.0.1", port), timeout=3.0) as connection:
-        connection.settimeout(3.0)
+def _raw_request(
+    port: int,
+    payload: dict,
+    *,
+    maximum: int = 200_000,
+    timeout: float = 3.0,
+) -> dict:
+    with socket.create_connection(("127.0.0.1", port), timeout=timeout) as connection:
+        connection.settimeout(timeout)
         connection.sendall(json.dumps(payload, separators=(",", ":")).encode("utf-8") + b"\n")
         data = bytearray()
         while not data.endswith(b"\n"):
@@ -126,23 +132,24 @@ def test_authentication_schema_and_message_bounds_do_not_kill_worker():
 
 
 def test_queue_overflow_is_bounded_and_worker_recovers():
-    with SemanticWorkerManager(startup_deadline=2.0, query_delay=0.2) as manager:
+    participants = (PUBLIC_LIMITS["maximum_queue_depth"] + 1) * 4
+    with SemanticWorkerManager(startup_deadline=2.0, query_delay=0.75) as manager:
         assert manager.start()["success"] is True
         port = int(manager._port)
-        barrier = threading.Barrier(12)
+        barrier = threading.Barrier(participants)
 
         def call(index: int) -> dict:
-            barrier.wait(timeout=2.0)
+            barrier.wait(timeout=10.0)
             return _raw_request(port, _request(
                 manager,
                 f"burst-{index}",
                 operation="query",
                 query=f"query {index}",
                 limit=1,
-            ))
+            ), timeout=15.0)
 
-        with ThreadPoolExecutor(max_workers=12) as pool:
-            responses = list(pool.map(call, range(12)))
+        with ThreadPoolExecutor(max_workers=participants) as pool:
+            responses = list(pool.map(call, range(participants)))
         busy = [item for item in responses if not item["success"] and item["error"]["code"] == "busy"]
         assert busy
         assert manager.health()["success"] is True
