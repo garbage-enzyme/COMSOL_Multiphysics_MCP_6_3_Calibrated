@@ -95,10 +95,20 @@ def atomic_write_json(path: Path, value: dict[str, Any]) -> None:
 
 
 def read_json(path: Path) -> dict[str, Any]:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"Cannot read durable job artifact {path}: {exc}") from exc
+    deadline = time.monotonic() + 1.0
+    while True:
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+            break
+        except PermissionError as exc:
+            # Windows scanners and concurrent atomic replacement can briefly
+            # deny a reader even though the previous or replacement file is
+            # complete. Retry the read; never weaken atomic writer semantics.
+            if time.monotonic() >= deadline:
+                raise RuntimeError(f"Cannot read durable job artifact {path}: {exc}") from exc
+            time.sleep(0.02)
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"Cannot read durable job artifact {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise RuntimeError(f"Durable job artifact must contain a JSON object: {path}")
     return value

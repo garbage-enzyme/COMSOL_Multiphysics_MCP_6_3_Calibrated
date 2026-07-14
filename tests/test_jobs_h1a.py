@@ -18,7 +18,7 @@ import psutil
 import pytest
 
 from src.jobs.manager import JobManager, validate_staged_sweep_spec
-from src.jobs.store import JobLock, JobStore, atomic_write_json, process_identity, process_identity_state
+from src.jobs.store import JobLock, JobStore, atomic_write_json, process_identity, process_identity_state, read_json
 import src.jobs.store as store_module
 from src.jobs import worker as production_worker
 from src.jobs import cancel_worker
@@ -788,6 +788,25 @@ def test_atomic_state_replace_retries_transient_windows_file_lock(jobs_root, mon
 
     assert calls == 2
     assert json.loads(path.read_text(encoding="utf-8"))["status"] == "completed"
+
+
+def test_durable_json_read_retries_transient_windows_file_lock(jobs_root, monkeypatch):
+    path = jobs_root / "state.json"
+    atomic_write_json(path, {"status": "completed"})
+    real_read_text = Path.read_text
+    calls = 0
+
+    def flaky_read_text(self, *args, **kwargs):
+        nonlocal calls
+        if self == path and calls < 2:
+            calls += 1
+            raise PermissionError("simulated transient sharing violation")
+        return real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", flaky_read_text)
+
+    assert read_json(path)["status"] == "completed"
+    assert calls == 2
 
 
 def test_job_lock_release_retries_transient_windows_reader(jobs_root, monkeypatch):
