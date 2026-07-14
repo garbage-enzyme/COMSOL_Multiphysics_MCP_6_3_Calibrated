@@ -182,9 +182,27 @@ def _declared_flux_evidence(*, reflected=0.4, transmitted=1.2, eligible=True, co
     return _with_evidence_records(
         _envelope(),
         {
-            "flux.incident_power_w": {"state": "measured", "value": incident, "unit": "W"},
-            "flux.reflected_power_w": {"state": "measured", "value": reflected, "unit": "W"},
-            "flux.transmitted_power_w": {"state": "measured", "value": transmitted, "unit": "W"},
+            "flux.incident_raw_power_w": {"state": "measured", "value": -incident, "unit": "W"},
+            "flux.reflected_raw_power_w": {"state": "measured", "value": reflected, "unit": "W"},
+            "flux.transmitted_raw_power_w": {"state": "measured", "value": -transmitted, "unit": "W"},
+            "flux.incident_positive_power_sign": {
+                "state": "derived_from_declared_convention", "value": -1,
+            },
+            "flux.reflected_positive_power_sign": {
+                "state": "derived_from_declared_convention", "value": 1,
+            },
+            "flux.transmitted_positive_power_sign": {
+                "state": "derived_from_declared_convention", "value": -1,
+            },
+            "flux.incident_power_w": {
+                "state": "derived_from_declared_convention", "value": incident, "unit": "W",
+            },
+            "flux.reflected_power_w": {
+                "state": "derived_from_declared_convention", "value": reflected, "unit": "W",
+            },
+            "flux.transmitted_power_w": {
+                "state": "derived_from_declared_convention", "value": transmitted, "unit": "W",
+            },
             "flux.R": {"state": "derived_from_declared_convention", "value": r_value, "unit": "1"},
             "flux.T": {"state": "derived_from_declared_convention", "value": t_value, "unit": "1"},
             "flux.A": {"state": "derived_from_declared_convention", "value": a_value, "unit": "1"},
@@ -244,11 +262,11 @@ def test_internal_normalization_cannot_substitute_for_physical_flux_closure():
 
     derived_raw_payload = deepcopy(_declared_flux_evidence())
     derived_raw_payload.pop("contract_sha256")
-    derived_raw_payload["evidence"]["flux.incident_power_w"]["state"] = "derived_from_declared_convention"
+    derived_raw_payload["evidence"]["flux.incident_raw_power_w"]["state"] = "derived_from_declared_convention"
     derived_raw = build_physical_evidence(derived_raw_payload)
     result = evaluate_physical_evidence_policy(derived_raw, policy)
     assert result["overall"] == "missing"
-    assert result["rules"][0]["required_measurement_states"]["flux.incident_power_w"] == (
+    assert result["rules"][0]["required_measurement_states"]["flux.incident_raw_power_w"] == (
         "derived_from_declared_convention"
     )
 

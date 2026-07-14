@@ -92,6 +92,12 @@ _RULE_SPECS = {
     },
     "declared_flux_closure": {
         "required": (
+            "flux.incident_raw_power_w",
+            "flux.reflected_raw_power_w",
+            "flux.transmitted_raw_power_w",
+            "flux.incident_positive_power_sign",
+            "flux.reflected_positive_power_sign",
+            "flux.transmitted_positive_power_sign",
             "flux.incident_power_w",
             "flux.reflected_power_w",
             "flux.transmitted_power_w",
@@ -374,6 +380,14 @@ def _point_audit_envelope(payload: Mapping[str, Any], *, migrated: bool) -> dict
     wavelength = _require_mapping(measurement.get("wavelength", {}), "legacy_point_audit.measurement.wavelength")
     power = _require_mapping(measurement.get("power", {}), "legacy_point_audit.measurement.power")
     polarization = _require_mapping(measurement.get("polarization", {}), "legacy_point_audit.measurement.polarization")
+    declared_flux = _require_mapping(
+        measurement.get("declared_plane_flux", {"state": "not_requested"}),
+        "legacy_point_audit.measurement.declared_plane_flux",
+    )
+    internal_absorption = _require_mapping(
+        measurement.get("internal_absorption_consistency", {"state": "not_requested"}),
+        "legacy_point_audit.measurement.internal_absorption_consistency",
+    )
     mesh = _require_mapping(measurement.get("mesh", {}), "legacy_point_audit.measurement.mesh")
     integrity = _require_mapping(measurement.get("integrity", {}), "legacy_point_audit.measurement.integrity")
 
@@ -422,14 +436,129 @@ def _point_audit_envelope(payload: Mapping[str, Any], *, migrated: bool) -> dict
             power.get("closure_abs"), unit="1", source=record_source,
             limitations=["This legacy port-variable closure is not declared-plane flux closure."],
         ),
-        "flux.R": _record("not_requested", limitations=["Legacy schema 1 did not collect caller-declared planar flux evidence."]),
-        "flux.T": _record("not_requested", limitations=["Legacy schema 1 did not collect caller-declared planar flux evidence."]),
-        "flux.A": _record("not_requested", limitations=["Legacy schema 1 did not collect caller-declared planar flux evidence."]),
-        "flux.closure_abs": _record("not_requested", limitations=["Legacy schema 1 did not collect caller-declared planar flux evidence."]),
         "mesh.element_count": _measured_or_unknown(mesh.get("element_count"), unit="1", source=record_source),
         "mesh.vertex_count": _measured_or_unknown(mesh.get("vertex_count"), unit="1", source=record_source),
         "integrity.source_unchanged": _measured_or_unknown(integrity.get("source_unchanged"), unit="1", source=record_source),
     }
+
+    flux_names = (
+        "incident_raw_power_w",
+        "reflected_raw_power_w",
+        "transmitted_raw_power_w",
+        "incident_positive_power_sign",
+        "reflected_positive_power_sign",
+        "transmitted_positive_power_sign",
+        "incident_power_w",
+        "reflected_power_w",
+        "transmitted_power_w",
+        "R",
+        "T",
+        "A",
+        "closure_abs",
+        "convention_complete",
+        "physical_flux_closure_eligible",
+    )
+    if declared_flux.get("state") == "derived_from_declared_convention":
+        planes = declared_flux.get("planes", {})
+        for plane_name in ("incident", "reflected", "transmitted"):
+            plane = planes.get(plane_name, {}) if isinstance(planes, dict) else {}
+            evidence[f"flux.{plane_name}_raw_power_w"] = _record(
+                "measured",
+                value=plane.get("raw_power_w"),
+                value_present=True,
+                unit="W",
+                expression=plane.get("expression"),
+                selection_ids=plane.get("selection_ids"),
+                source=record_source,
+            )
+            evidence[f"flux.{plane_name}_positive_power_sign"] = _record(
+                "derived_from_declared_convention",
+                value=plane.get("positive_power_sign"),
+                value_present=True,
+                sign_convention=(
+                    f"directed_power_w = raw_power_w * {plane.get('positive_power_sign')}"
+                ),
+                source=record_source,
+            )
+            evidence[f"flux.{plane_name}_power_w"] = _record(
+                "derived_from_declared_convention",
+                value=plane.get("directed_power_w"),
+                value_present=True,
+                unit="W",
+                expression=plane.get("expression"),
+                sign_convention=(
+                    f"directed_power_w = raw_power_w * {plane.get('positive_power_sign')}"
+                ),
+                selection_ids=plane.get("selection_ids"),
+                source=record_source,
+            )
+        for name in ("R", "T", "A", "closure_abs"):
+            evidence[f"flux.{name}"] = _record(
+                "derived_from_declared_convention",
+                value=declared_flux.get(name),
+                value_present=True,
+                unit="1",
+                source=record_source,
+            )
+        evidence["flux.convention_complete"] = _record(
+            "derived_from_declared_convention", value=True, value_present=True, source=record_source
+        )
+        evidence["flux.physical_flux_closure_eligible"] = _record(
+            "derived_from_declared_convention", value=True, value_present=True, source=record_source
+        )
+    else:
+        state = "not_requested" if declared_flux.get("state") == "not_requested" else "unknown"
+        limitation = (
+            "Caller did not request declared-plane flux evidence."
+            if state == "not_requested"
+            else "Declared-plane flux expressions did not produce complete finite evidence."
+        )
+        for name in flux_names:
+            evidence[f"flux.{name}"] = _record(state, limitations=[limitation])
+
+    if internal_absorption.get("state") == "measured":
+        evidence["absorption.cross_section_normalized"] = _record(
+            "derived_from_declared_convention",
+            value=internal_absorption.get("cross_section", {}).get("normalized_absorption"),
+            value_present=True,
+            unit="1",
+            expression=internal_absorption.get("cross_section", {}).get("expression"),
+            source=record_source,
+        )
+        evidence["absorption.volume_loss_normalized"] = _record(
+            "derived_from_declared_convention",
+            value=internal_absorption.get("volume_loss", {}).get("normalized_absorption"),
+            value_present=True,
+            unit="1",
+            expression=internal_absorption.get("volume_loss", {}).get("expression"),
+            selection_ids=internal_absorption.get("volume_loss", {}).get("selection_ids"),
+            source=record_source,
+        )
+        evidence["absorption.internal_relative_residual"] = _record(
+            "derived_from_declared_convention",
+            value=internal_absorption.get("relative_residual"),
+            value_present=True,
+            unit="1",
+            source=record_source,
+            limitations=["Internal normalization consistency is not physical flux closure."],
+        )
+        evidence["absorption.internal_consistency_closure_eligible"] = _record(
+            "derived_from_declared_convention", value=False, value_present=True, source=record_source
+        )
+    else:
+        internal_state = (
+            "not_requested" if internal_absorption.get("state") == "not_requested" else "unknown"
+        )
+        for name in (
+            "cross_section_normalized",
+            "volume_loss_normalized",
+            "internal_relative_residual",
+            "internal_consistency_closure_eligible",
+        ):
+            evidence[f"absorption.{name}"] = _record(
+                internal_state,
+                limitations=["Internal absorption comparison was not complete."],
+            )
 
     legacy_level = polarization.get("evidence_level", "unknown")
     if legacy_level in {"incident_reference", "direct_incident_field"}:
@@ -455,6 +584,10 @@ def _point_audit_envelope(payload: Mapping[str, Any], *, migrated: bool) -> dict
     evidence["polarization.target_to_transverse_ratio"] = _record(
         "unknown",
         limitations=["Legacy point-audit schema did not normalize a declared target/transverse reference-air ratio."],
+    )
+    evidence["polarization.reference_air_method_valid"] = _record(
+        "unknown",
+        limitations=["The point audit does not independently validate the reference-air construction method."],
     )
     structure_field = polarization.get("structure_total_field")
     if isinstance(structure_field, dict) and structure_field.get("complete"):
@@ -629,6 +762,12 @@ def _rule_outcome(rule: Mapping[str, Any], evidence: Mapping[str, Any]) -> dict[
         state = record.get("state") if isinstance(record, dict) else "unknown"
         states[name] = state
         declared_flux_derived = {
+            "flux.incident_positive_power_sign",
+            "flux.reflected_positive_power_sign",
+            "flux.transmitted_positive_power_sign",
+            "flux.incident_power_w",
+            "flux.reflected_power_w",
+            "flux.transmitted_power_w",
             "flux.R",
             "flux.T",
             "flux.A",
@@ -675,6 +814,12 @@ def _rule_outcome(rule: Mapping[str, Any], evidence: Mapping[str, Any]) -> dict[
             passed = all(checks)
             detail = {"measured": {"absolute_m": absolute, "relative": relative}, "threshold": tolerances}
         elif rule_type == "declared_flux_closure":
+            incident_raw = float(values["flux.incident_raw_power_w"])
+            reflected_raw = float(values["flux.reflected_raw_power_w"])
+            transmitted_raw = float(values["flux.transmitted_raw_power_w"])
+            incident_sign = int(values["flux.incident_positive_power_sign"])
+            reflected_sign = int(values["flux.reflected_positive_power_sign"])
+            transmitted_sign = int(values["flux.transmitted_positive_power_sign"])
             incident = float(values["flux.incident_power_w"])
             reflected = float(values["flux.reflected_power_w"])
             transmitted = float(values["flux.transmitted_power_w"])
@@ -687,14 +832,30 @@ def _rule_outcome(rule: Mapping[str, Any], evidence: Mapping[str, Any]) -> dict[
             closure_eligible = values["flux.physical_flux_closure_eligible"] is True
             finite = all(
                 math.isfinite(value)
-                for value in (incident, reflected, transmitted, r_value, t_value, a_value, closure)
+                for value in (
+                    incident_raw,
+                    reflected_raw,
+                    transmitted_raw,
+                    incident,
+                    reflected,
+                    transmitted,
+                    r_value,
+                    t_value,
+                    a_value,
+                    closure,
+                )
             )
+            signs_valid = all(sign in {-1, 1} for sign in (incident_sign, reflected_sign, transmitted_sign))
             passive_bounds = all(
                 -margin <= value <= 1.0 + margin
                 for value in (r_value, t_value, a_value)
             )
             arithmetic_consistent = (
                 incident > 0.0
+                and signs_valid
+                and math.isclose(incident_raw * incident_sign, incident, rel_tol=1e-12, abs_tol=1e-15)
+                and math.isclose(reflected_raw * reflected_sign, reflected, rel_tol=1e-12, abs_tol=1e-15)
+                and math.isclose(transmitted_raw * transmitted_sign, transmitted, rel_tol=1e-12, abs_tol=1e-15)
                 and math.isclose(reflected / incident, r_value, rel_tol=1e-12, abs_tol=1e-15)
                 and math.isclose(transmitted / incident, t_value, rel_tol=1e-12, abs_tol=1e-15)
                 and math.isclose(
@@ -723,12 +884,23 @@ def _rule_outcome(rule: Mapping[str, Any], evidence: Mapping[str, Any]) -> dict[
                     "closure_abs": closure,
                     "convention_complete": convention_complete,
                     "physical_flux_closure_eligible": closure_eligible,
+                    "raw_power_w": {
+                        "incident": incident_raw,
+                        "reflected": reflected_raw,
+                        "transmitted": transmitted_raw,
+                    },
+                    "positive_power_sign": {
+                        "incident": incident_sign,
+                        "reflected": reflected_sign,
+                        "transmitted": transmitted_sign,
+                    },
                 },
                 "threshold": tolerances,
                 "checks": {
                     "finite": finite,
                     "passive_bounds": passive_bounds,
                     "arithmetic_consistent": arithmetic_consistent,
+                    "signs_valid": signs_valid,
                     "convention_complete": convention_complete,
                     "physical_flux_closure_eligible": closure_eligible,
                 },

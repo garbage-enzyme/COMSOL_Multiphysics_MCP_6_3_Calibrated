@@ -6,6 +6,7 @@ import hashlib
 import json
 
 import numpy as np
+import pytest
 
 from src.evidence.contracts import example_validation_policies
 from src.tools.wave_optics_audit import (
@@ -293,12 +294,21 @@ class AuditModel:
             "ewfd.Atotal": float("nan") if self.nonfinite else self.absorption,
             "4.37[um]": 4.37e-6,
             "intAu(ewfd.Qh)": 0.2,
+            "flux_inc": -2.0,
+            "flux_refl": 0.4,
+            "flux_trans": -1.2,
+            "ewfd.sigmaAbs": 2.0e-13,
+            "px*py": 1.0e-12,
+            "intLoss(ewfd.Qh)": 0.4,
+            "incident_flux": -2.0,
         }
         return values[expression]
 
 
 def _run(tmp_path, monkeypatch, **model_options):
     validation_policy = model_options.pop("validation_policy", None)
+    declared_plane_flux = model_options.pop("declared_plane_flux", None)
+    internal_absorption = model_options.pop("internal_absorption", None)
     source = tmp_path / "source.mph"
     source.write_bytes(b"immutable")
     model = AuditModel(source, **model_options)
@@ -334,12 +344,120 @@ def _run(tmp_path, monkeypatch, **model_options):
         top_air_selection="topair",
         top_air_coordinate_range={"x": [0, 1], "y": [0, 1], "z": [0.7, 1]},
         loss_map=[{"label": "Au", "domains": [2], "expression": "intAu(ewfd.Qh)"}],
+        declared_plane_flux=declared_plane_flux,
+        internal_absorption=internal_absorption,
         validation_policy=validation_policy,
         session_state={"connected": True},
         active_profile="wave_optics",
         ownership_preflight={"ready": True},
     )
     return result, source
+
+
+def _declared_plane_flux():
+    return {
+        "incident": {
+            "expression": "flux_inc",
+            "selection_ids": [10],
+            "plane_coordinate_m": 1.0e-6,
+            "normal": [0.0, 0.0, -1.0],
+            "medium_id": "lossless_air",
+            "positive_power_sign": -1,
+        },
+        "reflected": {
+            "expression": "flux_refl",
+            "selection_ids": [11],
+            "plane_coordinate_m": 1.0e-6,
+            "normal": [0.0, 0.0, 1.0],
+            "medium_id": "lossless_air",
+            "positive_power_sign": 1,
+        },
+        "transmitted": {
+            "expression": "flux_trans",
+            "selection_ids": [12],
+            "plane_coordinate_m": -1.0e-6,
+            "normal": [0.0, 0.0, -1.0],
+            "medium_id": "lossless_air",
+            "positive_power_sign": -1,
+        },
+    }
+
+
+def _internal_absorption():
+    return {
+        "cross_section_expression": "ewfd.sigmaAbs",
+        "cross_section_unit": "m^2",
+        "unit_cell_area_expression": "px*py",
+        "source_feature": "ewfd/csc1",
+        "volume_loss_expression": "intLoss(ewfd.Qh)",
+        "volume_loss_selection_ids": [2],
+        "volume_loss_unit": "W",
+        "incident_power_expression": "incident_flux",
+        "incident_power_sign": -1,
+    }
+
+
+def test_point_audit_persists_declared_plane_flux_and_strict_policy_passes(tmp_path, monkeypatch):
+    result, source = _run(
+        tmp_path,
+        monkeypatch,
+        declared_plane_flux=_declared_plane_flux(),
+        validation_policy=example_validation_policies()["declared_flux_closure"],
+    )
+
+    flux = result["measurement"]["declared_plane_flux"]
+    assert result["audit_status"] == "policy_evaluated"
+    assert result["assessment"]["project_verdict"] == "pass"
+    assert flux["R"] == pytest.approx(0.2)
+    assert flux["T"] == pytest.approx(0.6)
+    assert flux["A"] == pytest.approx(0.2)
+    evidence = result["physical_evidence"]["evidence"]
+    assert evidence["flux.incident_raw_power_w"]["state"] == "measured"
+    assert evidence["flux.incident_raw_power_w"]["value"] == pytest.approx(-2.0)
+    assert evidence["flux.incident_power_w"]["state"] == "derived_from_declared_convention"
+    assert evidence["flux.incident_power_w"]["value"] == pytest.approx(2.0)
+    assert evidence["flux.physical_flux_closure_eligible"]["value"] is True
+    manifest = json.loads(open(result["artifacts"]["manifest"], encoding="utf-8").read())
+    assert manifest["measurement"]["declared_plane_flux"] == flux
+    assert _hash(source) == result["measurement"]["provenance"]["source_sha256_after"]
+
+
+def test_internal_absorption_agreement_is_persisted_but_not_flux_eligible(tmp_path, monkeypatch):
+    result, _source = _run(
+        tmp_path,
+        monkeypatch,
+        internal_absorption=_internal_absorption(),
+    )
+
+    comparison = result["measurement"]["internal_absorption_consistency"]
+    assert comparison["state"] == "measured"
+    assert comparison["relative_residual"] == pytest.approx(0.0)
+    assert comparison["physical_flux_closure_eligible"] is False
+    evidence = result["physical_evidence"]["evidence"]
+    assert evidence["absorption.internal_relative_residual"]["value"] == pytest.approx(0.0)
+    assert evidence["absorption.internal_consistency_closure_eligible"]["value"] is False
+    assert evidence["flux.physical_flux_closure_eligible"]["state"] == "not_requested"
+
+
+def test_declared_flux_expression_error_is_durable_partial_evidence(tmp_path, monkeypatch):
+    declaration = _declared_plane_flux()
+    declaration["reflected"]["expression"] = "missing_flux_expression"
+    result, source = _run(
+        tmp_path,
+        monkeypatch,
+        declared_plane_flux=declaration,
+    )
+
+    assert result["audit_status"] == "measurement_partial"
+    assert result["measurement"]["declared_plane_flux"]["state"] == "unknown"
+    assert any(
+        item["code"] == "declared_plane_flux_unavailable"
+        for item in result["measurement"]["measurement_errors"]
+    )
+    assert result["physical_evidence"]["evidence"]["flux.R"]["state"] == "unknown"
+    manifest = json.loads(open(result["artifacts"]["manifest"], encoding="utf-8").read())
+    assert manifest["measurement"]["declared_plane_flux"]["declaration"] == declaration
+    assert _hash(source) == result["measurement"]["provenance"]["source_sha256_after"]
 
 
 def test_evidence_only_a_above_one_is_preserved_without_project_verdict(tmp_path, monkeypatch):

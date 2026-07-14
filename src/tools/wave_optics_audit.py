@@ -24,6 +24,10 @@ from src.evidence.contracts import (
     evaluate_physical_evidence_policy,
     validate_validation_policy,
 )
+from src.evidence.power_audit import (
+    normalize_declared_plane_flux,
+    normalize_internal_absorption_consistency,
+)
 from src.utils.runtime_paths import default_runtime_dir
 from .ownership import ownership_manager
 from .session import session_manager
@@ -58,6 +62,33 @@ class PowerProvenance(TypedDict, total=False):
     R_direction: str
     T_direction: str
     A_definition: str
+
+
+class DeclaredFluxPlane(TypedDict):
+    expression: str
+    selection_ids: list[int]
+    plane_coordinate_m: float
+    normal: list[float]
+    medium_id: str
+    positive_power_sign: int
+
+
+class DeclaredPlaneFlux(TypedDict):
+    incident: DeclaredFluxPlane
+    reflected: DeclaredFluxPlane
+    transmitted: DeclaredFluxPlane
+
+
+class InternalAbsorption(TypedDict):
+    cross_section_expression: str
+    cross_section_unit: str
+    unit_cell_area_expression: str
+    source_feature: str
+    volume_loss_expression: str
+    volume_loss_selection_ids: list[int]
+    volume_loss_unit: str
+    incident_power_expression: str
+    incident_power_sign: int
 
 
 class PolicyAssumptions(TypedDict, total=False):
@@ -613,6 +644,148 @@ def _validate_loss_map(loss_map: list[dict[str, Any]] | None) -> list[dict[str, 
     return result
 
 
+def _validate_declared_plane_flux(value: dict[str, Any] | None) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("declared_plane_flux must be an object")
+    candidate: dict[str, Any] = {}
+    for name, item in value.items():
+        if not isinstance(item, dict):
+            raise ValueError(f"declared_plane_flux.{name} must be an object")
+        sign = item.get("positive_power_sign")
+        candidate[name] = {**item, "raw_power_w": float(sign) if sign in {-1, 1} else 0.0}
+    normalized = normalize_declared_plane_flux(candidate)
+    return {
+        name: {
+            key: item[key]
+            for key in (
+                "expression",
+                "selection_ids",
+                "plane_coordinate_m",
+                "normal",
+                "medium_id",
+                "positive_power_sign",
+            )
+        }
+        for name, item in normalized["planes"].items()
+    }
+
+
+def _bounded_expression(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value) > 1024:
+        raise ValueError(f"{label} must be a non-empty expression of at most 1024 characters")
+    return value
+
+
+def _validate_internal_absorption(value: dict[str, Any] | None) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("internal_absorption must be an object")
+    allowed = {
+        "cross_section_expression",
+        "cross_section_unit",
+        "unit_cell_area_expression",
+        "source_feature",
+        "volume_loss_expression",
+        "volume_loss_selection_ids",
+        "volume_loss_unit",
+        "incident_power_expression",
+        "incident_power_sign",
+    }
+    unknown = sorted(set(value) - allowed)
+    if unknown:
+        raise ValueError(f"internal_absorption contains unknown fields: {unknown}")
+    sign = value.get("incident_power_sign")
+    if isinstance(sign, bool) or sign not in {-1, 1}:
+        raise ValueError("internal_absorption.incident_power_sign must be exactly -1 or 1")
+    normalized = {
+        "cross_section_expression": _bounded_expression(
+            value.get("cross_section_expression"), "internal_absorption.cross_section_expression"
+        ),
+        "cross_section_unit": str(value.get("cross_section_unit")),
+        "unit_cell_area_expression": _bounded_expression(
+            value.get("unit_cell_area_expression"), "internal_absorption.unit_cell_area_expression"
+        ),
+        "source_feature": _bounded_expression(
+            value.get("source_feature"), "internal_absorption.source_feature"
+        ),
+        "volume_loss_expression": _bounded_expression(
+            value.get("volume_loss_expression"), "internal_absorption.volume_loss_expression"
+        ),
+        "volume_loss_selection_ids": value.get("volume_loss_selection_ids"),
+        "volume_loss_unit": str(value.get("volume_loss_unit")),
+        "incident_power_expression": _bounded_expression(
+            value.get("incident_power_expression"), "internal_absorption.incident_power_expression"
+        ),
+        "incident_power_sign": int(sign),
+    }
+    normalize_internal_absorption_consistency(
+        {
+            "expression": normalized["cross_section_expression"],
+            "value_m2": 1.0,
+            "unit": normalized["cross_section_unit"],
+            "unit_cell_area_expression": normalized["unit_cell_area_expression"],
+            "unit_cell_area_m2": 1.0,
+            "source_feature": normalized["source_feature"],
+        },
+        {
+            "expression": normalized["volume_loss_expression"],
+            "selection_ids": normalized["volume_loss_selection_ids"],
+            "value_w": 1.0,
+            "incident_power_w": 1.0,
+            "unit": normalized["volume_loss_unit"],
+        },
+    )
+    return normalized
+
+
+def _evaluate_declared_plane_flux(model: Any, declaration: dict[str, Any]) -> dict[str, Any]:
+    evaluated: dict[str, Any] = {}
+    for name, plane in declaration.items():
+        value = _single_complex(model.evaluate(plane["expression"]), plane["expression"])
+        evaluated[name] = {**plane, "raw_power_w": float(value.real)}
+    return normalize_declared_plane_flux(evaluated)
+
+
+def _evaluate_internal_absorption(model: Any, declaration: dict[str, Any]) -> dict[str, Any]:
+    cross_value = _single_complex(
+        model.evaluate(declaration["cross_section_expression"]),
+        declaration["cross_section_expression"],
+    )
+    area_value = _single_complex(
+        model.evaluate(declaration["unit_cell_area_expression"]),
+        declaration["unit_cell_area_expression"],
+    )
+    volume_value = _single_complex(
+        model.evaluate(declaration["volume_loss_expression"]),
+        declaration["volume_loss_expression"],
+    )
+    incident_value = _single_complex(
+        model.evaluate(declaration["incident_power_expression"]),
+        declaration["incident_power_expression"],
+    )
+    incident_power = float(incident_value.real) * declaration["incident_power_sign"]
+    return normalize_internal_absorption_consistency(
+        {
+            "expression": declaration["cross_section_expression"],
+            "value_m2": float(cross_value.real),
+            "unit": declaration["cross_section_unit"],
+            "unit_cell_area_expression": declaration["unit_cell_area_expression"],
+            "unit_cell_area_m2": float(area_value.real),
+            "source_feature": declaration["source_feature"],
+        },
+        {
+            "expression": declaration["volume_loss_expression"],
+            "selection_ids": declaration["volume_loss_selection_ids"],
+            "value_w": float(volume_value.real),
+            "incident_power_w": incident_power,
+            "unit": declaration["volume_loss_unit"],
+        },
+    )
+
+
 def run_wave_optics_point_audit(
     model: Any,
     *,
@@ -636,6 +809,8 @@ def run_wave_optics_point_audit(
     top_air_coordinate_range: dict[str, Any] | None = None,
     loss_map: list[dict[str, Any]] | None = None,
     power_provenance: dict[str, Any] | None = None,
+    declared_plane_flux: dict[str, Any] | None = None,
+    internal_absorption: dict[str, Any] | None = None,
     air_reference_artifact_path: str | None = None,
     air_reference_config_id: str | None = None,
     validation_policy: dict[str, Any] | None = None,
@@ -677,6 +852,8 @@ def run_wave_optics_point_audit(
         ):
             raise ValueError(f"{name} must be a non-empty expression of at most 1024 characters")
     losses = _validate_loss_map(loss_map)
+    flux_declaration = _validate_declared_plane_flux(declared_plane_flux)
+    internal_absorption_declaration = _validate_internal_absorption(internal_absorption)
     if power_provenance is not None:
         if not isinstance(power_provenance, dict):
             raise ValueError("power_provenance must be an object")
@@ -770,6 +947,8 @@ def run_wave_optics_point_audit(
         "power_provenance": power_provenance,
         "top_air": {"selection": top_air_selection, "domains": domains, "coordinate_range": coordinate_range},
         "loss_map": losses,
+        "declared_plane_flux": flux_declaration,
+        "internal_absorption": internal_absorption_declaration,
         "air_reference_config_id": air_reference_config_id,
     }
     config_sha256 = _canonical_hash(config_spec)
@@ -827,6 +1006,8 @@ def run_wave_optics_point_audit(
     wavelength: dict[str, Any] = {"requested_value": wavelength_value, "requested_unit": wavelength_unit, "parameter_expression": parameter_value}
     field = None
     loss_result: list[dict[str, Any]] = []
+    declared_flux_result: dict[str, Any] = {"state": "not_requested"}
+    internal_absorption_result: dict[str, Any] = {"state": "not_requested"}
     if solve_error:
         measurement_errors.append({"code": "solve_failed", "error": solve_error})
     else:
@@ -888,6 +1069,48 @@ def run_wave_optics_point_audit(
                 record["error"] = str(exc)[:500]
                 measurement_errors.append({"code": "loss_expression_unavailable", "label": item["label"], "error": str(exc)[:500]})
             loss_result.append(record)
+        if flux_declaration is not None:
+            try:
+                declared_flux_result = _evaluate_declared_plane_flux(model, flux_declaration)
+            except FloatingPointError as exc:
+                declared_flux_result = {
+                    "state": "unknown",
+                    "declaration": flux_declaration,
+                    "error": str(exc),
+                }
+                integrity_errors.append({"code": "nonfinite_declared_plane_flux", "error": str(exc)})
+            except Exception as exc:
+                declared_flux_result = {
+                    "state": "unknown",
+                    "declaration": flux_declaration,
+                    "error": str(exc)[:500],
+                }
+                measurement_errors.append(
+                    {"code": "declared_plane_flux_unavailable", "error": str(exc)[:500]}
+                )
+        if internal_absorption_declaration is not None:
+            try:
+                internal_absorption_result = _evaluate_internal_absorption(
+                    model, internal_absorption_declaration
+                )
+            except FloatingPointError as exc:
+                internal_absorption_result = {
+                    "state": "unknown",
+                    "declaration": internal_absorption_declaration,
+                    "error": str(exc),
+                    "physical_flux_closure_eligible": False,
+                }
+                integrity_errors.append({"code": "nonfinite_internal_absorption", "error": str(exc)})
+            except Exception as exc:
+                internal_absorption_result = {
+                    "state": "unknown",
+                    "declaration": internal_absorption_declaration,
+                    "error": str(exc)[:500],
+                    "physical_flux_closure_eligible": False,
+                }
+                measurement_errors.append(
+                    {"code": "internal_absorption_unavailable", "error": str(exc)[:500]}
+                )
         try:
             field = _sample_structure_field(
                 model,
@@ -943,6 +1166,8 @@ def run_wave_optics_point_audit(
         },
         "wavelength": wavelength,
         "power": power,
+        "declared_plane_flux": declared_flux_result,
+        "internal_absorption_consistency": internal_absorption_result,
         "losses": {"items": loss_result, "normalization_limitation": "Only caller-declared normalization expressions are used; no whole-model loss integration is inferred."},
         "polarization": {
             "evidence_level": evidence_level,
@@ -1077,6 +1302,8 @@ def register_wave_optics_audit_tools(mcp: FastMCP) -> None:
         top_air_domain_ids: Optional[list[int]] = None,
         loss_map: Optional[list[LossSpecification]] = None,
         power_provenance: Optional[PowerProvenance] = None,
+        declared_plane_flux: Optional[DeclaredPlaneFlux] = None,
+        internal_absorption: Optional[InternalAbsorption] = None,
         air_reference_artifact_path: Optional[str] = None,
         air_reference_config_id: Optional[str] = None,
         validation_policy: Optional[ValidationPolicy | StrictValidationPolicy] = None,
@@ -1125,6 +1352,8 @@ def register_wave_optics_audit_tools(mcp: FastMCP) -> None:
                 top_air_coordinate_range=top_air_coordinate_range,
                 loss_map=loss_map,
                 power_provenance=power_provenance,
+                declared_plane_flux=declared_plane_flux,
+                internal_absorption=internal_absorption,
                 air_reference_artifact_path=air_reference_artifact_path,
                 air_reference_config_id=air_reference_config_id,
                 validation_policy=validation_policy,

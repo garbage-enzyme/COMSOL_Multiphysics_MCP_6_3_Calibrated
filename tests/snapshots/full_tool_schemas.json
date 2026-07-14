@@ -4807,6 +4807,126 @@
         "title": "CoordinateLimits",
         "type": "object"
       },
+      "DeclaredFluxPlane": {
+        "properties": {
+          "expression": {
+            "title": "Expression",
+            "type": "string"
+          },
+          "medium_id": {
+            "title": "Medium Id",
+            "type": "string"
+          },
+          "normal": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Normal",
+            "type": "array"
+          },
+          "plane_coordinate_m": {
+            "title": "Plane Coordinate M",
+            "type": "number"
+          },
+          "positive_power_sign": {
+            "title": "Positive Power Sign",
+            "type": "integer"
+          },
+          "selection_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Selection Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expression",
+          "selection_ids",
+          "plane_coordinate_m",
+          "normal",
+          "medium_id",
+          "positive_power_sign"
+        ],
+        "title": "DeclaredFluxPlane",
+        "type": "object"
+      },
+      "DeclaredPlaneFlux": {
+        "properties": {
+          "incident": {
+            "$ref": "#/$defs/DeclaredFluxPlane"
+          },
+          "reflected": {
+            "$ref": "#/$defs/DeclaredFluxPlane"
+          },
+          "transmitted": {
+            "$ref": "#/$defs/DeclaredFluxPlane"
+          }
+        },
+        "required": [
+          "incident",
+          "reflected",
+          "transmitted"
+        ],
+        "title": "DeclaredPlaneFlux",
+        "type": "object"
+      },
+      "InternalAbsorption": {
+        "properties": {
+          "cross_section_expression": {
+            "title": "Cross Section Expression",
+            "type": "string"
+          },
+          "cross_section_unit": {
+            "title": "Cross Section Unit",
+            "type": "string"
+          },
+          "incident_power_expression": {
+            "title": "Incident Power Expression",
+            "type": "string"
+          },
+          "incident_power_sign": {
+            "title": "Incident Power Sign",
+            "type": "integer"
+          },
+          "source_feature": {
+            "title": "Source Feature",
+            "type": "string"
+          },
+          "unit_cell_area_expression": {
+            "title": "Unit Cell Area Expression",
+            "type": "string"
+          },
+          "volume_loss_expression": {
+            "title": "Volume Loss Expression",
+            "type": "string"
+          },
+          "volume_loss_selection_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Volume Loss Selection Ids",
+            "type": "array"
+          },
+          "volume_loss_unit": {
+            "title": "Volume Loss Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cross_section_expression",
+          "cross_section_unit",
+          "unit_cell_area_expression",
+          "source_feature",
+          "volume_loss_expression",
+          "volume_loss_selection_ids",
+          "volume_loss_unit",
+          "incident_power_expression",
+          "incident_power_sign"
+        ],
+        "title": "InternalAbsorption",
+        "type": "object"
+      },
       "LossSpecification": {
         "properties": {
           "domains": {
@@ -5126,9 +5246,31 @@
         "title": "Config Id",
         "type": "string"
       },
+      "declared_plane_flux": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/DeclaredPlaneFlux"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
       "expected_source_sha256": {
         "title": "Expected Source Sha256",
         "type": "string"
+      },
+      "internal_absorption": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/InternalAbsorption"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
       },
       "loss_map": {
         "anyOf": [
