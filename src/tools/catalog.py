@@ -92,6 +92,13 @@ _TOOLS_BY_REGISTRAR = {
     "src.tools.wave_optics_preflight.register_wave_optics_preflight_tools": (
         "wave_optics_preflight",
     ),
+    "src.tools.periodic_mesh_audit.register_periodic_mesh_audit_tools": (
+        "wave_optics_periodic_mesh_audit", "wave_optics_periodic_mesh_smoke",
+    ),
+    "src.tools.derived_geometry.register_derived_geometry_tools": (
+        "geometry_derived_clone", "geometry_fin_preview", "geometry_fin_apply",
+        "geometry_blocks_preview", "geometry_blocks_apply",
+    ),
     "src.tools.wave_optics_audit.register_wave_optics_audit_tools": (
         "wave_optics_point_audit",
     ),
@@ -130,6 +137,8 @@ _GROUP_BY_REGISTRAR = {
     "register_workflow_tools": "workflow",
     "register_property_tools": "clientapi_properties",
     "register_wave_optics_preflight_tools": "wave_optics_audit",
+    "register_periodic_mesh_audit_tools": "wave_optics_audit",
+    "register_derived_geometry_tools": "geometry",
     "register_wave_optics_audit_tools": "wave_optics_audit",
     "register_material_expression_tools": "wave_optics_materials",
     "register_visual_review_tools": "visual_review",
@@ -160,7 +169,11 @@ _EXPERIMENTAL_TOOLS = frozenset({
     "clientapi_property_get",
     "clientapi_property_set",
     "wave_optics_preflight",
+    "wave_optics_periodic_mesh_audit",
+    "wave_optics_periodic_mesh_smoke",
     "wave_optics_point_audit",
+    "geometry_derived_clone", "geometry_fin_preview", "geometry_fin_apply",
+    "geometry_blocks_preview", "geometry_blocks_apply",
     "semantic_search", "semantic_status", "semantic_worker_reset",
 })
 
@@ -227,6 +240,10 @@ _SIDE_EFFECTS = {
     "mesh_convergence_study": "solver_execution",
     "clientapi_property_set": "model_mutation",
     "wave_optics_point_audit": "solver_execution",
+    "wave_optics_periodic_mesh_smoke": "filesystem_write_model_mutation",
+    "geometry_derived_clone": "filesystem_write_model_mutation",
+    "geometry_fin_apply": "model_mutation",
+    "geometry_blocks_apply": "model_mutation",
     "manual_search": "read_only_subprocess",
     "manual_read_pages": "read_only_subprocess",
     "semantic_search": "read_only_subprocess",
@@ -258,6 +275,8 @@ _CORE_TOOLS = frozenset({
 
 _BASIC_FEM_ADDITIONS = frozenset({
     "model_create", "model_create_component", "model_save_version", "model_clone",
+    "geometry_derived_clone", "geometry_fin_preview", "geometry_fin_apply",
+    "geometry_blocks_preview", "geometry_blocks_apply",
     "param_description",
     "geometry_create", "geometry_add_block", "geometry_add_cylinder",
     "geometry_add_sphere", "geometry_add_rectangle", "geometry_add_circle",
@@ -276,6 +295,10 @@ _WAVE_OPTICS_ADDITIONS = frozenset({
     "results_outer_values", "mim_evaluate_spectral",
     "study_staged_parametric_sweep",
     "wave_optics_preflight",
+    "wave_optics_periodic_mesh_audit",
+    "wave_optics_periodic_mesh_smoke",
+    "geometry_derived_clone", "geometry_fin_preview", "geometry_fin_apply",
+    "geometry_blocks_preview", "geometry_blocks_apply",
     "wave_optics_point_audit",
     "wave_optics_material_expression_preview",
     "visual_review_capability_normalize", "visual_review_request_create",

@@ -1,0 +1,34 @@
+{
+  "schema_name": "comsol_mcp.release_integration_fixture_manifest",
+  "schema_version": "1.0.0",
+  "fixtures": [
+    {
+      "fixture_id": "capacitor_clientapi_regression",
+      "contract": "capacitor_clientapi_regression.json"
+    },
+    {
+      "fixture_id": "periodic_mesh_audit",
+      "contract": "periodic_mesh_audit.json"
+    },
+    {
+      "fixture_id": "reference_air_polarization",
+      "contract": "reference_air_polarization.json"
+    },
+    {
+      "fixture_id": "passive_port_closure",
+      "contract": "passive_port_closure.json"
+    },
+    {
+      "fixture_id": "source_immutability",
+      "contract": "source_immutability.json"
+    },
+    {
+      "fixture_id": "job_recovery_cancellation",
+      "contract": "job_recovery_cancellation.json"
+    },
+    {
+      "fixture_id": "lexical_manual_retrieval",
+      "contract": "lexical_manual_retrieval.json"
+    }
+  ]
+}

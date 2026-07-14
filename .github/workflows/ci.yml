@@ -1,0 +1,45 @@
+name: dependency-only-ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-and-package:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependency-only test environment
+        run: python -m pip install ".[dev]"
+      - name: Compile Python sources
+        run: python -m compileall -q src tests scripts
+      - name: Run dependency-only regression suite
+        run: python -m pytest -q
+      - name: Build wheel and source distribution
+        run: python -m build
+      - name: Probe a clean non-editable wheel install
+        run: python scripts/release_gate.py --skip-tests --allow-dirty --artifact-root "$env:RUNNER_TEMP\comsol_release"
+
+  integration-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate sanitized real-COMSOL fixture contracts
+        run: python -m pip install ".[dev]"
+      - run: python -m pytest -q tests/test_release_engineering.py
+
+# Real COMSOL tests are intentionally absent from hosted CI. Run the explicit,
+# serial scripts/run_real_release_gate.py gate on a licensed, version-pinned host.

@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "fixture_id": "passive_port_closure",
+  "evidence_state": "contract_frozen_real_release_revalidation_required",
+  "real_comsol_required": true,
+  "runner": "tests/integration/h3e_real_point_audit.py",
+  "acceptance": {
+    "raw_rta_preserved": true,
+    "r_min": 0.0,
+    "r_max": 1.0,
+    "t_min": 0.0,
+    "t_max": 1.0,
+    "a_min": 0.0,
+    "a_max": 1.0,
+    "closure_absolute_error_max": 0.001,
+    "declared_flux_convention_required": true,
+    "internal_absorption_agreement_is_not_flux_closure": true
+  }
+}

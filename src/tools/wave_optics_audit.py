@@ -1088,6 +1088,15 @@ def register_wave_optics_audit_tools(mcp: FastMCP) -> None:
         model = session_manager.get_model(model_name)
         if model is None:
             return {"success": False, "error": f"Model not found: {model_name}"}
+        from .derived_geometry import derived_model_validation_status
+
+        derived_status = derived_model_validation_status(model_name)
+        if not derived_status["validation_allowed"]:
+            return {
+                "success": False,
+                "error": "dirty derived model is forbidden from validated point audits",
+                "derived_model": derived_status,
+            }
         try:
             ownership_preflight = session_manager.preflight_long_operation(
                 model_path=str(model.file()) if model.file() else None

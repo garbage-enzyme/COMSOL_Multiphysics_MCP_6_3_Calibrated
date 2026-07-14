@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0.0",
+  "fixture_id": "job_recovery_cancellation",
+  "evidence_state": "verified_baseline",
+  "real_comsol_required": true,
+  "runner": "tests/integration/test_real_comsol.py",
+  "acceptance": {
+    "immutable_spec_required": true,
+    "valid_rows_are_duplicate_free_after_resume": true,
+    "terminal_cancel_requires_process_cleanup": true,
+    "lease_absent_after_terminal_state": true,
+    "source_hash_unchanged": true,
+    "cross_host_coordination": false
+  }
+}

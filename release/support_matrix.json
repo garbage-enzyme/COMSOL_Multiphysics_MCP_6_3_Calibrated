@@ -1,0 +1,65 @@
+{
+  "schema_name": "comsol_mcp.release_support_matrix",
+  "schema_version": "1.0.0",
+  "release_line": "0.1.x",
+  "verified_environment": {
+    "verification_state": "verified_baseline_release_revalidation_required",
+    "comsol": "6.4.0.293",
+    "java": "21 (COMSOL bundled runtime)",
+    "python": "3.11.15",
+    "mph": "1.3.1",
+    "mcp": "1.28.1"
+  },
+  "declared_minimums": {
+    "python": ">=3.10",
+    "mph": ">=1.3.0",
+    "mcp": ">=1.0.0",
+    "pydantic": ">=2.0.0",
+    "psutil": ">=5.9.0"
+  },
+  "profiles": [
+    {
+      "name": "core",
+      "support": "verified",
+      "tool_count": 38
+    },
+    {
+      "name": "basic_fem",
+      "support": "verified",
+      "tool_count": 76
+    },
+    {
+      "name": "wave_optics",
+      "support": "experimental_v2_in_progress",
+      "tool_count": 58
+    },
+    {
+      "name": "semantic_docs",
+      "support": "experimental_promotion_rejected",
+      "tool_count": 41
+    },
+    {
+      "name": "experimental",
+      "support": "experimental",
+      "tool_count": 64
+    },
+    {
+      "name": "full",
+      "support": "compatibility_only",
+      "tool_count": 115
+    }
+  ],
+  "unavailable": [
+    "cross_host_or_distributed_solver_coordination",
+    "automatic_visual_mode_identity",
+    "unbounded_solver_or_retrieval_queues",
+    "semantic_docs_multilingual_production_claim"
+  ],
+  "real_integration": {
+    "hosted_ci_default": false,
+    "licensed_host_required": true,
+    "serial_only": true,
+    "exact_version_evidence_required": true,
+    "pid_and_lease_cleanup_required": true
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0.0",
+  "fixture_id": "source_immutability",
+  "evidence_state": "contract_frozen_real_release_revalidation_required",
+  "real_comsol_required": true,
+  "runner": "tests/integration/h3d_real_preflight.py",
+  "acceptance": {
+    "source_hash_before_required": true,
+    "source_hash_after_required": true,
+    "source_hashes_equal": true,
+    "derived_artifacts_use_relative_ids": true,
+    "cleanup_result_required": true
+  }
+}

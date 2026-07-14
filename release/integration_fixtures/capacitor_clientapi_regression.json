@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0.0",
+  "fixture_id": "capacitor_clientapi_regression",
+  "evidence_state": "verified_baseline",
+  "real_comsol_required": true,
+  "runner": "tests/integration/test_real_comsol.py::test_real_comsol_probe_in_fresh_process[test_e2e_cap.py]",
+  "inputs": {
+    "relative_permittivity": 2.1,
+    "plate_side_m": 0.01,
+    "gap_m": 0.001,
+    "potential_v": 1.0
+  },
+  "acceptance": {
+    "theory_capacitance_pf": 1.8593794406880002,
+    "observed_baseline_pf": 1.8593794419540652,
+    "absolute_error_pf_max": 0.000001
+  }
+}

@@ -1,0 +1,114 @@
+"""Dependency-only E4 release-contract regression tests."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path, PurePosixPath, PureWindowsPath
+import re
+import tomllib
+
+
+ROOT = Path(__file__).parents[1]
+RELEASE = ROOT / "release"
+FIXTURES = RELEASE / "integration_fixtures"
+SNAPSHOTS = ROOT / "tests" / "snapshots"
+
+
+def _json(path: Path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield from _strings(key)
+            yield from _strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _strings(item)
+
+
+def test_support_matrix_matches_frozen_profile_counts_and_declared_dependencies():
+    matrix = _json(RELEASE / "support_matrix.json")
+    names = _json(SNAPSHOTS / "profile_tool_names.json")
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert matrix["schema_name"] == "comsol_mcp.release_support_matrix"
+    assert matrix["real_integration"] == {
+        "hosted_ci_default": False,
+        "licensed_host_required": True,
+        "serial_only": True,
+        "exact_version_evidence_required": True,
+        "pid_and_lease_cleanup_required": True,
+    }
+    assert {item["name"]: item["tool_count"] for item in matrix["profiles"]} == {
+        profile: len(tools) for profile, tools in names.items()
+    }
+    dependencies = "\n".join(pyproject["project"]["dependencies"])
+    for package in ("mcp", "mph", "pydantic", "psutil"):
+        assert re.search(rf"(?m)^{package}(?:[<>=]|$)", dependencies)
+    assert any(item.startswith("build>=") for item in pyproject["project"]["optional-dependencies"]["dev"])
+
+
+def test_release_integration_fixture_manifest_is_complete_and_sanitized():
+    manifest = _json(FIXTURES / "manifest.json")
+    expected = {
+        "capacitor_clientapi_regression",
+        "periodic_mesh_audit",
+        "reference_air_polarization",
+        "passive_port_closure",
+        "source_immutability",
+        "job_recovery_cancellation",
+        "lexical_manual_retrieval",
+    }
+    entries = manifest["fixtures"]
+    assert {entry["fixture_id"] for entry in entries} == expected
+
+    for entry in entries:
+        contract_path = FIXTURES / entry["contract"]
+        assert contract_path.parent == FIXTURES
+        contract = _json(contract_path)
+        assert contract["fixture_id"] == entry["fixture_id"]
+        assert contract["schema_version"] == "1.0.0"
+        assert contract["acceptance"]
+        for value in _strings(contract):
+            assert "陆星" not in value
+            assert "C:\\Users\\" not in value
+            assert not PureWindowsPath(value).is_absolute()
+            assert not PurePosixPath(value).is_absolute()
+
+
+def test_hosted_ci_is_dependency_only_and_real_gate_is_explicit():
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    real_gate = (ROOT / "scripts" / "run_real_release_gate.py").read_text(encoding="utf-8")
+
+    assert "python -m pytest -q" in workflow
+    assert "python -m build" in workflow
+    assert "release_gate.py --skip-tests" in workflow
+    assert "-m integration" not in workflow
+    assert "RUN_REAL_COMSOL" in real_gate
+    assert 'choices=["RUN_REAL_COMSOL"]' in real_gate
+
+
+def test_installed_probe_checks_every_profile_without_solver_or_heavy_imports():
+    probe = (ROOT / "scripts" / "installed_package_probe.py").read_text(encoding="utf-8")
+
+    assert "for profile in PROFILE_NAMES" in probe
+    assert "snapshot_tool_schemas" in probe
+    assert "installed-package discovery must not start COMSOL" in probe
+    assert {"chromadb", "sentence_transformers", "torch"} <= set(
+        re.findall(r'"([a-z_]+)"', probe)
+    )
+
+
+def test_release_documentation_requires_restart_and_clean_tree():
+    checklist = (ROOT / "docs" / "release_checklist.md").read_text(encoding="utf-8")
+    migration = (ROOT / "docs" / "profile_migration.md").read_text(encoding="utf-8")
+
+    assert "clean tree" in checklist
+    assert "non-editably" in checklist
+    assert "Restart the MCP host" in checklist
+    assert "Profiles are immutable" in migration
+    assert "promotion rejected" in migration

@@ -237,8 +237,8 @@ class FakeGeometry(FakeFeature):
 
 
 class FakeMesh(FakeFeature):
-    def __init__(self, elements):
-        super().__init__("mesh1", "MeshSequence")
+    def __init__(self, elements, features=None):
+        super().__init__("mesh1", "MeshSequence", children=features)
         self.elements = elements
 
     def getNumElem(self):
@@ -249,7 +249,7 @@ class FakeMesh(FakeFeature):
 
 
 class FakeComponent:
-    def __init__(self, *, missing_rdir=False, mismatched_floquet=False, absent_excited=False, empty_mesh=False, inaccessible_incidence=False):
+    def __init__(self, *, missing_rdir=False, mismatched_floquet=False, absent_excited=False, empty_mesh=False, inaccessible_incidence=False, mesh_case="valid"):
         fpc_x = [1, 3, 2] if mismatched_floquet else [1, 2]
         children = {
             "fpc1": FakeFeature("fpc1", "PeriodicCondition", selections={"default": fpc_x}, props={"PeriodicType": "Floquet"}),
@@ -270,9 +270,26 @@ class FakeComponent:
         ewfd = FakeFeature("ewfd", "ElectromagneticWavesFrequencyDomain", children={"ps1": ps})
         fin = FakeFeature("fin", "FormUnion", props={"action": "union", "createpairs": "off"})
         geom = FakeGeometry("geom1", "Geometry", children={"fin": fin})
+        mesh_features = {
+            "ft_x": FakeFeature("ft_x", "FreeTri", selections={"default": [1]}),
+            "cp_x": FakeFeature("cp_x", "CopyFace", selections={"source": [1], "destination": [2]}),
+            "ft_y": FakeFeature("ft_y", "FreeTri", selections={"default": [3]}),
+            "cp_y": FakeFeature("cp_y", "CopyFace", selections={"source": [3], "destination": [4]}),
+            "ftet1": FakeFeature("ftet1", "FreeTet", selections={"default": [1]}),
+        }
+        if mesh_case == "missing_copy_y":
+            del mesh_features["cp_y"]
+        elif mesh_case == "wrong_order":
+            mesh_features = {
+                "cp_x": mesh_features["cp_x"],
+                "ft_x": mesh_features["ft_x"],
+                "ft_y": mesh_features["ft_y"],
+                "cp_y": mesh_features["cp_y"],
+                "ftet1": mesh_features["ftet1"],
+            }
         self._physics = FakeContainer({"ewfd": ewfd})
         self._geom = FakeContainer({"geom1": geom})
-        self._mesh = FakeContainer({"mesh1": FakeMesh(0 if empty_mesh else 1200)})
+        self._mesh = FakeContainer({"mesh1": FakeMesh(0 if empty_mesh else 1200, mesh_features)})
         self._materials = FakeContainer({"mat1": FakeMaterial("mat1", "Common", selections={"default": [1]})})
 
     def physics(self):

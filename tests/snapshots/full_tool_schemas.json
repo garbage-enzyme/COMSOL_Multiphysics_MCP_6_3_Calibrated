@@ -729,6 +729,90 @@
     "title": "geometry_add_sphereArguments",
     "type": "object"
   },
+  "geometry_blocks_apply": {
+    "properties": {
+      "block_edits": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": "Block Edits",
+        "type": "array"
+      },
+      "component_tag": {
+        "default": "comp1",
+        "title": "Component Tag",
+        "type": "string"
+      },
+      "derived_model_id": {
+        "title": "Derived Model Id",
+        "type": "string"
+      },
+      "expected_state_sha256": {
+        "title": "Expected State Sha256",
+        "type": "string"
+      },
+      "geometry_tag": {
+        "default": "geom1",
+        "title": "Geometry Tag",
+        "type": "string"
+      },
+      "model_name": {
+        "title": "Model Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "derived_model_id",
+      "model_name",
+      "expected_state_sha256",
+      "block_edits"
+    ],
+    "title": "geometry_blocks_applyArguments",
+    "type": "object"
+  },
+  "geometry_blocks_preview": {
+    "properties": {
+      "block_edits": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": "Block Edits",
+        "type": "array"
+      },
+      "component_tag": {
+        "default": "comp1",
+        "title": "Component Tag",
+        "type": "string"
+      },
+      "derived_model_id": {
+        "title": "Derived Model Id",
+        "type": "string"
+      },
+      "expected_state_sha256": {
+        "title": "Expected State Sha256",
+        "type": "string"
+      },
+      "geometry_tag": {
+        "default": "geom1",
+        "title": "Geometry Tag",
+        "type": "string"
+      },
+      "model_name": {
+        "title": "Model Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "derived_model_id",
+      "model_name",
+      "expected_state_sha256",
+      "block_edits"
+    ],
+    "title": "geometry_blocks_previewArguments",
+    "type": "object"
+  },
   "geometry_boolean_difference": {
     "properties": {
       "component_name": {
@@ -921,6 +1005,128 @@
       }
     },
     "title": "geometry_createArguments",
+    "type": "object"
+  },
+  "geometry_derived_clone": {
+    "properties": {
+      "new_name": {
+        "title": "New Name",
+        "type": "string"
+      },
+      "source_model_name": {
+        "title": "Source Model Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "source_model_name",
+      "new_name"
+    ],
+    "title": "geometry_derived_cloneArguments",
+    "type": "object"
+  },
+  "geometry_fin_apply": {
+    "properties": {
+      "action": {
+        "enum": [
+          "union",
+          "assembly"
+        ],
+        "title": "Action",
+        "type": "string"
+      },
+      "component_tag": {
+        "default": "comp1",
+        "title": "Component Tag",
+        "type": "string"
+      },
+      "create_pairs": {
+        "title": "Create Pairs",
+        "type": "boolean"
+      },
+      "derived_model_id": {
+        "title": "Derived Model Id",
+        "type": "string"
+      },
+      "expected_state_sha256": {
+        "title": "Expected State Sha256",
+        "type": "string"
+      },
+      "geometry_tag": {
+        "default": "geom1",
+        "title": "Geometry Tag",
+        "type": "string"
+      },
+      "imprint": {
+        "title": "Imprint",
+        "type": "boolean"
+      },
+      "model_name": {
+        "title": "Model Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "derived_model_id",
+      "model_name",
+      "expected_state_sha256",
+      "action",
+      "imprint",
+      "create_pairs"
+    ],
+    "title": "geometry_fin_applyArguments",
+    "type": "object"
+  },
+  "geometry_fin_preview": {
+    "properties": {
+      "action": {
+        "enum": [
+          "union",
+          "assembly"
+        ],
+        "title": "Action",
+        "type": "string"
+      },
+      "component_tag": {
+        "default": "comp1",
+        "title": "Component Tag",
+        "type": "string"
+      },
+      "create_pairs": {
+        "title": "Create Pairs",
+        "type": "boolean"
+      },
+      "derived_model_id": {
+        "title": "Derived Model Id",
+        "type": "string"
+      },
+      "expected_state_sha256": {
+        "title": "Expected State Sha256",
+        "type": "string"
+      },
+      "geometry_tag": {
+        "default": "geom1",
+        "title": "Geometry Tag",
+        "type": "string"
+      },
+      "imprint": {
+        "title": "Imprint",
+        "type": "boolean"
+      },
+      "model_name": {
+        "title": "Model Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "derived_model_id",
+      "model_name",
+      "expected_state_sha256",
+      "action",
+      "imprint",
+      "create_pairs"
+    ],
+    "title": "geometry_fin_previewArguments",
     "type": "object"
   },
   "geometry_get_boundaries": {
@@ -4289,6 +4495,133 @@
       "formulation"
     ],
     "title": "wave_optics_material_expression_previewArguments",
+    "type": "object"
+  },
+  "wave_optics_periodic_mesh_audit": {
+    "properties": {
+      "expected_component_tag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Component Tag"
+      },
+      "expected_mesh_tag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Mesh Tag"
+      },
+      "expected_physics_tag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Physics Tag"
+      },
+      "expected_source_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Source Path"
+      },
+      "expected_source_sha256": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Source Sha256"
+      },
+      "expected_study_tag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Study Tag"
+      },
+      "model_name": {
+        "title": "Model Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "model_name"
+    ],
+    "title": "wave_optics_periodic_mesh_auditArguments",
+    "type": "object"
+  },
+  "wave_optics_periodic_mesh_smoke": {
+    "properties": {
+      "expected_component_tag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Component Tag"
+      },
+      "expected_mesh_tag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Mesh Tag"
+      },
+      "expected_source_sha256": {
+        "title": "Expected Source Sha256",
+        "type": "string"
+      },
+      "model_name": {
+        "title": "Model Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "model_name",
+      "expected_source_sha256"
+    ],
+    "title": "wave_optics_periodic_mesh_smokeArguments",
     "type": "object"
   },
   "wave_optics_point_audit": {

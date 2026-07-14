@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0.0",
+  "fixture_id": "lexical_manual_retrieval",
+  "evidence_state": "verified_dependency_only_baseline",
+  "real_comsol_required": false,
+  "runner": "tests/test_lexical_manual.py",
+  "frozen_judgments": "tests/fixtures/h4_retrieval_evaluation.json",
+  "acceptance": {
+    "citation_validity": 1.0,
+    "bounded_worker_required": true,
+    "heavy_semantic_imports_forbidden": true,
+    "semantic_docs_promotion_status": "rejected"
+  }
+}

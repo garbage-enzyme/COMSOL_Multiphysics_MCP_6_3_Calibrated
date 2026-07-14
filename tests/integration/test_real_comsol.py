@@ -16,6 +16,8 @@ PROBES = (
     "tests/integration/h2a_native_cancel_probe.py",
     "tests/integration/h3c_real_properties.py",
     "tests/integration/h3d_real_preflight.py",
+    "tests/integration/m1_periodic_mesh_audit.py",
+    "tests/integration/m2_derived_geometry.py",
     "tests/integration/h3e_real_point_audit.py",
     "tests/integration/h3f_live_acceptance.py",
 )

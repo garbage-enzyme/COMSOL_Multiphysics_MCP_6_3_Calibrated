@@ -25,6 +25,7 @@ semantic-docs = [
     "sentence-transformers>=3.4,<3.5",
 ]
 dev = [
+    "build>=1.2.0",
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
 ]

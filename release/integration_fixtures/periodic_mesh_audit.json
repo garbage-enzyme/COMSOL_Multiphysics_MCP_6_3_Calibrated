@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0.0",
+  "fixture_id": "periodic_mesh_audit",
+  "evidence_state": "verified_baseline_release_revalidation_required",
+  "real_comsol_required": true,
+  "runner": "tests/integration/m1_periodic_mesh_audit.py",
+  "acceptance": {
+    "read_only": true,
+    "source_sha256_unchanged": true,
+    "periodic_groups_declared": true,
+    "copyface_sequence_reported": true,
+    "free_tet_after_copyface": true,
+    "unknowns_are_explicit": true
+  }
+}

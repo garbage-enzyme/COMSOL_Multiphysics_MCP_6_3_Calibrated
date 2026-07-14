@@ -24,11 +24,11 @@
 | Profile | 工具数 | 适用场景 |
 | --- | ---: | --- |
 | `core`（默认） | 38 | 紧凑且成熟的控制面：状态、所有权、会话/模型检查、单点求解/求值及词法手册检索。 |
-| `basic_fem` | 71 | 在 `core` 基础上增加传统 FEM 的类型化构建和有界导出。 |
-| `wave_optics` | 46 | 超表面推荐：在 `core` 基础上增加 Wave Optics 预检、单点审计和分段工作流。 |
+| `basic_fem` | 76 | 在 `core` 基础上增加传统 FEM 的类型化构建、派生几何编辑和有界导出。 |
+| `wave_optics` | 58 | 超表面推荐：在 `core` 基础上增加派生几何编辑、材料预览、周期网格审计/冒烟、视觉审查合同、Wave Optics 预检、单点审计和分段工作流。 |
 | `semantic_docs` | 41 | 在 `core` 基础上增加隔离的实验性向量辅助手册检索。 |
 | `experimental` | 64 | 显式选择的通用创建、异步、属性逃生口和项目辅助工具。 |
-| `full` | 100 | 宽兼容/发现界面，包含可选语义工具。 |
+| `full` | 115 | 宽兼容/发现界面，包含可选语义工具。 |
 
 调用 `capabilities` 可在不启动 COMSOL 的情况下获知当前 profile、精确注册工具、目标版本、禁用工具组和重启要求。
 
@@ -80,7 +80,7 @@ solver_status -> wave_optics_preflight -> wave_optics_point_audit
 
 ## 验证
 
-当前完整自动化门槛为 **270 passed, 9 deselected**。单元测试无副作用：测试收集不会启动 COMSOL；integration probe 仅在显式请求时运行，并在全新的串行子进程中对精确进程树进行清理。
+当前完整自动化门槛为 **326 passed, 11 deselected**。单元测试无副作用：测试收集不会启动 COMSOL；integration probe 仅在显式请求时运行，并在全新的串行子进程中对精确进程树进行清理。
 
 ```bash
 python -m pytest -q
