@@ -60,6 +60,7 @@ def test_release_integration_fixture_manifest_is_complete_and_sanitized():
         "capacitor_clientapi_regression",
         "periodic_mesh_audit",
         "reference_air_polarization",
+        "h1_physical_evidence",
         "passive_port_closure",
         "source_immutability",
         "job_recovery_cancellation",

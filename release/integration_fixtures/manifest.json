@@ -15,6 +15,10 @@
       "contract": "reference_air_polarization.json"
     },
     {
+      "fixture_id": "h1_physical_evidence",
+      "contract": "h1_physical_evidence.json"
+    },
+    {
       "fixture_id": "passive_port_closure",
       "contract": "passive_port_closure.json"
     },

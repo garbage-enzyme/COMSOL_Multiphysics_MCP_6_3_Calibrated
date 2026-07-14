@@ -1,0 +1,33 @@
+{
+  "schema_name": "comsol_mcp.h1_licensed_gate",
+  "schema_version": "1.0.0",
+  "fixture_id": "h1_physical_evidence",
+  "real_comsol_required": true,
+  "runner": "tests/integration/h1_real_physical_evidence.py",
+  "execution_spec_environment": "H1_EXECUTION_SPEC",
+  "limits": {
+    "max_contract_bytes": 65536,
+    "max_spec_bytes": 131072,
+    "max_artifact_files": 64,
+    "max_artifact_bytes": 67108864
+  },
+  "acceptance": {
+    "reference_air": {
+      "reflection_max": 0.001,
+      "r_plus_t_residual_max": 0.001,
+      "target_to_transverse_ratio_min": 20.0
+    },
+    "declared_flux": {
+      "margin": 0.001,
+      "closure_abs_max": 0.001
+    },
+    "wavelength": {
+      "absolute_m_max": 1e-12,
+      "relative_max": 1e-9
+    },
+    "source_unchanged": true,
+    "clone_cleanup_proved": true,
+    "reversed_sign_must_fail": true,
+    "internal_consistency_cannot_substitute": true
+  }
+}
