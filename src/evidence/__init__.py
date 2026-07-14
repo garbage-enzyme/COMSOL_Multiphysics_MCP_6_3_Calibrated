@@ -26,6 +26,10 @@ from .visual_review import (
     validate_visual_review_receipt,
     validate_visual_review_request,
 )
+from .power_audit import (
+    normalize_declared_plane_flux,
+    normalize_internal_absorption_consistency,
+)
 
 __all__ = [
     "EVIDENCE_STATES",
@@ -50,4 +54,6 @@ __all__ = [
     "validate_reviewer_capability",
     "validate_visual_review_receipt",
     "validate_visual_review_request",
+    "normalize_declared_plane_flux",
+    "normalize_internal_absorption_consistency",
 ]
