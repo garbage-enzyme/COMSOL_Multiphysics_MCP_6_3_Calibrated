@@ -313,6 +313,108 @@ def collect_resource_telemetry(
     }
 
 
+def _sample_values(sample: object) -> dict[str, Any]:
+    if isinstance(sample, Mapping) and sample.get("schema_name") == "comsol_mcp.resource_telemetry_sample":
+        values = sample.get("values")
+        if not isinstance(values, Mapping):
+            raise ValueError("normalized telemetry sample has no values object")
+        return normalize_telemetry_sample(dict(values))["values"]
+    return normalize_telemetry_sample(sample)["values"]
+
+
+def build_resource_calibration_report(
+    *,
+    baseline_id: str,
+    baseline_status: str,
+    baseline_sample: object,
+    candidates: object,
+) -> dict[str, Any]:
+    """Compare samples to one caller-declared known-safe baseline without policy inference."""
+    if not isinstance(baseline_id, str) or not baseline_id.strip() or len(baseline_id) > 128:
+        raise ValueError("baseline_id must be a non-empty string of at most 128 characters")
+    if baseline_status != "known_safe":
+        raise ValueError("baseline_status must be exactly known_safe")
+    if not isinstance(candidates, list) or not candidates:
+        raise ValueError("candidates must be a non-empty list")
+    baseline = _sample_values(baseline_sample)
+    metric_names = (
+        "mesh_elements",
+        "dof",
+        "worker_private_bytes",
+        "worker_working_set_bytes",
+        "runtime_free_bytes",
+        "elapsed_wall_seconds",
+    )
+    fraction_names = (
+        ("available_memory_fraction", "available_memory_bytes", "total_memory_bytes"),
+        ("remaining_commit_fraction", "remaining_commit_bytes", "commit_limit_bytes"),
+    )
+
+    def metrics(values: dict[str, Any]) -> dict[str, float | int]:
+        result = {name: values[name] for name in metric_names if name in values}
+        for name, numerator, denominator in fraction_names:
+            if numerator in values and denominator in values and values[denominator] > 0:
+                result[name] = values[numerator] / values[denominator]
+        return result
+
+    baseline_metrics = metrics(baseline)
+    comparisons = []
+    seen = set()
+    for item in candidates:
+        if not isinstance(item, Mapping) or set(item) != {"sample_id", "telemetry"}:
+            raise ValueError("each candidate requires exactly sample_id and telemetry")
+        sample_id = item["sample_id"]
+        if not isinstance(sample_id, str) or not sample_id.strip() or len(sample_id) > 128:
+            raise ValueError("sample_id must be a non-empty string of at most 128 characters")
+        if sample_id in seen or sample_id == baseline_id:
+            raise ValueError("sample IDs must be unique and differ from baseline_id")
+        seen.add(sample_id)
+        candidate_metrics = metrics(_sample_values(item["telemetry"]))
+        shared = sorted(set(baseline_metrics) & set(candidate_metrics))
+        comparison = {}
+        for name in shared:
+            base = baseline_metrics[name]
+            candidate = candidate_metrics[name]
+            comparison[name] = {
+                "baseline": base,
+                "candidate": candidate,
+                "delta": candidate - base,
+                "ratio_to_baseline": candidate / base if base != 0 else None,
+            }
+        comparisons.append(
+            {
+                "sample_id": sample_id,
+                "metrics": candidate_metrics,
+                "comparison": comparison,
+                "unavailable_comparisons": sorted(
+                    (set(metric_names) | {item[0] for item in fraction_names}) - set(shared)
+                ),
+            }
+        )
+    payload = {
+        "baseline": {
+            "baseline_id": baseline_id,
+            "status": "known_safe",
+            "metrics": baseline_metrics,
+        },
+        "candidates": comparisons,
+    }
+    return {
+        "schema_name": "comsol_mcp.resource_calibration_report",
+        "schema_version": "1.0.0",
+        **payload,
+        "assessment": "calibration_only",
+        "automatic_policy": None,
+        "policy_scope": "project_local_only",
+        "limitation": (
+            "Relative telemetry comparisons do not prove solver progress, numerical convergence, "
+            "or portable thresholds for another host, model, solver, or element order."
+        ),
+        "report_sha256": _sha256(payload),
+        "solver_started": False,
+    }
+
+
 def _rule(
     evidence: list[dict[str, Any]],
     *,
@@ -463,6 +565,7 @@ def evaluate_resource_admission(
 
 
 __all__ = [
+    "build_resource_calibration_report",
     "collect_resource_telemetry",
     "evaluate_resource_admission",
     "normalize_resource_policy",

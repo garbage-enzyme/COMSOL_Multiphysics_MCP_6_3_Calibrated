@@ -6,6 +6,7 @@ import pytest
 
 from src.jobs.manager import validate_staged_sweep_spec
 from src.jobs.resource_admission import (
+    build_resource_calibration_report,
     collect_resource_telemetry,
     evaluate_resource_admission,
     normalize_resource_policy,
@@ -283,3 +284,67 @@ def test_telemetry_collector_rejects_missing_runtime_and_invalid_pid(tmp_path):
         collect_resource_telemetry(stage="pre_solve", runtime_path=tmp_path / "missing")
     with pytest.raises(ValueError, match="positive integer"):
         collect_resource_telemetry(stage="pre_solve", runtime_path=tmp_path, process_id=0)
+
+
+def test_offline_calibration_compares_only_to_declared_known_safe_baseline():
+    baseline = sample(mesh_elements=100, dof=200, elapsed_wall_seconds=10.0)
+    candidate = sample(
+        mesh_elements=150,
+        dof=300,
+        elapsed_wall_seconds=20.0,
+        available_memory_bytes=20,
+    )
+    report = build_resource_calibration_report(
+        baseline_id="safe-medium",
+        baseline_status="known_safe",
+        baseline_sample=baseline,
+        candidates=[{"sample_id": "candidate-focused", "telemetry": candidate}],
+    )
+
+    comparison = report["candidates"][0]["comparison"]
+    assert comparison["mesh_elements"]["ratio_to_baseline"] == 1.5
+    assert comparison["dof"]["ratio_to_baseline"] == 1.5
+    assert comparison["elapsed_wall_seconds"]["ratio_to_baseline"] == 2.0
+    assert comparison["available_memory_fraction"]["delta"] == pytest.approx(-0.1)
+    assert report["automatic_policy"] is None
+    assert report["policy_scope"] == "project_local_only"
+    assert report["assessment"] == "calibration_only"
+    assert report["solver_started"] is False
+
+
+def test_calibration_is_deterministic_and_marks_missing_metrics_unavailable():
+    arguments = {
+        "baseline_id": "safe",
+        "baseline_status": "known_safe",
+        "baseline_sample": {"stage": "post_solve", "mesh_elements": 100},
+        "candidates": [
+            {"sample_id": "coarse", "telemetry": {"stage": "post_solve", "mesh_elements": 80}}
+        ],
+    }
+    first = build_resource_calibration_report(**arguments)
+    second = build_resource_calibration_report(**arguments)
+
+    assert first == second
+    assert "dof" in first["candidates"][0]["unavailable_comparisons"]
+    assert len(first["report_sha256"]) == 64
+
+
+@pytest.mark.parametrize(
+    "changes,match",
+    [
+        ({"baseline_status": "assumed_safe"}, "exactly known_safe"),
+        ({"candidates": []}, "non-empty list"),
+        ({"candidates": [{"sample_id": "safe", "telemetry": {"stage": "post_solve"}}]}, "unique"),
+        ({"candidates": [{"sample_id": "x", "telemetry": {"stage": "post_solve"}}, {"sample_id": "x", "telemetry": {"stage": "post_solve"}}]}, "unique"),
+    ],
+)
+def test_invalid_calibration_contract_fails_closed(changes, match):
+    arguments = {
+        "baseline_id": "safe",
+        "baseline_status": "known_safe",
+        "baseline_sample": {"stage": "post_solve", "mesh_elements": 100},
+        "candidates": [{"sample_id": "candidate", "telemetry": {"stage": "post_solve"}}],
+        **changes,
+    }
+    with pytest.raises(ValueError, match=match):
+        build_resource_calibration_report(**arguments)
