@@ -32,6 +32,32 @@ def _comsol_pids() -> set[int]:
     return found
 
 
+def _wait_clean_ownership(
+    owner: SolverOwnership,
+    *,
+    timeout_seconds: float = 30.0,
+    poll_seconds: float = 0.25,
+    clock=time.monotonic,
+    sleeper=time.sleep,
+) -> dict:
+    """Wait for fresh, complete, collision-free cleanup without using stale evidence."""
+    deadline = clock() + timeout_seconds
+    latest = owner.status()
+    while True:
+        inventory = latest.get("process_inventory") or {}
+        if (
+            inventory.get("complete") is True
+            and inventory.get("fresh") is True
+            and latest.get("collision") is False
+            and latest.get("lease", {}).get("state") == "absent"
+        ):
+            return latest
+        if clock() >= deadline:
+            return latest
+        sleeper(poll_seconds)
+        latest = owner.status()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--confirm", required=True, choices=["RUN_REAL_COMSOL"])
@@ -39,7 +65,7 @@ def main() -> int:
     args = parser.parse_args()
 
     owner = SolverOwnership()
-    before_status = owner.status()
+    before_status = _wait_clean_ownership(owner)
     before_pids = _comsol_pids()
     if before_status["collision"] or before_status["lease"]["state"] != "absent":
         raise SystemExit("real release gate requires no external solver and no lease")
@@ -60,7 +86,7 @@ def main() -> int:
         capture_output=True,
         check=False,
     )
-    after_status = owner.status()
+    after_status = _wait_clean_ownership(owner)
     after_pids = _comsol_pids()
     cleanup_passed = (
         after_pids == before_pids

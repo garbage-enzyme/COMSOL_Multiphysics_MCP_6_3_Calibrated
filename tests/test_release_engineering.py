@@ -7,6 +7,8 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import tomllib
 
+from scripts.run_real_release_gate import _wait_clean_ownership
+
 
 ROOT = Path(__file__).parents[1]
 RELEASE = ROOT / "release"
@@ -114,3 +116,56 @@ def test_release_documentation_requires_restart_and_clean_tree():
     assert "Restart the MCP host" in checklist
     assert "Profiles are immutable" in migration
     assert "promotion rejected" in migration
+
+
+def test_real_release_gate_waits_for_fresh_complete_cleanup_without_stale_authority():
+    incomplete = {
+        "process_inventory": {"complete": False, "fresh": False},
+        "collision": True,
+        "lease": {"state": "absent"},
+    }
+    clean = {
+        "process_inventory": {"complete": True, "fresh": True},
+        "collision": False,
+        "lease": {"state": "absent"},
+    }
+
+    class Owner:
+        def __init__(self):
+            self.values = [incomplete, clean]
+
+        def status(self):
+            return self.values.pop(0)
+
+    ticks = iter([0.0, 0.1])
+    result = _wait_clean_ownership(
+        Owner(),
+        timeout_seconds=1.0,
+        poll_seconds=0.0,
+        clock=lambda: next(ticks),
+        sleeper=lambda _seconds: None,
+    )
+
+    assert result is clean
+
+
+def test_real_release_gate_timeout_preserves_fail_closed_collision():
+    blocked = {
+        "process_inventory": {"complete": False, "fresh": False},
+        "collision": True,
+        "lease": {"state": "absent"},
+    }
+
+    class Owner:
+        def status(self):
+            return blocked
+
+    result = _wait_clean_ownership(
+        Owner(),
+        timeout_seconds=0.0,
+        clock=lambda: 0.0,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert result is blocked
+    assert result["collision"] is True
