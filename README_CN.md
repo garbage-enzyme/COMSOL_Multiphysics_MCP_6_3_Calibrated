@@ -8,6 +8,14 @@
 
 该服务器为 AI agent 提供更安全、更紧凑的 COMSOL 接口，用于模型检查、受控单点验证、可恢复的分段扫描与离线手册检索。它适配 `mph.Client()` 返回的 `model.java` clientapi 对象；该对象与上游面向的直接 `com.comsol.model.Model` API 有实质差异。
 
+## 推荐配套 Skill
+
+Claude Code、Codex CLI、opencode 及其他支持 skill 的 agent，推荐将本服务器与
+[COMSOL 6.4+ metasurface agent skill](https://github.com/garbage-enzyme/COMSOL_6_4_agentskill_for_metasurfaces)
+配合使用。该 skill 采用短 `SKILL.md` 入口，并按需路由到 clientapi、周期 Wave
+Optics、材料与边界、durable jobs、物理证据、资源安全、故障诊断和 MCP
+开发/发布工程模块，避免每轮都把整份指南载入上下文。
+
 ## 主要能力
 
 - **ClientAPI 适配。** 几何、物理场、材料、网格、研究、结果、模型克隆和 Unicode 安全的 `.mph` 保存均已适配 COMSOL 6.4+ clientapi。

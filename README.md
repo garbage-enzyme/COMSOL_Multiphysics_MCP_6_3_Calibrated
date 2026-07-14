@@ -8,6 +8,16 @@ English | [中文](README_CN.md)
 
 This server gives AI agents a safer, smaller interface for COMSOL inspection, controlled one-point validation, durable staged sweeps, and offline manual lookup. It is designed for the `model.java` clientapi object returned by `mph.Client()`, whose API differs materially from the direct `com.comsol.model.Model` API targeted by the upstream project.
 
+## Recommended companion skill
+
+For Claude Code, Codex CLI, opencode, and other skill-aware agents, use the
+[COMSOL 6.4+ metasurface agent skill](https://github.com/garbage-enzyme/COMSOL_6_4_agentskill_for_metasurfaces)
+alongside this server. Its short `SKILL.md` entry routes agents to focused
+reference modules for clientapi, periodic Wave Optics, materials and boundaries,
+durable jobs, physical evidence, resource safety, troubleshooting, and MCP
+development/release engineering without forcing the full guide into context on
+every turn.
+
 ## Highlights
 
 - **ClientAPI compatibility.** Geometry, physics, materials, meshes, studies, results, model cloning, and Unicode-safe `.mph` saving are adapted to COMSOL 6.4+ clientapi behavior.
