@@ -282,3 +282,28 @@ def test_stale_coordinator_resumes_from_persisted_terminate_phase(jobs_root, mon
     assert state["status"] == "cancelled"
     assert state["cancel"]["phase_timestamps"]["terminate"] == original_terminate_at
     assert "native_grace" not in state["cancel"]["phase_timestamps"]
+
+
+def test_cleanup_verification_poll_is_bounded_and_waits_for_exit(monkeypatch):
+    clock = FakeClock()
+    identity = FakeProcesses._identity(42001, "delayed-exit")
+    calls = 0
+
+    def delayed_verify(_identities):
+        nonlocal calls
+        calls += 1
+        state = "stale" if calls >= 3 else "active"
+        return {
+            "absent": state == "stale",
+            "verdicts": [{"identity": identity, "state": state, "reason": state}],
+        }
+
+    monkeypatch.setattr(cancel_worker.time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(cancel_worker.time, "sleep", clock.sleep)
+    monkeypatch.setattr(cancel_worker, "verify_absent", delayed_verify)
+
+    verified = cancel_worker._wait_for_process_absence([identity], 0.5)
+
+    assert verified["absent"] is True
+    assert calls == 3
+    assert clock.elapsed == pytest.approx(0.05)

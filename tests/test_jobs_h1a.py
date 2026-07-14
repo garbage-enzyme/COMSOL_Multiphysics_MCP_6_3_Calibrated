@@ -134,6 +134,7 @@ def test_cooperative_cancel_is_truthful_and_resumable(jobs_root):
     assert terminal["cancel"]["timing_policy"] == {
         "native_grace_budget_s": 10.0,
         "terminate_budget_s": 5.0,
+        "cleanup_verification_budget_s": 5.0,
     }
     assert terminal["cancel"]["teardown_latency"]["requested_to_terminal_s"] >= 0
     assert terminal["cancel"]["teardown_latency"]["coordinator_to_terminal_s"] >= 0

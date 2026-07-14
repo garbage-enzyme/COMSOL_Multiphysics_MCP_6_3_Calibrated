@@ -245,6 +245,24 @@ def _verified_cancel(store: JobStore, job_id: str, worker_verification: dict[str
     return {**worker_verification, "solver": solver, "absent": bool(worker_verification["absent"] and solver["ok"])}
 
 
+def _wait_for_process_absence(
+    identities: list[dict[str, Any]],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    """Poll boundedly after termination; uncertainty fails closed immediately."""
+    deadline = time.monotonic() + max(0.0, float(timeout_seconds))
+    while True:
+        verification = verify_absent(identities)
+        if verification["absent"]:
+            return verification
+        if any(item.get("state") == "uncertain" for item in verification.get("verdicts", [])):
+            return verification
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return verification
+        time.sleep(min(0.025, remaining))
+
+
 def run(
     root: str,
     job_id: str,
@@ -256,6 +274,7 @@ def run(
 ) -> int:
     store = JobStore(Path(root))
     identity = process_identity(os.getpid())
+    cleanup_verify_seconds = max(0.5, float(terminate_seconds))
     claimed = _claim(
         store,
         job_id,
@@ -274,6 +293,19 @@ def run(
         return 2
 
     cancel_evidence = claimed["state"].get("cancel") or {}
+    cancel_evidence["timing_policy"] = {
+        **dict(cancel_evidence.get("timing_policy") or {}),
+        "cleanup_verification_budget_s": cleanup_verify_seconds,
+    }
+    if not _checkpoint(
+        store,
+        job_id,
+        request_id,
+        identity,
+        resume_phase,
+        patch={"timing_policy": cancel_evidence["timing_policy"]},
+    ):
+        return 0
     persisted_descendants = cancel_evidence.get("descendants")
     if isinstance(persisted_descendants, list):
         initial_descendants = persisted_descendants
@@ -310,7 +342,14 @@ def run(
                     return 0
                 if phase_hook is not None:
                     phase_hook("verifying")
-                verification = _verified_cancel(store, job_id, verify_absent([worker, *initial_descendants]))
+                verification = _verified_cancel(
+                    store,
+                    job_id,
+                    _wait_for_process_absence(
+                        [worker, *initial_descendants],
+                        cleanup_verify_seconds,
+                    ),
+                )
                 if verification["absent"]:
                     return 0 if _commit_cancelled(store, job_id, request_id, verification, []) else 0
                 _record_blocker(store, job_id, request_id, str(verification.get("solver", {}).get("reason") or "worker exited during grace with uncertain descendants"))
@@ -323,7 +362,14 @@ def run(
             return 0
         if phase_hook is not None:
             phase_hook("verifying")
-        verification = _verified_cancel(store, job_id, verify_absent([worker, *initial_descendants]))
+        verification = _verified_cancel(
+            store,
+            job_id,
+            _wait_for_process_absence(
+                [worker, *initial_descendants],
+                cleanup_verify_seconds,
+            ),
+        )
         if verification["absent"]:
             return 0 if _commit_cancelled(store, job_id, request_id, verification, []) else 0
         _record_blocker(store, job_id, request_id, str(verification.get("solver", {}).get("reason") or captured["worker"]["reason"]))
@@ -357,7 +403,14 @@ def run(
         return 0
     if phase_hook is not None:
         phase_hook("verifying")
-    verification = _verified_cancel(store, job_id, verify_absent([worker, *descendants]))
+    verification = _verified_cancel(
+        store,
+        job_id,
+        _wait_for_process_absence(
+            [worker, *descendants],
+            cleanup_verify_seconds,
+        ),
+    )
     if not verification["absent"]:
         _record_blocker(store, job_id, request_id, str(verification.get("solver", {}).get("reason") or "worker or captured descendant identity remains active/uncertain"))
         return 0

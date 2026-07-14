@@ -9,6 +9,17 @@ from src.jobs.process_control import capture_owned_descendants, terminate_exact,
 from src.jobs.store import process_identity
 
 
+def _wait_absent(identities, timeout=5.0):
+    deadline = time.monotonic() + timeout
+    verification = verify_absent(identities)
+    while not verification["absent"] and time.monotonic() < deadline:
+        if any(item["state"] == "uncertain" for item in verification["verdicts"]):
+            break
+        time.sleep(0.025)
+        verification = verify_absent(identities)
+    return verification
+
+
 def test_exact_termination_refuses_a_reused_identity():
     identity = process_identity(os.getpid())
     identity["process_create_time"] -= 10
@@ -58,7 +69,7 @@ def test_owned_tree_capture_excludes_unrelated_sentinel():
             terminate_exact(descendant, force=True)
         root.wait(timeout=5)
 
-        assert verify_absent([identity, *descendants])["absent"] is True
+        assert _wait_absent([identity, *descendants])["absent"] is True
         assert sentinel.poll() is None
     finally:
         for process in (root, sentinel):
