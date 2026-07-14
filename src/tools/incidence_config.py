@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import re
+import threading
 from typing import Any, Literal
 
 from mcp.server.fastmcp import FastMCP
@@ -32,6 +33,8 @@ _SETTING_NAMES = (
     "alpha1_inc",
     "alpha2_inc",
 )
+_MAX_DERIVED_EVENTS = 256
+_INCIDENCE_MUTATION_LOCK = threading.RLock()
 
 
 def _bounded_text(value: object, *, name: str, limit: int) -> str:
@@ -161,7 +164,13 @@ def _incidence_state_hash(record: DerivedGeometryRecord, snapshot: dict[str, Any
     ).hexdigest()
 
 
-def preview_incidence(
+def _append_event(record: DerivedGeometryRecord, event: dict[str, Any]) -> None:
+    record.events.append(event)
+    if len(record.events) > _MAX_DERIVED_EVENTS:
+        del record.events[:-_MAX_DERIVED_EVENTS]
+
+
+def _preview_incidence_unlocked(
     model: Any,
     record: DerivedGeometryRecord,
     *,
@@ -241,8 +250,273 @@ def preview_incidence(
     }
 
 
+def preview_incidence(
+    model: Any,
+    record: DerivedGeometryRecord,
+    *,
+    alpha1_inc: str,
+    alpha2_inc: str,
+    alpha1_unit: str,
+    alpha2_unit: str,
+    polarization: str,
+    physical_polarization_target: str,
+    component_tag: str,
+    physics_tag: str,
+) -> dict[str, Any]:
+    with _INCIDENCE_MUTATION_LOCK:
+        return _preview_incidence_unlocked(
+            model,
+            record,
+            alpha1_inc=alpha1_inc,
+            alpha2_inc=alpha2_inc,
+            alpha1_unit=alpha1_unit,
+            alpha2_unit=alpha2_unit,
+            polarization=polarization,
+            physical_polarization_target=physical_polarization_target,
+            component_tag=component_tag,
+            physics_tag=physics_tag,
+        )
+
+
+def _incidence_nodes(
+    model: Any,
+    snapshot: dict[str, Any],
+) -> tuple[Any, dict[str, Any]]:
+    _component, physics = _component_physics(
+        model,
+        snapshot["component_tag"],
+        snapshot["physics_tag"],
+    )
+    parent = _get(physics.feature(), snapshot["periodic_structure"]["tag"])
+    children = parent.feature()
+    ports = {
+        item["tag"]: _get(children, item["tag"])
+        for item in snapshot["periodic_ports"]
+    }
+    return parent, ports
+
+
+def _planned_readback_mismatches(
+    snapshot: dict[str, Any],
+    planned: dict[str, Any],
+) -> list[str]:
+    mismatches: list[str] = []
+    parent = snapshot["periodic_structure"]
+    for name, expected in planned["periodic_structure"]["settings"].items():
+        actual = parent["settings"].get(name)
+        if actual != expected:
+            mismatches.append(
+                f"{parent['tag']}.{name}: expected {expected!r}, read {actual!r}"
+            )
+    ports = {item["tag"]: item for item in snapshot["periodic_ports"]}
+    for planned_port in planned["periodic_ports"]:
+        actual_port = ports.get(planned_port["tag"])
+        if actual_port is None:
+            mismatches.append(f"{planned_port['tag']}: port missing on readback")
+            continue
+        for name, expected in planned_port["settings"].items():
+            actual = actual_port["settings"].get(name)
+            if actual != expected:
+                mismatches.append(
+                    f"{planned_port['tag']}.{name}: expected {expected!r}, read {actual!r}"
+                )
+    return mismatches
+
+
+def _rollback_plan(before: dict[str, Any], planned: dict[str, Any]) -> dict[str, Any]:
+    parent_before = before["periodic_structure"]
+    parent_names = planned["periodic_structure"]["settings"]
+    missing = [name for name in parent_names if name not in parent_before["settings"]]
+    if missing:
+        raise ValueError(
+            "PeriodicStructure settings required for rollback are unreadable: "
+            + ", ".join(missing)
+        )
+    before_ports = {item["tag"]: item for item in before["periodic_ports"]}
+    port_plans = []
+    for planned_port in planned["periodic_ports"]:
+        tag = planned_port["tag"]
+        captured = before_ports.get(tag)
+        if captured is None:
+            raise ValueError(f"PeriodicPort required for rollback is missing: {tag}")
+        missing = [name for name in planned_port["settings"] if name not in captured["settings"]]
+        if missing:
+            raise ValueError(
+                f"PeriodicPort settings required for rollback are unreadable for {tag}: "
+                + ", ".join(missing)
+            )
+        port_plans.append(
+            {
+                "tag": tag,
+                "settings": {
+                    name: captured["settings"][name]
+                    for name in planned_port["settings"]
+                },
+            }
+        )
+    return {
+        "periodic_structure": {
+            "tag": parent_before["tag"],
+            "settings": {
+                name: parent_before["settings"][name]
+                for name in parent_names
+            },
+        },
+        "periodic_ports": port_plans,
+    }
+
+
+def _set_plan(parent: Any, ports: dict[str, Any], planned: dict[str, Any]) -> None:
+    for name, value in planned["periodic_structure"]["settings"].items():
+        parent.set(name, value)
+    for port in planned["periodic_ports"]:
+        node = ports[port["tag"]]
+        for name, value in port["settings"].items():
+            node.set(name, value)
+
+
+def _restore_plan(parent: Any, ports: dict[str, Any], planned: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    parent_tag = planned["periodic_structure"]["tag"]
+    for name, value in planned["periodic_structure"]["settings"].items():
+        try:
+            parent.set(name, value)
+        except Exception as exc:
+            errors.append(f"{parent_tag}.{name}: {str(exc)[:200]}")
+    for port in planned["periodic_ports"]:
+        node = ports[port["tag"]]
+        for name, value in port["settings"].items():
+            try:
+                node.set(name, value)
+            except Exception as exc:
+                errors.append(f"{port['tag']}.{name}: {str(exc)[:200]}")
+    return errors[:20]
+
+
+def _apply_incidence_unlocked(
+    model: Any,
+    record: DerivedGeometryRecord,
+    preview: dict[str, Any],
+    *,
+    expected_state_sha256: str,
+) -> dict[str, Any]:
+    """Apply, read back, and atomically roll back one incidence preview."""
+    component_tag = preview["before"]["component_tag"]
+    physics_tag = preview["before"]["physics_tag"]
+    current = _incidence_snapshot(model, component_tag, physics_tag)
+    current_hash = _incidence_state_hash(record, current)
+    if current_hash != expected_state_sha256 or current_hash != preview["pre_state_sha256"]:
+        raise ValueError("stale incidence pre-state; preview must be regenerated")
+    planned = preview["planned"]
+    rollback = _rollback_plan(current, planned)
+    parent, ports = _incidence_nodes(model, current)
+    try:
+        _set_plan(parent, ports, planned)
+        after = _incidence_snapshot(model, component_tag, physics_tag)
+        readback_mismatches = _planned_readback_mismatches(after, planned)
+        if readback_mismatches:
+            raise ValueError("incidence readback mismatch: " + "; ".join(readback_mismatches))
+    except Exception as exc:
+        rollback_write_errors: list[str] = []
+        try:
+            rollback_parent, rollback_ports = _incidence_nodes(model, current)
+            rollback_write_errors = _restore_plan(
+                rollback_parent,
+                rollback_ports,
+                rollback,
+            )
+        except Exception as rollback_exc:
+            rollback_write_errors.append(str(rollback_exc)[:300])
+        rollback_snapshot = None
+        rollback_readback_mismatches: list[str] = []
+        try:
+            rollback_snapshot = _incidence_snapshot(model, component_tag, physics_tag)
+            rollback_readback_mismatches = _planned_readback_mismatches(
+                rollback_snapshot,
+                rollback,
+            )
+        except Exception as rollback_exc:
+            rollback_readback_mismatches.append(
+                f"rollback snapshot unreadable: {str(rollback_exc)[:300]}"
+            )
+        rollback_proved = not rollback_readback_mismatches
+        if not rollback_proved:
+            record.dirty = True
+            record.dirty_reason = (
+                "incidence rollback unproven: "
+                + "; ".join(rollback_readback_mismatches)
+            )[:500]
+        event = {
+            "operation": "periodic_structure_incidence",
+            "success": False,
+            "rollback_proved": rollback_proved,
+            "derived_model_dirty": record.dirty,
+        }
+        _append_event(record, event)
+        return {
+            "success": False,
+            "error": str(exc)[:500],
+            "derived_model_id": record.derived_model_id,
+            "pre_state_sha256": current_hash,
+            "before": current,
+            "rollback_snapshot": rollback_snapshot,
+            "rollback_proved": rollback_proved,
+            "rollback_write_errors": rollback_write_errors,
+            "rollback_readback_mismatches": rollback_readback_mismatches,
+            "derived_model_dirty": record.dirty,
+            "solver_started": False,
+        }
+    post_hash = _incidence_state_hash(record, after)
+    _append_event(
+        record,
+        {
+            "operation": "periodic_structure_incidence",
+            "success": True,
+            "pre_state_sha256": current_hash,
+            "post_state_sha256": post_hash,
+        },
+    )
+    return {
+        "success": True,
+        "derived_model_id": record.derived_model_id,
+        "pre_state_sha256": current_hash,
+        "post_state_sha256": post_hash,
+        "before": current,
+        "after": after,
+        "evaluated_angles": preview["evaluated_angles"],
+        "request": preview["request"],
+        "reference_edge_ids": preview["reference_edge_ids"],
+        "physical_polarization_evidence": "label_only",
+        "evidence_codes": [
+            *preview["evidence_codes"],
+            "parent_and_ports_updated",
+            "post_settings_read_back",
+        ],
+        "rollback_proved": None,
+        "derived_model_dirty": False,
+        "mutated": True,
+        "solver_started": False,
+    }
+
+
+def apply_incidence(
+    model: Any,
+    record: DerivedGeometryRecord,
+    preview: dict[str, Any],
+    *,
+    expected_state_sha256: str,
+) -> dict[str, Any]:
+    with _INCIDENCE_MUTATION_LOCK:
+        return _apply_incidence_unlocked(
+            model,
+            record,
+            preview,
+            expected_state_sha256=expected_state_sha256,
+        )
+
+
 def register_incidence_config_tools(mcp: FastMCP) -> None:
-    """Register the derived-model-only incidence preview surface."""
+    """Register the derived-model-only incidence preview/apply surface."""
 
     @mcp.tool()
     def wave_optics_incidence_preview(
@@ -281,10 +555,53 @@ def register_incidence_config_tools(mcp: FastMCP) -> None:
         except Exception as exc:
             return {"success": False, "error": str(exc)[:500]}
 
+    @mcp.tool()
+    def wave_optics_incidence_apply(
+        derived_model_id: str,
+        model_name: str,
+        expected_state_sha256: str,
+        alpha1_inc: str,
+        alpha2_inc: str,
+        polarization: Literal["S", "P", "rhcp", "lhcp"],
+        physical_polarization_target: str,
+        alpha1_unit: Literal["deg", "rad"] = "deg",
+        alpha2_unit: Literal["deg", "rad"] = "deg",
+        component_tag: str = "comp1",
+        physics_tag: str = "ewfd",
+    ) -> dict[str, Any]:
+        """Atomically apply and read back derived-model PeriodicStructure incidence."""
+        try:
+            record = _record(derived_model_id, model_name)
+            model = session_manager.get_model(model_name)
+            if model is None:
+                raise ValueError(f"model is not loaded: {model_name}")
+            with _INCIDENCE_MUTATION_LOCK:
+                preview = _preview_incidence_unlocked(
+                    model,
+                    record,
+                    alpha1_inc=alpha1_inc,
+                    alpha2_inc=alpha2_inc,
+                    alpha1_unit=alpha1_unit,
+                    alpha2_unit=alpha2_unit,
+                    polarization=polarization,
+                    physical_polarization_target=physical_polarization_target,
+                    component_tag=component_tag,
+                    physics_tag=physics_tag,
+                )
+                return _apply_incidence_unlocked(
+                    model,
+                    record,
+                    preview,
+                    expected_state_sha256=expected_state_sha256,
+                )
+        except Exception as exc:
+            return {"success": False, "error": str(exc)[:500]}
+
 
 __all__ = [
     "_incidence_snapshot",
     "_incidence_state_hash",
+    "apply_incidence",
     "preview_incidence",
     "register_incidence_config_tools",
 ]

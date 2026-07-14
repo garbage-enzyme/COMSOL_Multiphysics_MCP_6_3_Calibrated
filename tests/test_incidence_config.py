@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 from mcp.server.fastmcp import FastMCP
 
 from src.tools import incidence_config
 from src.tools.derived_geometry import DerivedGeometryRecord, _DERIVED
-from src.tools.incidence_config import preview_incidence, register_incidence_config_tools
+from src.tools.incidence_config import (
+    _incidence_snapshot,
+    apply_incidence,
+    preview_incidence,
+    register_incidence_config_tools,
+)
 
 
 class Container:
@@ -35,6 +42,9 @@ class Feature:
         self.props = dict(props or {})
         self.children = Container(children or {})
         self._selection = Selection(entities)
+        self.fail_once = set()
+        self.fail_values = set()
+        self.mismatch_values = {}
 
     def getType(self):
         return self.kind
@@ -50,6 +60,14 @@ class Feature:
 
     def selection(self):
         return self._selection
+
+    def set(self, name, value):
+        if name in self.fail_once:
+            self.fail_once.remove(name)
+            raise RuntimeError(f"forced one-shot {name} failure")
+        if (name, value) in self.fail_values:
+            raise RuntimeError(f"forced {name}={value} failure")
+        self.props[name] = self.mismatch_values.get((name, value), value)
 
 
 class Physics:
@@ -105,6 +123,7 @@ def fixture(*, periodic_count=1, port_count=2, rdir_entities=(41,), values=None)
     parent_props = {
         "Polarization": "LinearPol",
         "LinearPol": "S",
+        "CircularPol": "rhcp",
         "alpha1_inc": "old_theta",
         "alpha2_inc": "old_phi",
     }
@@ -141,6 +160,12 @@ def preview(model, record, **overrides):
     }
     arguments.update(overrides)
     return preview_incidence(model, record, **arguments)
+
+
+def parent_and_ports(model):
+    physics = model.java.component().get("comp1").physics().get("ewfd")
+    parent = physics.feature().get("ps1")
+    return parent, parent.feature().get("pport1"), parent.feature().get("pport2")
 
 
 def test_linear_preview_evaluates_parameters_and_is_read_only():
@@ -266,3 +291,175 @@ def test_dirty_or_untracked_models_are_rejected_by_public_tool(monkeypatch):
         assert "dirty" in dirty["error"]
     finally:
         _DERIVED.pop(record.derived_model_id, None)
+
+
+def test_atomic_apply_updates_parent_and_both_ports_with_exact_readback():
+    model, record = fixture()
+    request = preview(model, record, polarization="lhcp")
+    result = apply_incidence(
+        model,
+        record,
+        request,
+        expected_state_sha256=request["pre_state_sha256"],
+    )
+
+    assert result["success"] is True
+    assert result["solver_started"] is False
+    assert result["after"]["periodic_structure"]["settings"]["Polarization"] == "CircularPol"
+    assert result["after"]["periodic_structure"]["settings"]["CircularPol"] == "lhcp"
+    assert {
+        (port["settings"]["alpha1_inc"], port["settings"]["alpha2_inc"])
+        for port in result["after"]["periodic_ports"]
+    } == {("theta", "phi")}
+    assert "post_settings_read_back" in result["evidence_codes"]
+    assert record.dirty is False
+
+
+def test_public_apply_uses_one_locked_preview_apply_transaction(monkeypatch):
+    model, record = fixture()
+    initial = preview(model, record)
+    server = FastMCP("incidence-apply-test")
+    register_incidence_config_tools(server)
+    tool = server._tool_manager._tools["wave_optics_incidence_apply"]
+    monkeypatch.setattr(incidence_config.session_manager, "get_model", lambda name: model)
+    _DERIVED[record.derived_model_id] = record
+    try:
+        result = tool.fn(
+            derived_model_id=record.derived_model_id,
+            model_name=record.model_name,
+            expected_state_sha256=initial["pre_state_sha256"],
+            alpha1_inc="theta",
+            alpha2_inc="phi",
+            polarization="P",
+            physical_polarization_target="laboratory x-linear",
+        )
+    finally:
+        _DERIVED.pop(record.derived_model_id, None)
+
+    assert result["success"] is True
+    assert result["after"]["periodic_structure"]["settings"]["LinearPol"] == "P"
+
+
+def test_partial_child_failure_rolls_back_all_nodes_when_readback_proves_state():
+    model, record = fixture()
+    before = _incidence_snapshot(model, "comp1", "ewfd")
+    _parent, _port1, port2 = parent_and_ports(model)
+    port2.fail_once.add("alpha2_inc")
+    request = preview(model, record)
+    result = apply_incidence(
+        model,
+        record,
+        request,
+        expected_state_sha256=request["pre_state_sha256"],
+    )
+
+    assert result["success"] is False
+    assert result["rollback_proved"] is True
+    assert result["rollback_snapshot"] == before
+    assert result["derived_model_dirty"] is False
+
+
+def test_readback_mismatch_triggers_proved_rollback():
+    model, record = fixture()
+    before = _incidence_snapshot(model, "comp1", "ewfd")
+    parent, _port1, _port2 = parent_and_ports(model)
+    parent.mismatch_values[("alpha1_inc", "theta")] = "wrong_theta"
+    request = preview(model, record)
+    result = apply_incidence(
+        model,
+        record,
+        request,
+        expected_state_sha256=request["pre_state_sha256"],
+    )
+
+    assert result["success"] is False
+    assert "readback mismatch" in result["error"]
+    assert result["rollback_proved"] is True
+    assert result["rollback_snapshot"] == before
+    assert record.dirty is False
+
+
+def test_unproved_rollback_marks_derived_model_dirty():
+    model, record = fixture()
+    _parent, port1, port2 = parent_and_ports(model)
+    port1.fail_values.add(("alpha1_inc", "old_theta"))
+    port2.fail_once.add("alpha2_inc")
+    request = preview(model, record)
+    result = apply_incidence(
+        model,
+        record,
+        request,
+        expected_state_sha256=request["pre_state_sha256"],
+    )
+
+    assert result["success"] is False
+    assert result["rollback_proved"] is False
+    assert result["rollback_readback_mismatches"]
+    assert result["derived_model_dirty"] is True
+    assert record.dirty_reason.startswith("incidence rollback unproven")
+    assert port1.props["alpha2_inc"] == "old_phi"
+    assert port2.props["alpha1_inc"] == "old_theta"
+    assert port2.props["alpha2_inc"] == "old_phi"
+
+
+def test_stale_apply_is_rejected_before_any_write():
+    model, record = fixture()
+    request = preview(model, record)
+    parent, port1, port2 = parent_and_ports(model)
+    before = [dict(node.props) for node in (parent, port1, port2)]
+
+    with pytest.raises(ValueError, match="stale incidence pre-state"):
+        apply_incidence(
+            model,
+            record,
+            request,
+            expected_state_sha256="0" * 64,
+        )
+    assert [node.props for node in (parent, port1, port2)] == before
+
+
+def test_repeated_apply_keeps_derived_event_history_bounded():
+    model, record = fixture()
+    for _index in range(300):
+        request = preview(model, record)
+        result = apply_incidence(
+            model,
+            record,
+            request,
+            expected_state_sha256=request["pre_state_sha256"],
+        )
+        assert result["success"] is True
+
+    assert len(record.events) == 256
+
+
+def test_concurrent_applies_serialize_and_one_fails_stale_without_mixed_state():
+    model, record = fixture(values={"theta2": 20.0, "phi2": 30.0})
+    first = preview(model, record, polarization="P")
+    second = preview(
+        model,
+        record,
+        alpha1_inc="theta2",
+        alpha2_inc="phi2",
+        polarization="rhcp",
+    )
+
+    def run(request):
+        try:
+            return apply_incidence(
+                model,
+                record,
+                request,
+                expected_state_sha256=request["pre_state_sha256"],
+            )
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(run, (first, second)))
+
+    assert sum(result["success"] is True for result in results) == 1
+    assert sum("stale incidence pre-state" in result.get("error", "") for result in results) == 1
+    final = _incidence_snapshot(model, "comp1", "ewfd")
+    winner = next(result for result in results if result["success"] is True)
+    assert final == winner["after"]

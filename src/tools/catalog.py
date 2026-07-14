@@ -100,7 +100,7 @@ _TOOLS_BY_REGISTRAR = {
         "geometry_blocks_preview", "geometry_blocks_apply",
     ),
     "src.tools.incidence_config.register_incidence_config_tools": (
-        "wave_optics_incidence_preview",
+        "wave_optics_incidence_preview", "wave_optics_incidence_apply",
     ),
     "src.tools.wave_optics_audit.register_wave_optics_audit_tools": (
         "wave_optics_point_audit",
@@ -179,6 +179,7 @@ _EXPERIMENTAL_TOOLS = frozenset({
     "geometry_derived_clone", "geometry_fin_preview", "geometry_fin_apply",
     "geometry_blocks_preview", "geometry_blocks_apply",
     "wave_optics_incidence_preview",
+    "wave_optics_incidence_apply",
     "semantic_search", "semantic_status", "semantic_worker_reset",
 })
 
@@ -249,6 +250,7 @@ _SIDE_EFFECTS = {
     "geometry_derived_clone": "filesystem_write_model_mutation",
     "geometry_fin_apply": "model_mutation",
     "geometry_blocks_apply": "model_mutation",
+    "wave_optics_incidence_apply": "model_mutation",
     "manual_search": "read_only_subprocess",
     "manual_read_pages": "read_only_subprocess",
     "semantic_search": "read_only_subprocess",
@@ -305,6 +307,7 @@ _WAVE_OPTICS_ADDITIONS = frozenset({
     "geometry_derived_clone", "geometry_fin_preview", "geometry_fin_apply",
     "geometry_blocks_preview", "geometry_blocks_apply",
     "wave_optics_incidence_preview",
+    "wave_optics_incidence_apply",
     "wave_optics_point_audit",
     "wave_optics_material_expression_preview",
     "visual_review_capability_normalize", "visual_review_request_create",
