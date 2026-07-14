@@ -315,7 +315,7 @@ def run(
                     return 0 if _commit_cancelled(store, job_id, request_id, verification, []) else 0
                 _record_blocker(store, job_id, request_id, str(verification.get("solver", {}).get("reason") or "worker exited during grace with uncertain descendants"))
                 return 0
-            time.sleep(0.025)
+            time.sleep(min(0.025, max(0.0, deadline - time.monotonic())))
 
     captured = capture_owned_descendants(worker)
     if captured["worker"]["state"] != "active" and resume_phase not in {"terminate", "force_kill"}:
@@ -341,7 +341,7 @@ def run(
                 return 0
             wait_deadline = time.monotonic() + max(0.0, float(terminate_seconds))
             while time.monotonic() < wait_deadline and inspect_identity(worker)["state"] == "active":
-                time.sleep(0.025)
+                time.sleep(min(0.025, max(0.0, wait_deadline - time.monotonic())))
         if inspect_identity(worker)["state"] == "active":
             if not _checkpoint(store, job_id, request_id, identity, "force_kill", patch={"worker_actions": actions}):
                 return 0
