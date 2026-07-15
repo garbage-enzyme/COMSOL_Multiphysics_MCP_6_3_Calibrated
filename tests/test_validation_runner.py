@@ -266,3 +266,22 @@ def test_resource_hook_identity_and_authorization_must_match(tmp_path):
             pass
         else:
             raise AssertionError("invalid resource hook output must fail closed")
+
+
+def test_post_solve_skip_completed_is_a_normal_durable_replay_state(tmp_path):
+    spec = _spec(tmp_path)
+    result = run_pending_validation_points(
+        spec,
+        tmp_path / "job",
+        attempt=1,
+        collector_executor=_complete_executor,
+        after_durable_row_hook=lambda context: {
+            "action": "skip_completed",
+            "start_authorized": False,
+            "point_id": context["point_id"],
+        },
+    )
+
+    assert result["success"] is True
+    assert result["processed"] == 2
+    assert result["remaining"] == 0

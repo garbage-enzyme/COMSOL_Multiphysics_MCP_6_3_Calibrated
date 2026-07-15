@@ -238,7 +238,7 @@ def run_pending_validation_points(
             spec=spec,
             point=point,
         )
-        if after["action"] != "start_point":
+        if after["action"] in {"await_confirmation", "checkpoint_no_start"}:
             return {
                 "success": row["status"] == "ok",
                 "stop_reason": f"after_durable_row_{after['action']}",

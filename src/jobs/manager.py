@@ -16,6 +16,7 @@ import psutil
 
 from .process_control import inspect_identity, verify_absent
 from .resource_admission import normalize_resource_policy
+from .validation_matrix import normalize_validation_matrix_spec
 from .store import (
     ACTIVE_STATES,
     JOB_SCHEMA_VERSION,
@@ -149,6 +150,25 @@ def _validate_test_spec(raw: dict[str, Any]) -> dict[str, Any]:
     return spec
 
 
+def _worker_module(job_type: str) -> str:
+    modules = {
+        "test_sequence": "src.jobs.sequence_worker",
+        "staged_sweep": "src.jobs.worker",
+        "validation_matrix": "src.jobs.validation_worker",
+    }
+    try:
+        return modules[job_type]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported durable job type: {job_type}") from exc
+
+
+def _point_count(spec: dict[str, Any]) -> int:
+    field = "delays" if spec["job_type"] == "test_sequence" else (
+        "points" if spec["job_type"] == "validation_matrix" else "parameter_values"
+    )
+    return len(spec[field])
+
+
 class JobManager:
     """Persist and reconcile jobs without importing or starting COMSOL."""
 
@@ -176,17 +196,17 @@ class JobManager:
             if not self.allow_test_jobs:
                 raise ValueError("test_sequence jobs are disabled")
             spec = _validate_test_spec(raw_spec)
-            worker_module = "src.jobs.sequence_worker"
+        elif job_type == "validation_matrix":
+            spec = normalize_validation_matrix_spec(raw_spec)
         else:
             spec = validate_staged_sweep_spec(raw_spec)
+        worker_module = _worker_module(spec["job_type"])
+        if spec["job_type"] != "test_sequence":
             preflight = self._run_preflight(spec)
             if not preflight.get("ready", preflight.get("success", False)):
                 raise RuntimeError(f"Job preflight failed: {preflight.get('blockers') or preflight}")
-            worker_module = "src.jobs.worker"
         now = time.time()
-        total_points = len(spec["delays"]) if spec["job_type"] == "test_sequence" else len(
-            spec["parameter_values"]
-        )
+        total_points = _point_count(spec)
         state = {
             "schema_version": JOB_SCHEMA_VERSION,
             "status": "submitted",
@@ -504,7 +524,7 @@ class JobManager:
         # Ownership status merges durable-job summaries, so preflight must run
         # outside this job's lock.  The second locked validation below prevents
         # two concurrent resume callers from both transitioning and launching.
-        if spec["job_type"] == "staged_sweep":
+        if spec["job_type"] in {"staged_sweep", "validation_matrix"}:
             if self._preflight is None:
                 from src.tools.ownership import SolverOwnership
 
@@ -551,7 +571,7 @@ class JobManager:
                 fields={"cleared_for_attempt": state["attempt"]},
             )
             self.store._append_event_unlocked(job_id, "resume_requested", {"attempt": state["attempt"]}, "starting")
-        module = "src.jobs.sequence_worker" if current_spec["job_type"] == "test_sequence" else "src.jobs.worker"
+        module = _worker_module(current_spec["job_type"])
         try:
             identity = self._launch_worker(job_id, module)
             self.store.update_state(
