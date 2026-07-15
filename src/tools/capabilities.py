@@ -157,6 +157,7 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
             "bounded_lexical_manual_search",
             "solver_ownership_and_preflight",
             "durable_background_staged_sweep_jobs",
+            "durable_background_validation_matrix_jobs",
             "durable_job_real_cancellation_and_resume",
             "wave_optics_read_only_preflight",
             "wave_optics_one_point_policy_separated_audit",
@@ -235,9 +236,12 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
         "semantic_search": semantic,
         "long_jobs": {
             "durable_background_jobs": True,
-            "job_types": ["staged_sweep"],
+            "job_types": ["staged_sweep", "validation_matrix"],
             "control_tools": ["job_submit", "job_status", "job_tail", "job_cancel", "job_resume"],
-            "cancellation_scope": "same-host durable staged_sweep jobs owned by this runtime root",
+            "cancellation_scope": (
+                "same-host durable staged_sweep and validation_matrix jobs "
+                "owned by this runtime root"
+            ),
             "cancellation_strategy": (
                 "attempt-bound native cancellation on the verified COMSOL 6.4.0.293 profile; "
                 "exact-identity owned-process fallback elsewhere; cancelled is committed only after "
@@ -248,6 +252,8 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
             "native_cancel_profile": "comsol-6.4.0.293-progress-context-20260712",
             "cross_host_cancellation": False,
             "staged_csv_resume": True,
+            "validation_matrix_exact_identity_resume": True,
+            "validation_matrix_max_points": 32,
         },
         "restart_required_after_source_changes": True,
     }
@@ -264,7 +270,7 @@ def startup_capability_summary(selection: ProfileSelection | None = None) -> str
         f"tools={capabilities['tool_count']}; "
         f"target=COMSOL {targets['comsol']} / MPh {targets['mph']}; "
         f"lexical_manual=enabled; semantic_docs={'active' if capabilities['semantic_search']['profile_active'] else 'disabled'}; "
-        "durable_jobs=staged_sweep; "
+        "durable_jobs=staged_sweep,validation_matrix; "
         "solver_ownership=enforced; durable_job_cancellation=verified"
     )
 

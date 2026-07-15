@@ -33,7 +33,7 @@ def register_job_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     def job_submit(spec: dict[str, Any]) -> dict[str, Any]:
-        """Validate and detach one durable staged_sweep job; returns without waiting for COMSOL."""
+        """Validate and detach one bounded staged_sweep or validation_matrix job."""
         return _job_call("job_submit", lambda: job_manager.submit(spec))
 
     @mcp.tool()
@@ -65,7 +65,7 @@ def register_job_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     def job_resume(job_id: str) -> dict[str, Any]:
-        """Resume only failed/interrupted jobs with an unchanged immutable specification and M1 journal."""
+        """Resume one failed/interrupted/cancelled job with unchanged immutable evidence."""
         return _job_call(
             "job_resume",
             lambda: job_manager.resume(job_id),
