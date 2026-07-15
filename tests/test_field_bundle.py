@@ -10,6 +10,7 @@ from src.evidence.field_bundle import (
     MAX_INLINE_FIELD_SAMPLES,
     MAX_RAW_FIELD_POINTS,
     normalize_field_evidence_request,
+    validate_field_evidence_request,
 )
 
 
@@ -214,3 +215,32 @@ def test_nonfinite_values_duplicate_expressions_and_duplicate_sources_are_reject
         normalize_field_evidence_request(duplicate_expression)
     with pytest.raises(ValueError, match="unique exact source identities"):
         normalize_field_evidence_request(duplicate_source)
+
+
+def test_normalized_request_survives_json_transport_and_detects_tampering():
+    import json
+
+    normalized = normalize_field_evidence_request(_request())
+    transported = json.loads(json.dumps(normalized))
+
+    assert validate_field_evidence_request(transported) == normalized
+
+    transported["grid_point_count"] += 1
+    with pytest.raises(ValueError, match="not canonical or was modified"):
+        validate_field_evidence_request(transported)
+
+
+def test_normalized_request_rejects_unknown_fields_and_changed_generated_identity():
+    unknown = normalize_field_evidence_request(_request())
+    unknown["runtime_callback"] = "arbitrary"
+    changed_source = normalize_field_evidence_request(_request())
+    changed_source["views"][0]["source"]["source_fingerprint"] = "0" * 64
+    changed_request = normalize_field_evidence_request(_request())
+    changed_request["request_fingerprint"] = "0" * 64
+
+    with pytest.raises(ValueError, match="unsupported fields"):
+        validate_field_evidence_request(unknown)
+    with pytest.raises(ValueError, match="not canonical or was modified"):
+        validate_field_evidence_request(changed_source)
+    with pytest.raises(ValueError, match="not canonical or was modified"):
+        validate_field_evidence_request(changed_request)

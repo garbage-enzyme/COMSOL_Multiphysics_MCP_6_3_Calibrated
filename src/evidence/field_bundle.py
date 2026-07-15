@@ -429,6 +429,78 @@ def normalize_field_evidence_request(value: object) -> dict[str, Any]:
     return deepcopy(result)
 
 
+def validate_field_evidence_request(value: object) -> dict[str, Any]:
+    """Validate a normalized request after JSON or worker-process transport."""
+    item = _mapping(value, "field_evidence_request")
+    normalized_fields = {
+        "schema_name",
+        "schema_version",
+        "request_id",
+        "configuration_sha256",
+        "expressions",
+        "views",
+        "slice",
+        "coordinate_bounds",
+        "grid",
+        "render",
+        "limits",
+        "grid_point_count",
+        "visual_review_state",
+        "request_fingerprint",
+    }
+    _exact_fields(item, normalized_fields, normalized_fields, "field_evidence_request")
+    if (
+        item["schema_name"] != FIELD_EVIDENCE_REQUEST_SCHEMA
+        or item["schema_version"] != FIELD_EVIDENCE_SCHEMA_VERSION
+    ):
+        raise ValueError("field_evidence_request schema is unsupported")
+    if item["visual_review_state"] != "visual_review_required":
+        raise ValueError("field_evidence_request must remain visual_review_required")
+
+    views = item["views"]
+    if not isinstance(views, list):
+        raise ValueError("field_evidence_request.views must be a list")
+    raw_views: list[dict[str, Any]] = []
+    for index, value_item in enumerate(views):
+        view = _mapping(value_item, f"field_evidence_request.views[{index}]")
+        source = _mapping(
+            view.get("source"), f"field_evidence_request.views[{index}].source"
+        )
+        outputs = _mapping(
+            view.get("outputs"), f"field_evidence_request.views[{index}].outputs"
+        )
+        raw_source = dict(source)
+        raw_source.pop("source_fingerprint", None)
+        raw_outputs = dict(outputs)
+        if raw_outputs.get("png_artifact_id") is None:
+            raw_outputs.pop("png_artifact_id", None)
+        raw_views.append(
+            {
+                "view_id": view.get("view_id"),
+                "wavelength_m": view.get("wavelength_m"),
+                "source": raw_source,
+                "outputs": raw_outputs,
+            }
+        )
+
+    normalized = normalize_field_evidence_request(
+        {
+            "request_id": item["request_id"],
+            "configuration_sha256": item["configuration_sha256"],
+            "expressions": item["expressions"],
+            "views": raw_views,
+            "slice": item["slice"],
+            "coordinate_bounds": item["coordinate_bounds"],
+            "grid": item["grid"],
+            "render": item["render"],
+            "limits": item["limits"],
+        }
+    )
+    if normalized != item:
+        raise ValueError("field_evidence_request is not canonical or was modified")
+    return deepcopy(normalized)
+
+
 __all__ = [
     "FIELD_EVIDENCE_REQUEST_SCHEMA",
     "FIELD_EVIDENCE_SCHEMA_VERSION",
@@ -439,4 +511,5 @@ __all__ = [
     "MAX_INLINE_FIELD_SAMPLES",
     "MAX_RAW_FIELD_POINTS",
     "normalize_field_evidence_request",
+    "validate_field_evidence_request",
 ]
