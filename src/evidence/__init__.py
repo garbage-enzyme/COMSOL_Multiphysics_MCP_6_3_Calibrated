@@ -40,6 +40,7 @@ from .field_manifest import (
 )
 from .field_artifacts import write_field_evidence_artifacts
 from .field_sampling import select_field_slice_samples
+from .field_interpolation import interpolate_field_slice
 
 __all__ = [
     "EVIDENCE_STATES",
@@ -72,4 +73,5 @@ __all__ = [
     "validate_field_evidence_manifest",
     "write_field_evidence_artifacts",
     "select_field_slice_samples",
+    "interpolate_field_slice",
 ]
