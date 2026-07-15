@@ -121,6 +121,7 @@ def _run(
         source = Path(spec["source_model_path"])
         if _sha256_file(source) != spec["source_model_sha256"]:
             raise RuntimeError("Immutable validation source hash changed before client startup")
+        completed_point_fingerprints(directory / "matrix_rows.jsonl", spec)
         ownership = ownership_factory(store.root.parent, f"job:{job_id}")
         preflight = ownership.preflight(
             model_path=str(source),

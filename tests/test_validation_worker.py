@@ -233,3 +233,136 @@ def test_manager_rejects_matrix_bounds_before_preflight_or_launch(tmp_path, asci
     else:
         raise AssertionError("invalid matrix must fail")
     assert calls == []
+
+
+def test_exact_duplicate_submit_returns_existing_job_without_second_launch(tmp_path, ascii_root, monkeypatch):
+    source = tmp_path / "fixture.mph"
+    source.write_bytes(b"model")
+    manager = JobManager(ascii_root / "jobs", preflight=lambda **_kwargs: {"ready": True})
+    identity = process_identity(os.getpid())
+    launches = []
+    monkeypatch.setattr(
+        manager,
+        "_launch_worker",
+        lambda job_id, module: launches.append((job_id, module)) or identity,
+    )
+
+    first = manager.submit(_raw_spec(source))
+    second = manager.submit(_raw_spec(source))
+
+    assert second["duplicate"] is True
+    assert second["job_id"] == first["job_id"]
+    assert second["action"] == "observe_existing"
+    assert len(launches) == 1
+
+
+def test_malformed_prior_row_fails_before_ownership_or_client(tmp_path, ascii_root):
+    source = tmp_path / "fixture.mph"
+    source.write_bytes(b"model")
+    spec = normalize_validation_matrix_spec(_raw_spec(source, points=1))
+    store, job_id = _create_job(ascii_root / "jobs", spec)
+    (store.job_dir(job_id) / "matrix_rows.jsonl").write_text("{bad json}\n", encoding="utf-8")
+    calls = []
+
+    code = _run(
+        str(store.root),
+        job_id,
+        ownership_factory=lambda *_args: calls.append("ownership"),
+        client_factory=lambda _spec: calls.append("client"),
+        collector_executor=_collector,
+        telemetry_provider=_telemetry(),
+        native_cancel_enabled=False,
+    )
+
+    assert code == 1
+    assert calls == []
+    assert store.read_state(job_id)["status"] == "failed"
+
+
+def test_interrupted_matrix_resumes_only_pending_exact_point_and_status_is_bounded(
+    tmp_path, ascii_root, monkeypatch
+):
+    source = tmp_path / "fixture.mph"
+    source.write_bytes(b"model")
+    spec = normalize_validation_matrix_spec(_raw_spec(source))
+    store, job_id = _create_job(ascii_root / "jobs", spec)
+    first_ownership = FakeOwnership()
+
+    def stop_after_first(stage, point_id, _model, _directory, elapsed):
+        second_id = spec["points"][1]["point_fingerprint"]
+        return {
+            "stage": stage,
+            "observed_at_epoch": 1.0 + elapsed,
+            "mesh_elements": 101 if stage == "pre_solve" and point_id == second_id else 10,
+            "elapsed_wall_seconds": elapsed,
+        }
+
+    first_code = _run(
+        str(store.root),
+        job_id,
+        ownership_factory=lambda *_args: first_ownership,
+        client_factory=lambda _spec: FakeClient(),
+        collector_executor=_collector,
+        telemetry_provider=stop_after_first,
+        native_cancel_enabled=False,
+    )
+    assert first_code == 0
+    assert store.read_state(job_id)["status"] == "interrupted"
+    assert len(read_validation_rows(store.job_dir(job_id) / "matrix_rows.jsonl", spec)) == 1
+
+    manager = JobManager(store.root, preflight=lambda **_kwargs: {"ready": True})
+    identity = process_identity(os.getpid())
+    monkeypatch.setattr(manager, "_launch_worker", lambda *_args: identity)
+    assert manager.resume(job_id)["attempt"] == 2
+    second_ownership = FakeOwnership()
+    second_code = _run(
+        str(store.root),
+        job_id,
+        ownership_factory=lambda *_args: second_ownership,
+        client_factory=lambda _spec: FakeClient(),
+        collector_executor=_collector,
+        telemetry_provider=_telemetry(),
+        native_cancel_enabled=False,
+    )
+
+    rows = read_validation_rows(store.job_dir(job_id) / "matrix_rows.jsonl", spec)
+    status = manager.status(job_id)
+    assert second_code == 0
+    assert [row["point_id"] for row in rows] == ["point-0", "point-1"]
+    assert [row["attempt"] for row in rows] == [1, 2]
+    assert status["status"] == "completed"
+    assert status["matrix_summary"] == {
+        "total_declared": 2,
+        "rows": 2,
+        "complete": 2,
+        "errors": 0,
+        "pending": 0,
+        "last_row_sha256": rows[-1]["row_sha256"],
+        "last_error_type": None,
+    }
+
+
+def test_validation_worker_observes_attempt_bound_cancel_before_client_start(tmp_path, ascii_root):
+    source = tmp_path / "fixture.mph"
+    source.write_bytes(b"model")
+    spec = normalize_validation_matrix_spec(_raw_spec(source, points=1))
+    store, job_id = _create_job(ascii_root / "jobs", spec)
+    request = store.request_cancel(job_id, requester_identity=process_identity(os.getpid()))
+    calls = []
+
+    code = _run(
+        str(store.root),
+        job_id,
+        ownership_factory=lambda *_args: calls.append("ownership"),
+        client_factory=lambda _spec: calls.append("client"),
+        collector_executor=_collector,
+        telemetry_provider=_telemetry(),
+        native_cancel_enabled=False,
+    )
+
+    state = store.read_state(job_id)
+    assert request["accepted"] is True
+    assert code == 0
+    assert calls == []
+    assert state["status"] == "cancel_requested"
+    assert state["cancel"]["cooperative_observation"]["target_attempt"] == 1

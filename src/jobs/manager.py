@@ -21,11 +21,13 @@ from .store import (
     ACTIVE_STATES,
     JOB_SCHEMA_VERSION,
     TRANSITIONS,
+    JobLock,
     JobStore,
     atomic_write_json,
     cancel_request_targets_attempt,
     process_identity,
     process_identity_state,
+    read_json,
 )
 
 
@@ -219,7 +221,25 @@ class JobManager:
             "progress": {"completed": 0, "total": total_points},
             "last_error": None,
         }
-        job_id = self.store.create(spec, state)
+        if spec["job_type"] == "validation_matrix":
+            with JobLock(self.store.root / ".submit.lock"):
+                duplicate = self._find_validation_duplicate(spec["spec_fingerprint"])
+                if duplicate is not None:
+                    existing_state = self.store.read_state(duplicate)
+                    return {
+                        "success": True,
+                        "job_id": duplicate,
+                        "status": existing_state["status"],
+                        "duplicate": True,
+                        "action": (
+                            "resume_existing"
+                            if existing_state["status"] in {"failed", "interrupted", "cancelled"}
+                            else "observe_existing"
+                        ),
+                    }
+                job_id = self.store.create(spec, state)
+        else:
+            job_id = self.store.create(spec, state)
         self.store.append_event(job_id, "submitted", {"spec_fingerprint": spec["spec_fingerprint"]})
         try:
             identity = self._launch_worker(job_id, worker_module)
@@ -242,6 +262,23 @@ class JobManager:
             )
             raise
         return {"success": True, "job_id": job_id, "status": "submitted"}
+
+    def _find_validation_duplicate(self, spec_fingerprint: str) -> str | None:
+        directories = sorted(
+            path
+            for path in self.store.root.iterdir()
+            if path.is_dir() and path.name.startswith("job-") and (path / "spec.json").is_file()
+        )
+        if len(directories) > 1000:
+            raise RuntimeError("Durable job root exceeds the duplicate-scan bound")
+        for directory in directories:
+            existing = read_json(directory / "spec.json")
+            if (
+                existing.get("job_type") == "validation_matrix"
+                and existing.get("spec_fingerprint") == spec_fingerprint
+            ):
+                return directory.name
+        return None
 
     def _run_preflight(self, spec: dict[str, Any]) -> dict[str, Any]:
         if self._preflight is not None:
@@ -635,6 +672,22 @@ class JobManager:
                 else:
                     state["worker_process_state"] = process_state
                     state["worker_process_reason"] = reason
+            spec = self.store.read_spec(job_id)
+            if spec.get("job_type") == "validation_matrix":
+                from .validation_rows import read_validation_rows
+
+                rows = read_validation_rows(self.store.job_dir(job_id) / "matrix_rows.jsonl", spec)
+                ok = [row for row in rows if row["status"] == "ok"]
+                errors = [row for row in rows if row["status"] == "error"]
+                state["matrix_summary"] = {
+                    "total_declared": len(spec["points"]),
+                    "rows": len(rows),
+                    "complete": len(ok),
+                    "errors": len(errors),
+                    "pending": len(spec["points"]) - len({row["point_fingerprint"] for row in ok}),
+                    "last_row_sha256": rows[-1]["row_sha256"] if rows else None,
+                    "last_error_type": errors[-1]["error"]["type"] if errors else None,
+                }
             return {"success": True, "job_id": job_id, **state}
 
     def tail(self, job_id: str, n: int = 20) -> dict[str, Any]:
