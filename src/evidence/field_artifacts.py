@@ -141,6 +141,8 @@ def write_field_evidence_artifacts(
     quantity_grids: object,
     raw_point_count: int,
     selected_point_count: int,
+    unique_point_count: int | None = None,
+    collapsed_duplicate_point_count: int | None = None,
     png_path: object | None = None,
 ) -> dict[str, Any]:
     """Write one immutable NPZ plus manifest from bounded real scalar grids.
@@ -285,6 +287,8 @@ def write_field_evidence_artifacts(
             view_id=view_id,
             raw_point_count=raw_point_count,
             selected_point_count=selected_point_count,
+            unique_point_count=unique_point_count,
+            collapsed_duplicate_point_count=collapsed_duplicate_point_count,
             covered_grid_point_count=covered_count,
             missing_grid_point_count=missing_count,
             coordinate_ranges=coordinate_ranges,
@@ -314,7 +318,13 @@ def write_field_evidence_artifacts(
             "array_artifact": array_descriptor,
             "manifest_artifact": manifest_descriptor,
             "png_artifact": png_descriptor,
+            "raw_point_count": manifest["raw_point_count"],
+            "selected_point_count": manifest["selected_point_count"],
             "grid_point_count": request_value["grid_point_count"],
+            "unique_point_count": manifest["unique_point_count"],
+            "collapsed_duplicate_point_count": manifest[
+                "collapsed_duplicate_point_count"
+            ],
             "covered_grid_point_count": covered_count,
             "missing_grid_point_count": missing_count,
             "quantity_summaries": summaries,

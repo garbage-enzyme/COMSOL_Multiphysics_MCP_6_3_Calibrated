@@ -188,6 +188,8 @@ def _assemble_manifest(
     view: Mapping[str, Any],
     raw_point_count: object,
     selected_point_count: object,
+    unique_point_count: object | None,
+    collapsed_duplicate_point_count: object | None,
     covered_grid_point_count: object,
     missing_grid_point_count: object,
     coordinate_ranges: object,
@@ -202,6 +204,23 @@ def _assemble_manifest(
     selected_count = _count(selected_point_count, "selected_point_count", allow_zero=False)
     if selected_count > raw_count:
         raise ValueError("selected_point_count must not exceed raw_point_count")
+    unique_count = (
+        selected_count
+        if unique_point_count is None
+        else _count(unique_point_count, "unique_point_count", allow_zero=False)
+    )
+    collapsed_count = (
+        0
+        if collapsed_duplicate_point_count is None
+        else _count(
+            collapsed_duplicate_point_count,
+            "collapsed_duplicate_point_count",
+        )
+    )
+    if unique_count + collapsed_count != selected_count:
+        raise ValueError(
+            "unique and collapsed duplicate point counts must equal selected_point_count"
+        )
     covered_count = _count(covered_grid_point_count, "covered_grid_point_count")
     missing_count = _count(missing_grid_point_count, "missing_grid_point_count")
     grid_count = request["grid_point_count"]
@@ -249,6 +268,8 @@ def _assemble_manifest(
         "grid": deepcopy(request["grid"]),
         "raw_point_count": raw_count,
         "selected_point_count": selected_count,
+        "unique_point_count": unique_count,
+        "collapsed_duplicate_point_count": collapsed_count,
         "grid_point_count": grid_count,
         "covered_grid_point_count": covered_count,
         "missing_grid_point_count": missing_count,
@@ -274,6 +295,8 @@ def build_field_evidence_manifest(
     view_id: str,
     raw_point_count: int,
     selected_point_count: int,
+    unique_point_count: int | None = None,
+    collapsed_duplicate_point_count: int | None = None,
     covered_grid_point_count: int,
     missing_grid_point_count: int,
     coordinate_ranges: object,
@@ -291,6 +314,8 @@ def build_field_evidence_manifest(
         view=matches[0],
         raw_point_count=raw_point_count,
         selected_point_count=selected_point_count,
+        unique_point_count=unique_point_count,
+        collapsed_duplicate_point_count=collapsed_duplicate_point_count,
         covered_grid_point_count=covered_grid_point_count,
         missing_grid_point_count=missing_grid_point_count,
         coordinate_ranges=coordinate_ranges,
@@ -308,7 +333,8 @@ def validate_field_evidence_manifest(value: object, *, request: object) -> dict[
         "request_fingerprint", "configuration_sha256", "view_id",
         "view_fingerprint", "source", "wavelength_m", "expressions", "slice",
         "coordinate_ranges", "grid", "raw_point_count", "selected_point_count",
-        "grid_point_count", "covered_grid_point_count", "missing_grid_point_count",
+        "unique_point_count", "collapsed_duplicate_point_count", "grid_point_count",
+        "covered_grid_point_count", "missing_grid_point_count",
         "coverage_fraction", "quantity_summaries", "artifacts",
         "artifact_byte_count", "visual_review_state", "semantic_mode_label",
         "measurement_status", "manifest_sha256",
@@ -339,6 +365,8 @@ def validate_field_evidence_manifest(value: object, *, request: object) -> dict[
         view=matches[0],
         raw_point_count=item["raw_point_count"],
         selected_point_count=item["selected_point_count"],
+        unique_point_count=item["unique_point_count"],
+        collapsed_duplicate_point_count=item["collapsed_duplicate_point_count"],
         covered_grid_point_count=item["covered_grid_point_count"],
         missing_grid_point_count=item["missing_grid_point_count"],
         coordinate_ranges=item["coordinate_ranges"],

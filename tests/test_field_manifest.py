@@ -65,6 +65,8 @@ def test_manifest_binds_request_source_counts_summaries_and_artifacts():
     assert manifest["view_fingerprint"] == request["views"][0]["view_fingerprint"]
     assert manifest["source"] == request["views"][0]["source"]
     assert manifest["coverage_fraction"] == 1.0
+    assert manifest["unique_point_count"] == manifest["selected_point_count"]
+    assert manifest["collapsed_duplicate_point_count"] == 0
     assert manifest["measurement_status"] == "measurement_complete"
     assert manifest["visual_review_state"] == "visual_review_required"
     assert manifest["semantic_mode_label"] == "not_assigned"
@@ -119,6 +121,14 @@ def test_counts_must_close_and_fit_caller_limits():
         )
     with pytest.raises(ValueError, match="must equal the exact grid size"):
         build_field_evidence_manifest(**dict(kwargs, covered_grid_point_count=100))
+    with pytest.raises(ValueError, match="must equal selected_point_count"):
+        build_field_evidence_manifest(
+            **dict(
+                kwargs,
+                unique_point_count=10,
+                collapsed_duplicate_point_count=1,
+            )
+        )
 
 
 def test_artifacts_must_match_request_be_relative_and_fit_total_size_limit():
