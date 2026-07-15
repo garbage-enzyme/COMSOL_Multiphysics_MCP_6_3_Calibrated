@@ -42,6 +42,7 @@ from .field_artifacts import write_field_evidence_artifacts
 from .field_sampling import select_field_slice_samples
 from .field_interpolation import interpolate_field_slice
 from .field_pipeline import build_field_evidence_from_samples
+from .field_dataset import collect_existing_dataset_field_evidence
 
 __all__ = [
     "EVIDENCE_STATES",
@@ -76,4 +77,5 @@ __all__ = [
     "select_field_slice_samples",
     "interpolate_field_slice",
     "build_field_evidence_from_samples",
+    "collect_existing_dataset_field_evidence",
 ]
