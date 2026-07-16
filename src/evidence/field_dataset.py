@@ -35,23 +35,28 @@ def _real_vector(value: Any, label: str) -> Any:
     return array
 
 
-def collect_existing_dataset_field_evidence(
+def _collect_dataset_field_evidence(
     *,
     model: Any,
     request: object,
     view_id: str,
     artifact_root: object,
     png_path: object | None = None,
+    source_kind: str,
 ) -> dict[str, Any]:
-    """Evaluate one declared existing dataset without solving or mutating it."""
+    """Evaluate one exact solution dataset without solving or mutating it."""
     request_value = validate_field_evidence_request(request)
     matches = [view for view in request_value["views"] if view["view_id"] == view_id]
     if len(matches) != 1:
         raise ValueError("view_id must identify exactly one requested view")
     view = matches[0]
     source = view["source"]
-    if source["kind"] != "existing_dataset":
-        raise ValueError("existing-dataset adapter cannot read a validation-matrix source")
+    if source["kind"] != source_kind:
+        if source_kind == "existing_dataset":
+            raise ValueError(
+                "existing-dataset adapter cannot read a validation-matrix source"
+            )
+        raise ValueError(f"dataset adapter requires source kind {source_kind}")
     if model is None or not callable(getattr(model, "evaluate", None)):
         raise ValueError("model must provide MPh evaluate()")
     java_model = getattr(model, "java", None)
@@ -93,7 +98,7 @@ def collect_existing_dataset_field_evidence(
             dataset=source["dataset_name"],
             inner=(
                 [source["solution_number"]]
-                if source["solution_number"] is not None
+                if source.get("solution_number") is not None
                 else None
             ),
         )
@@ -127,17 +132,43 @@ def collect_existing_dataset_field_evidence(
         png_path=png_path,
     )
     result["dataset_identity"] = {
+        "source_kind": source["kind"],
         "component_tag": source["component_tag"],
         "dataset_name": source["dataset_name"],
         "dataset_tag": source["dataset_tag"],
         "solution_tag": source["solution_tag"],
-        "solution_number": source["solution_number"],
+        "solution_number": source.get("solution_number"),
         "source_fingerprint": source["source_fingerprint"],
         "readback_state": "verified",
     }
+    if source["kind"] == "validation_matrix_point":
+        result["dataset_identity"].update(
+            {
+                "source_model_sha256": source["source_model_sha256"],
+                "job_id": source["job_id"],
+                "point_id": source["point_id"],
+                "point_fingerprint": source["point_fingerprint"],
+                "source_artifact_id": source["artifact_id"],
+            }
+        )
     result["model_mutated"] = False
     result["study_run"] = False
     return result
 
 
-__all__ = ["collect_existing_dataset_field_evidence"]
+def collect_existing_dataset_field_evidence(**kwargs: Any) -> dict[str, Any]:
+    """Evaluate one caller-declared existing dataset."""
+    return _collect_dataset_field_evidence(source_kind="existing_dataset", **kwargs)
+
+
+def collect_validation_matrix_field_evidence(**kwargs: Any) -> dict[str, Any]:
+    """Evaluate the dataset left by one exact validation-matrix point."""
+    return _collect_dataset_field_evidence(
+        source_kind="validation_matrix_point", **kwargs
+    )
+
+
+__all__ = [
+    "collect_existing_dataset_field_evidence",
+    "collect_validation_matrix_field_evidence",
+]

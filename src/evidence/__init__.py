@@ -42,8 +42,15 @@ from .field_artifacts import write_field_evidence_artifacts
 from .field_sampling import select_field_slice_samples
 from .field_interpolation import interpolate_field_slice
 from .field_pipeline import build_field_evidence_from_samples
-from .field_dataset import collect_existing_dataset_field_evidence
+from .field_dataset import (
+    collect_existing_dataset_field_evidence,
+    collect_validation_matrix_field_evidence,
+)
 from .field_discovery import discover_field_datasets
+from .field_matrix import (
+    bind_validation_matrix_field_request,
+    normalize_validation_matrix_field_inputs,
+)
 
 __all__ = [
     "EVIDENCE_STATES",
@@ -79,5 +86,8 @@ __all__ = [
     "interpolate_field_slice",
     "build_field_evidence_from_samples",
     "collect_existing_dataset_field_evidence",
+    "collect_validation_matrix_field_evidence",
     "discover_field_datasets",
+    "bind_validation_matrix_field_request",
+    "normalize_validation_matrix_field_inputs",
 ]

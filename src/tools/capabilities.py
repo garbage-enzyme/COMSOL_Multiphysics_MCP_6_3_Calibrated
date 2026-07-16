@@ -267,6 +267,12 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
             "staged_csv_resume": True,
             "validation_matrix_exact_identity_resume": True,
             "validation_matrix_max_points": 32,
+            "validation_matrix_collectors": [
+                "wave_optics_point_audit",
+                "wave_optics_reference_audit",
+                "wave_optics_field_evidence",
+            ],
+            "field_collector_requires_preceding_point_audit": True,
         },
         "restart_required_after_source_changes": True,
     }

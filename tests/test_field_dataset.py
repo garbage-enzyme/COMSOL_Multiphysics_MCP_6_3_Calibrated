@@ -6,7 +6,10 @@ import numpy as np
 import pytest
 
 from src.evidence.field_bundle import normalize_field_evidence_request
-from src.evidence.field_dataset import collect_existing_dataset_field_evidence
+from src.evidence.field_dataset import (
+    collect_existing_dataset_field_evidence,
+    collect_validation_matrix_field_evidence,
+)
 from tests.test_field_bundle import _request
 
 
@@ -187,6 +190,38 @@ def test_adapter_rejects_matrix_source_without_evaluating(tmp_path):
             artifact_root=tmp_path,
         )
     assert model.calls == []
+
+
+def test_validation_matrix_adapter_reads_exact_bound_dataset(tmp_path):
+    raw = _request(paired=False, png=False)
+    raw["views"][0]["source"] = {
+        "kind": "validation_matrix_point",
+        "source_model_sha256": "d" * 64,
+        "job_id": "job-123",
+        "point_id": "target",
+        "point_fingerprint": "a" * 64,
+        "artifact_id": "audit-target",
+        "component_tag": "comp1",
+        "dataset_name": "研究 1//解 1",
+        "dataset_tag": "dset_on",
+        "solution_tag": "sol_on",
+    }
+    raw["grid"]["shape"] = [9, 11]
+    raw["limits"]["max_grid_points"] = 200
+    request = normalize_field_evidence_request(raw)
+    model = _Model()
+
+    result = collect_validation_matrix_field_evidence(
+        model=model,
+        request=request,
+        view_id="on",
+        artifact_root=tmp_path,
+    )
+
+    assert model.calls[0][1] == {"dataset": "研究 1//解 1", "inner": None}
+    assert result["dataset_identity"]["source_kind"] == "validation_matrix_point"
+    assert result["dataset_identity"]["job_id"] == "job-123"
+    assert result["dataset_identity"]["source_artifact_id"] == "audit-target"
 
 
 def test_adapter_requires_ordered_result_list_and_model_readback(tmp_path):

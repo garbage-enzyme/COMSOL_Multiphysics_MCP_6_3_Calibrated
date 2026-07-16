@@ -140,7 +140,7 @@ def _run(
         model_name = str(model.name())
 
         from src.jobs.resource_admission import ResourceStageAdapter, collect_resource_telemetry
-        from src.jobs.validation_collectors import execute_physical_audit_collector
+        from src.jobs.validation_collectors import execute_validation_collector
         from src.jobs.validation_runner import run_pending_validation_points
         from src.tools.mesh import get_mesh_info
         from src.jobs.worker import _record_native_cancel
@@ -202,13 +202,14 @@ def _run(
         def execute(point: dict[str, Any], collector: dict[str, Any], artifact_dir: Path):
             if collector_executor is not None:
                 return collector_executor(point, collector, artifact_dir)
-            return execute_physical_audit_collector(
+            return execute_validation_collector(
                 point,
                 collector,
                 artifact_dir,
                 model=model,
                 client=client,
                 model_name=model_name,
+                job_id=job_id,
                 expected_source_sha256=spec["source_model_sha256"],
                 session_state={"connected": True},
                 ownership_preflight=preflight,

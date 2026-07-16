@@ -11,6 +11,10 @@ from typing import Any, Mapping
 
 from .resource_admission import normalize_resource_policy
 from .store import JOB_SCHEMA_VERSION
+from src.evidence.field_matrix import (
+    MATRIX_FIELD_COLLECTOR,
+    normalize_validation_matrix_field_inputs,
+)
 
 
 MAX_VALIDATION_MATRIX_POINTS = 32
@@ -23,6 +27,7 @@ SUPPORTED_VALIDATION_COLLECTORS = frozenset(
     {
         "wave_optics_point_audit",
         "wave_optics_reference_audit",
+        MATRIX_FIELD_COLLECTOR,
     }
 )
 
@@ -169,10 +174,13 @@ def _normalize_collectors(value: object, point_name: str) -> list[dict[str, Any]
         if collector_name in names:
             raise ValueError(f"{point_name}.collectors must not contain duplicates")
         names.add(collector_name)
+        inputs = _normalize_json_object(raw["inputs"], f"{name}.inputs")
+        if collector_name == MATRIX_FIELD_COLLECTOR:
+            inputs = normalize_validation_matrix_field_inputs(inputs)
         normalized.append(
             {
                 "name": collector_name,
-                "inputs": _normalize_json_object(raw["inputs"], f"{name}.inputs"),
+                "inputs": inputs,
             }
         )
     return normalized
@@ -213,6 +221,21 @@ def _normalize_point(value: object, index: int, source_sha256: str) -> dict[str,
     collectors = _normalize_collectors(raw["collectors"], name)
     if len(artifact_ids) != len(collectors):
         raise ValueError(f"{name} requires exactly one expected artifact ID per collector")
+    field_indices = [
+        index
+        for index, collector in enumerate(collectors)
+        if collector["name"] == MATRIX_FIELD_COLLECTOR
+    ]
+    if field_indices:
+        field_index = field_indices[0]
+        source_artifact_id = collectors[field_index]["inputs"]["source_artifact_id"]
+        if source_artifact_id not in artifact_ids:
+            raise ValueError(f"{name} field source_artifact_id is not declared")
+        source_index = artifact_ids.index(source_artifact_id)
+        if source_index >= field_index:
+            raise ValueError(f"{name} field source artifact must precede the field collector")
+        if collectors[source_index]["name"] != "wave_optics_point_audit":
+            raise ValueError(f"{name} field source artifact must belong to point audit")
     point = {
         "point_id": _identifier(raw["point_id"], f"{name}.point_id"),
         "configuration_sha256": configuration_sha256.lower(),

@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import re
 from typing import Any, Callable, Mapping
 
 from .store import atomic_write_json
+from src.evidence.field_matrix import (
+    MATRIX_FIELD_COLLECTOR,
+    bind_validation_matrix_field_request,
+)
 
 
 _LOCKED_INPUTS = frozenset(
@@ -170,4 +175,139 @@ def execute_physical_audit_collector(
     }
 
 
-__all__ = ["execute_physical_audit_collector"]
+def execute_field_evidence_collector(
+    point: Mapping[str, Any],
+    collector: Mapping[str, Any],
+    artifact_dir: str | Path,
+    *,
+    model: Any,
+    job_id: str,
+    expected_source_sha256: str,
+    field_runner: Callable[..., Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Collect one matrix-owned field view after its point audit solved."""
+    if collector.get("name") != MATRIX_FIELD_COLLECTOR:
+        raise ValueError("field collector adapter received the wrong collector")
+    root = Path(artifact_dir).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    request = bind_validation_matrix_field_request(
+        collector.get("inputs"),
+        job_id=job_id,
+        point=point,
+        source_model_sha256=expected_source_sha256,
+    )
+    if field_runner is None:
+        from src.evidence.field_dataset import collect_validation_matrix_field_evidence
+
+        field_runner = collect_validation_matrix_field_evidence
+    result = field_runner(
+        model=model,
+        request=request,
+        view_id=request["views"][0]["view_id"],
+        artifact_root=root,
+    )
+    if not isinstance(result, Mapping):
+        raise ValueError("field evidence collector returned a non-object result")
+    manifest_descriptor = result.get("manifest_artifact")
+    array_descriptor = result.get("array_artifact")
+    if not isinstance(manifest_descriptor, Mapping) or not isinstance(
+        array_descriptor, Mapping
+    ):
+        raise ValueError("field evidence collector did not return artifact descriptors")
+
+    def resolve_descriptor(descriptor: Mapping[str, Any], label: str) -> Path:
+        relative = descriptor.get("relative_path")
+        if not isinstance(relative, str) or not relative:
+            raise ValueError(f"{label} relative path is unavailable")
+        path = (root / relative).resolve()
+        try:
+            path.relative_to(root)
+        except ValueError as exc:
+            raise ValueError(f"{label} escapes the assigned artifact directory") from exc
+        if not path.is_file() or path.stat().st_size != descriptor.get("byte_count"):
+            raise ValueError(f"{label} size readback does not match")
+        if _sha256_file(path) != descriptor.get("sha256"):
+            raise ValueError(f"{label} hash readback does not match")
+        return path
+
+    manifest_path = resolve_descriptor(manifest_descriptor, "field manifest")
+    resolve_descriptor(array_descriptor, "field array")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("measurement_status") != "complete":
+        return {
+            "success": False,
+            "audit_status": manifest.get("measurement_status", "partial"),
+            "error": "matrix field evidence is partial and remains retryable",
+        }
+    wrapper_path = root / "matrix_collector.json"
+    wrapper = {
+        "schema_name": "comsol_mcp.validation_matrix_field_collector",
+        "schema_version": "1.0.0",
+        "collector": MATRIX_FIELD_COLLECTOR,
+        "job_id": job_id,
+        "point": {
+            "point_id": point["point_id"],
+            "point_fingerprint": point["point_fingerprint"],
+            "configuration_sha256": point["configuration_sha256"],
+            "wavelength": point["wavelength"],
+        },
+        "source_model_sha256": expected_source_sha256,
+        "source_artifact_id": request["views"][0]["source"]["artifact_id"],
+        "request_fingerprint": request["request_fingerprint"],
+        "view_fingerprint": request["views"][0]["view_fingerprint"],
+        "array_artifact": dict(array_descriptor),
+        "field_manifest": dict(manifest_descriptor),
+        "visual_review_state": "visual_review_required",
+        "semantic_mode_label": "not_assigned",
+    }
+    atomic_write_json(wrapper_path, wrapper)
+    return {
+        "success": True,
+        "audit_status": "measurement_complete",
+        "artifacts": {"manifest": str(wrapper_path)},
+    }
+
+
+def execute_validation_collector(
+    point: Mapping[str, Any],
+    collector: Mapping[str, Any],
+    artifact_dir: str | Path,
+    *,
+    model: Any,
+    client: Any,
+    model_name: str,
+    job_id: str,
+    expected_source_sha256: str,
+    session_state: Mapping[str, Any],
+    ownership_preflight: Mapping[str, Any],
+    active_profile: str = "wave_optics",
+) -> dict[str, Any]:
+    """Dispatch one immutable validation-matrix collector."""
+    if collector.get("name") == MATRIX_FIELD_COLLECTOR:
+        return execute_field_evidence_collector(
+            point,
+            collector,
+            artifact_dir,
+            model=model,
+            job_id=job_id,
+            expected_source_sha256=expected_source_sha256,
+        )
+    return execute_physical_audit_collector(
+        point,
+        collector,
+        artifact_dir,
+        model=model,
+        client=client,
+        model_name=model_name,
+        expected_source_sha256=expected_source_sha256,
+        session_state=session_state,
+        ownership_preflight=ownership_preflight,
+        active_profile=active_profile,
+    )
+
+
+__all__ = [
+    "execute_field_evidence_collector",
+    "execute_physical_audit_collector",
+    "execute_validation_collector",
+]
