@@ -141,7 +141,7 @@ def test_matrix_field_template_rejects_png_and_unknown_fields_before_client(tmp_
             )
 
 
-def _fake_field_runner(status="complete"):
+def _fake_field_runner(status="measurement_complete"):
     def run(*, request, artifact_root, **_kwargs):
         root = Path(artifact_root)
         view = request["views"][0]

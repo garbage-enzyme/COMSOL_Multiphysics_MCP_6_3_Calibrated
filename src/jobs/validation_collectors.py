@@ -233,7 +233,7 @@ def execute_field_evidence_collector(
     manifest_path = resolve_descriptor(manifest_descriptor, "field manifest")
     resolve_descriptor(array_descriptor, "field array")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("measurement_status") != "complete":
+    if manifest.get("measurement_status") != "measurement_complete":
         return {
             "success": False,
             "audit_status": manifest.get("measurement_status", "partial"),
