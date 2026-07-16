@@ -831,6 +831,28 @@ def test_job_lock_release_retries_transient_windows_reader(jobs_root, monkeypatc
     assert not lock_path.exists()
 
 
+def test_job_lock_acquire_retries_transient_windows_sharing_violation(jobs_root, monkeypatch):
+    lock_path = jobs_root / ".state.lock"
+    real_open = store_module.os.open
+    calls = 0
+
+    def flaky_open(path, flags, *args, **kwargs):
+        nonlocal calls
+        if Path(path) == lock_path:
+            calls += 1
+            if calls == 1:
+                raise PermissionError(13, "simulated transient sharing violation", str(path))
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(store_module.os, "open", flaky_open)
+
+    with JobLock(lock_path, timeout=0.5):
+        assert lock_path.exists()
+
+    assert calls == 2
+    assert not lock_path.exists()
+
+
 def test_tail_is_bounded(jobs_root):
     store = JobStore(jobs_root)
     job_id = store.create(

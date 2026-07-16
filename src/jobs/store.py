@@ -177,6 +177,15 @@ class JobLock:
         while True:
             try:
                 descriptor = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+            except PermissionError:
+                # Windows may report a sharing violation as PermissionError
+                # while another process or scanner briefly opens the lock path.
+                # Ownership cannot be established safely in that state, so
+                # wait without inspecting or removing the unknown lock.
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(self.poll_interval)
+                continue
             except FileExistsError:
                 try:
                     observed = self.path.read_bytes()
