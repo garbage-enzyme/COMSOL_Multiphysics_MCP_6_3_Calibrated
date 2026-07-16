@@ -1,0 +1,142 @@
+# COMSOL MCP 部署指南
+
+[English](DEPLOYMENT.md)
+
+本指南覆盖 COMSOL MCP 的全新安装，以及 Hermes Agent、Codex CLI 和 opencode
+配置。所有示例路径都必须替换为目标机器的实际路径。
+
+## 1. 安装 Server
+
+要求：
+
+- COMSOL Multiphysics 6.4+；
+- Python 3.10+，环境路径只使用 ASCII 字符；
+- 已验证本机配置所需的 COMSOL Java runtime。
+
+执行非 editable 安装：
+
+```powershell
+git clone https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated.git
+Set-Location .\COMSOL_Multiphysics_MCP_6_4_Calibrated
+D:\path\to\python-env\python.exe -m pip install .
+Test-Path "D:\path\to\python-env\Scripts\comsol-mcp.exe"
+```
+
+可移植部署不要依赖仓库 cwd 下的 `python -m src.server`，而应配置安装后的
+console entry point 绝对路径。
+
+## 2. 选择 Profile
+
+| Profile | 工具数 | 用途 |
+| --- | ---: | --- |
+| `core` | 38 | 紧凑默认控制面和词法手册检索。 |
+| `basic_fem` | 76 | 常规 FEM 构建和有界导出。 |
+| `wave_optics` | 61 | 周期光学、超表面、预检和证据审计。 |
+| `semantic_docs` | 41 | 隔离的实验性语义手册检索。 |
+| `experimental` | 64 | 显式选择的通用和 escape-hatch 工具。 |
+| `full` | 118 | 宽兼容界面；默认不推荐。 |
+
+在 client 的 server environment 中设置 `COMSOL_MCP_PROFILE`。省略时使用
+`core`。stdio 进程启动时会冻结 profile，修改后必须重启 client/MCP host。非法
+profile 会使启动失败，不会静默回退。
+
+## 3. Hermes Agent
+
+Hermes native Windows 默认配置文件：
+`%LOCALAPPDATA%\hermes\config.yaml`。Linux 和 WSL 使用
+`~/.hermes/config.yaml`。
+
+```yaml
+mcp_servers:
+  comsol:
+    command: "D:/path/to/python-env/Scripts/comsol-mcp.exe"
+    args: []
+    env:
+      COMSOL_MCP_PROFILE: "wave_optics"
+      COMSOL_MCP_RUNTIME_DIR: "D:/comsol_mcp_runtime"
+      JAVA_HOME: "D:/COMSOL64/Multiphysics/java/win64/jre"
+      JDK_HOME: "D:/COMSOL64/Multiphysics/java/win64/jre"
+    connect_timeout: 120
+    timeout: 3600
+    supports_parallel_tool_calls: false
+    idle_timeout_seconds: 0
+    max_lifetime_seconds: 0
+```
+
+Hermes stdio launcher 会传递 `command`、`args` 和 `env`，但不会给子进程提供
+工作目录。保持 `supports_parallel_tool_calls: false`：COMSOL ownership 和模型
+修改必须串行。Windows COMSOL 推荐搭配 Hermes native Windows；本项目不宣称
+WSL 到 Windows COMSOL bridge 已验证。
+
+完整模板：`config/hermes-mcp.example.yaml`。
+
+## 4. Codex CLI
+
+Windows 配置文件：`%USERPROFILE%\.codex\config.toml`。
+POSIX 配置文件：`~/.codex/config.toml`。
+
+```toml
+[mcp_servers.comsol]
+command = 'D:\path\to\python-env\Scripts\comsol-mcp.exe'
+args = []
+
+[mcp_servers.comsol.env]
+COMSOL_MCP_PROFILE = "wave_optics"
+COMSOL_MCP_RUNTIME_DIR = 'D:\comsol_mcp_runtime'
+JAVA_HOME = 'D:\COMSOL64\Multiphysics\java\win64\jre'
+JDK_HOME = 'D:\COMSOL64\Multiphysics\java\win64\jre'
+```
+
+完整模板：`config/codex-mcp.example.toml`。
+
+## 5. opencode
+
+使用项目级 `opencode.json`，或合并到
+`~/.config/opencode/opencode.json`。
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "comsol": {
+      "type": "local",
+      "command": ["D:\\path\\to\\python-env\\Scripts\\comsol-mcp.exe"],
+      "environment": {
+        "COMSOL_MCP_PROFILE": "wave_optics",
+        "COMSOL_MCP_RUNTIME_DIR": "D:\\comsol_mcp_runtime",
+        "JAVA_HOME": "D:\\COMSOL64\\Multiphysics\\java\\win64\\jre",
+        "JDK_HOME": "D:\\COMSOL64\\Multiphysics\\java\\win64\\jre"
+      }
+    }
+  }
+}
+```
+
+完整模板：`config/opencode-mcp.example.json`。
+
+## 6. 重启与验证
+
+修改 profile、executable 路径或安装包后，重启 Hermes、Codex 或 opencode。
+已有 stdio host 不会热加载这些变化。
+
+在启动 COMSOL 前调用 `capabilities`。`wave_optics` 部署应返回：
+
+```text
+profile = wave_optics
+active_profile = wave_optics
+tool_count = 61
+```
+
+然后在构造 client 前调用 `solver_status` 和 `solver_preflight`。保持单一 solver
+owner。长仿真使用 durable jobs，不要让单个同步 MCP call 持续占用全部 wall time。
+
+## 7. 更新安装
+
+源码变化后：
+
+```powershell
+D:\path\to\python-env\python.exe -m pip install . --no-deps
+```
+
+重启准确的 MCP host，并使用 `capabilities.deployment_identity` 验证安装包和
+profile 确实是目标修订。
