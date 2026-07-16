@@ -58,6 +58,29 @@ def test_isolated_single_field_png_is_hash_bound_and_unlabeled(tmp_path):
     assert descriptor["sha256"] == hashlib.sha256(png.read_bytes()).hexdigest()
 
 
+def test_renderer_uses_windows_safe_filename_for_portable_view_id(tmp_path):
+    array = tmp_path / "portable.npz"
+    digest = _array(array)
+    output = tmp_path / "portable-png"
+
+    result = render_field_png_bundle(
+        views=[_view("off:res", array, digest)],
+        quantity_name="abs_ex",
+        quantity_unit="V/m",
+        coordinate_unit="um",
+        color_scale="linear",
+        shared_color_limits=False,
+        output_root=output,
+    )
+
+    descriptor = result["views"][0]
+    assert descriptor["view_id"] == "off:res"
+    assert descriptor["relative_path"] == (
+        hashlib.sha256(b"off:res").hexdigest()[:16] + ".png"
+    )
+    assert ":" not in descriptor["relative_path"]
+
+
 def test_paired_field_pngs_use_exact_shared_color_limits(tmp_path):
     off = tmp_path / "off.npz"
     target = tmp_path / "target.npz"

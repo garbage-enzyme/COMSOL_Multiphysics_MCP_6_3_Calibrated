@@ -85,7 +85,8 @@ def render_field_png_bundle(
             raise ValueError(f"views[{index}].array_path is missing or oversized")
         if _sha256_file(array_path) != str(item["array_sha256"]).lower():
             raise ValueError(f"views[{index}] array SHA-256 does not match")
-        png_path = root / f"{view_id}.png"
+        safe_name = hashlib.sha256(view_id.encode("utf-8")).hexdigest()[:16]
+        png_path = root / f"{safe_name}.png"
         if png_path.exists():
             raise FileExistsError(f"field PNG already exists: {view_id}")
         normalized.append(
