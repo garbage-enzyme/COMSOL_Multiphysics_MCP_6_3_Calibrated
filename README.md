@@ -10,13 +10,40 @@ This server gives AI agents a safer, smaller interface for COMSOL inspection, co
 
 ## Recommended companion skill
 
-For Claude Code, Codex CLI, opencode, and other skill-aware agents, use the
+For Claude Code, Codex CLI, opencode, Hermes Agent, and other skill-aware agents, use the
 [COMSOL 6.4+ metasurface agent skill](https://github.com/garbage-enzyme/COMSOL_6_4_agentskill_for_metasurfaces)
 alongside this server. Its short `SKILL.md` entry routes agents to focused
 reference modules for clientapi, periodic Wave Optics, materials and boundaries,
 durable jobs, physical evidence, resource safety, troubleshooting, and MCP
 development/release engineering without forcing the full guide into context on
 every turn.
+
+## Hermes Agent compatibility
+
+This server is compatible with Hermes Agent's MCP client. Hermes supports local
+stdio servers through `command`, `args`, and `env`, and its client uses the
+standard MCP `ClientSession`/`StdioServerParameters` path. This server uses
+FastMCP's stdio transport and an installed `comsol-mcp` console entry point. The
+verified local MCP SDK (`mcp 1.28.1`) supports protocol `2025-03-26`, the protocol
+version declared by the current Hermes client. See the official Hermes
+[MCP documentation](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/mcp.md)
+and [client source](https://github.com/NousResearch/hermes-agent/blob/main/tools/mcp_tool.py).
+
+Use an absolute path to the installed `comsol-mcp` executable. Hermes' stdio
+launcher currently passes `command`, `args`, and `env` but not a working-directory
+field, so a repository-relative `python -m src.server` command is not portable.
+Keep `supports_parallel_tool_calls: false`: COMSOL solver ownership is serialized
+and tools from one server must not run concurrently. Prefer the `core` or
+`wave_optics` profile instead of exposing the 118-tool `full` profile by default.
+Native Windows Hermes is the documented configuration for a Windows COMSOL
+installation; a WSL-to-Windows bridge is not claimed as validated here.
+
+A solver-free local stdio smoke gate completed `initialize`, `list_tools`, and
+`capabilities` through the installed entry point. It returned server
+`COMSOL MCP`, 38 `core` tools, profile `core`, and `connected=false`; no COMSOL
+client was constructed.
+
+A complete example is available at `config/hermes-mcp.example.yaml`.
 
 ## Highlights
 
@@ -148,7 +175,8 @@ Configure an MCP client, for example:
 }
 ```
 
-Omit `COMSOL_MCP_PROFILE` for `core`. A Codex TOML example is available at `config/codex-mcp.example.toml`.
+Omit `COMSOL_MCP_PROFILE` for `core`. Client examples are available at
+`config/codex-mcp.example.toml` and `config/hermes-mcp.example.yaml`.
 
 ## How this fork differs from upstream
 

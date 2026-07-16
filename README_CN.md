@@ -10,11 +10,35 @@
 
 ## 推荐配套 Skill
 
-Claude Code、Codex CLI、opencode 及其他支持 skill 的 agent，推荐将本服务器与
+Claude Code、Codex CLI、opencode、Hermes Agent 及其他支持 skill 的 agent，推荐将本服务器与
 [COMSOL 6.4+ metasurface agent skill](https://github.com/garbage-enzyme/COMSOL_6_4_agentskill_for_metasurfaces)
 配合使用。该 skill 采用短 `SKILL.md` 入口，并按需路由到 clientapi、周期 Wave
 Optics、材料与边界、durable jobs、物理证据、资源安全、故障诊断和 MCP
 开发/发布工程模块，避免每轮都把整份指南载入上下文。
+
+## Hermes Agent 兼容性
+
+本服务器兼容 Hermes Agent 的 MCP client。Hermes 通过 `command`、`args` 和
+`env` 连接本地 stdio server，其客户端使用标准 MCP
+`ClientSession`/`StdioServerParameters` 路径；本服务器使用 FastMCP stdio
+transport 和安装后的 `comsol-mcp` console entry point。本机已验证的 MCP SDK
+为 `mcp 1.28.1`，支持当前 Hermes client 声明的协议版本 `2025-03-26`。参见
+Hermes 官方 [MCP 文档](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/mcp.md)
+和 [client 源码](https://github.com/NousResearch/hermes-agent/blob/main/tools/mcp_tool.py)。
+
+应使用安装后 `comsol-mcp` executable 的绝对路径。Hermes 当前的 stdio launcher
+会传递 `command`、`args` 和 `env`，但不会传递工作目录，因此依赖仓库 cwd 的
+`python -m src.server` 配置不具备可移植性。保持
+`supports_parallel_tool_calls: false`：COMSOL solver ownership 是串行的，
+同一 server 的工具不能并发执行。默认优先使用 `core` 或 `wave_optics`，不要直接
+暴露含 118 个工具的 `full` profile。Windows COMSOL 推荐搭配 Hermes native
+Windows；此处不宣称 WSL 到 Windows COMSOL bridge 已验证。
+
+本机 solver-free stdio smoke gate 已通过安装后的 entry point 完成
+`initialize`、`list_tools` 和 `capabilities`：server=`COMSOL MCP`，`core`
+工具数为 38，profile=`core`，`connected=false`；检查未构造 COMSOL client。
+
+完整示例见 `config/hermes-mcp.example.yaml`。
 
 ## 主要能力
 
@@ -146,7 +170,8 @@ MCP 客户端配置示例：
 }
 ```
 
-省略 `COMSOL_MCP_PROFILE` 即使用 `core`。Codex TOML 示例见 `config/codex-mcp.example.toml`。
+省略 `COMSOL_MCP_PROFILE` 即使用 `core`。客户端示例见
+`config/codex-mcp.example.toml` 和 `config/hermes-mcp.example.yaml`。
 
 ## 与上游 Fork 的区别
 

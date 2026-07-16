@@ -1,0 +1,22 @@
+# Merge this block into ~/.hermes/config.yaml.
+# Install this project first with: python -m pip install .
+# Use an absolute executable path because Hermes does not pass a stdio cwd.
+mcp_servers:
+  comsol:
+    command: "D:/path/to/python-env/Scripts/comsol-mcp.exe"
+    args: []
+    env:
+      # Omit for the compact core profile.
+      COMSOL_MCP_PROFILE: "wave_optics"
+      # Use an ASCII-only durable runtime root.
+      COMSOL_MCP_RUNTIME_DIR: "D:/comsol_mcp_runtime"
+      # Set these to the COMSOL-bundled Java runtime when required locally.
+      JAVA_HOME: "D:/COMSOL64/Multiphysics/java/win64/jre"
+      JDK_HOME: "D:/COMSOL64/Multiphysics/java/win64/jre"
+    connect_timeout: 120
+    timeout: 3600
+    # COMSOL ownership and model mutation are serialized.
+    supports_parallel_tool_calls: false
+    # Keep the stdio host stable; durable jobs enforce their own wall limits.
+    idle_timeout_seconds: 0
+    max_lifetime_seconds: 0
