@@ -29,4 +29,5 @@ Migration sequence:
    needed by the stable workflow.
 
 Machine-readable exact counts, version identities, unavailable claims, and the
-real-integration policy are frozen in `release/support_matrix.json`.
+real-integration policy are frozen in
+`development_kit/release/support_matrix.json`.

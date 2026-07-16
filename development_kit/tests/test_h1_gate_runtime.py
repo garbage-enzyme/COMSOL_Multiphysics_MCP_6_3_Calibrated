@@ -22,7 +22,13 @@ from src.evidence.h1_gate_runtime import (
 
 ROOT = Path(__file__).parents[2]
 CONTRACT = json.loads(
-    (ROOT / "release" / "integration_fixtures" / "h1_physical_evidence.json").read_text(
+    (
+        ROOT
+        / "development_kit"
+        / "release"
+        / "integration_fixtures"
+        / "h1_physical_evidence.json"
+    ).read_text(
         encoding="utf-8"
     )
 )

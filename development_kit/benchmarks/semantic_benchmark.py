@@ -13,8 +13,8 @@ import statistics
 import time
 from typing import Any, Iterable, Mapping
 
-from .lexical_manual import DEFAULT_INDEX_PATH, search_index
-from .semantic_contracts import (
+from src.knowledge.lexical_manual import DEFAULT_INDEX_PATH, search_index
+from src.knowledge.semantic_contracts import (
     H4A_CONTINUATION_GATE,
     H4_PROMOTION_GATE,
     evaluate_h4a_continuation,

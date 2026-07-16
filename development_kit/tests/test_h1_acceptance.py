@@ -19,7 +19,13 @@ from src.evidence.h1_acceptance import (
 
 
 ROOT = Path(__file__).parents[2]
-CONTRACT_PATH = ROOT / "release" / "integration_fixtures" / "h1_physical_evidence.json"
+CONTRACT_PATH = (
+    ROOT
+    / "development_kit"
+    / "release"
+    / "integration_fixtures"
+    / "h1_physical_evidence.json"
+)
 
 
 def _contract():
@@ -116,7 +122,7 @@ def test_execution_spec_fails_closed_on_ambiguous_inputs(tmp_path, mutation, mat
 
 def test_preflight_cli_validates_fixture_without_importing_mph():
     completed = subprocess.run(
-        [sys.executable, "scripts/h1_gate_preflight.py"],
+        [sys.executable, "development_kit/scripts/h1_gate_preflight.py"],
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -129,4 +135,6 @@ def test_preflight_cli_validates_fixture_without_importing_mph():
     assert receipt["contract_valid"] is True
     assert receipt["spec_valid"] is None
     assert receipt["real_comsol_started"] is False
-    assert "mph" not in (ROOT / "scripts" / "h1_gate_preflight.py").read_text(encoding="utf-8")
+    assert "mph" not in (
+        ROOT / "development_kit" / "scripts" / "h1_gate_preflight.py"
+    ).read_text(encoding="utf-8")

@@ -394,7 +394,7 @@ def get_pdf_search(query: str, n_results: int = 5,
         return {
             "success": False,
             "error": "PDF knowledge base not built. Run the build script first.",
-            "hint": "Run: python scripts/build_knowledge_base.py",
+            "hint": "From a source checkout, run: python development_kit/scripts/build_knowledge_base.py",
         }
 
     n_results = min(n_results, 20)
@@ -463,7 +463,10 @@ def get_pdf_search_status(db_dir: Optional[str] = None,
     
     if stats.get("count", 0) == 0:
         result["status"] = "Knowledge base not built"
-        result["hint"] = "Run: python scripts/build_knowledge_base.py"
+        result["hint"] = (
+            "From a source checkout, run: "
+            "python development_kit/scripts/build_knowledge_base.py"
+        )
     else:
         result["status"] = "Ready"
     

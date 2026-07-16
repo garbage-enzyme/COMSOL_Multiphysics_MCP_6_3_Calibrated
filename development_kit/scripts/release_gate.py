@@ -11,7 +11,7 @@ import sys
 import tempfile
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _run(command: list[str], *, cwd: Path = ROOT) -> None:
@@ -69,8 +69,7 @@ def main() -> int:
             "compileall",
             "-q",
             "src",
-            "development_kit/tests",
-            "scripts",
+            "development_kit",
         ]
     )
     if not args.skip_tests:
@@ -93,7 +92,7 @@ def main() -> int:
         subprocess.run(
             [
                 str(python),
-                str(ROOT / "scripts" / "installed_package_probe.py"),
+                str(ROOT / "development_kit" / "scripts" / "installed_package_probe.py"),
                 "--snapshot-dir",
                 str(ROOT / "development_kit" / "tests" / "snapshots"),
                 "--output",

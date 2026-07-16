@@ -8,11 +8,11 @@ import re
 import subprocess
 import tomllib
 
-from scripts.run_real_release_gate import _wait_clean_ownership
+from development_kit.scripts.run_real_release_gate import _wait_clean_ownership
 
 
 ROOT = Path(__file__).parents[2]
-RELEASE = ROOT / "release"
+RELEASE = ROOT / "development_kit" / "release"
 FIXTURES = RELEASE / "integration_fixtures"
 SNAPSHOTS = ROOT / "development_kit" / "tests" / "snapshots"
 
@@ -135,7 +135,9 @@ def test_release_integration_fixture_manifest_is_complete_and_sanitized():
 
 def test_hosted_ci_is_dependency_only_and_real_gate_is_explicit():
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-    real_gate = (ROOT / "scripts" / "run_real_release_gate.py").read_text(encoding="utf-8")
+    real_gate = (
+        ROOT / "development_kit" / "scripts" / "run_real_release_gate.py"
+    ).read_text(encoding="utf-8")
 
     assert "python -m pytest -q" in workflow
     assert "python -m build" in workflow
@@ -148,7 +150,9 @@ def test_hosted_ci_is_dependency_only_and_real_gate_is_explicit():
 
 
 def test_installed_probe_checks_every_profile_without_solver_or_heavy_imports():
-    probe = (ROOT / "scripts" / "installed_package_probe.py").read_text(encoding="utf-8")
+    probe = (
+        ROOT / "development_kit" / "scripts" / "installed_package_probe.py"
+    ).read_text(encoding="utf-8")
 
     assert "for profile in PROFILE_NAMES" in probe
     assert "snapshot_tool_schemas" in probe
@@ -161,7 +165,9 @@ def test_installed_probe_checks_every_profile_without_solver_or_heavy_imports():
 
 
 def test_release_documentation_requires_restart_and_clean_tree():
-    checklist = (ROOT / "docs" / "release_checklist.md").read_text(encoding="utf-8")
+    checklist = (
+        ROOT / "development_kit" / "docs" / "release_checklist.md"
+    ).read_text(encoding="utf-8")
     migration = (ROOT / "docs" / "profile_migration.md").read_text(encoding="utf-8")
 
     assert "clean tree" in checklist

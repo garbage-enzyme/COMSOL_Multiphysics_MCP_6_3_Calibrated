@@ -12,7 +12,7 @@ import uuid
 import pytest
 
 from src.knowledge.lexical_manual import build_index_from_records
-from src.knowledge.semantic_benchmark import evaluate_lexical_baseline
+from development_kit.benchmarks.semantic_benchmark import evaluate_lexical_baseline
 from src.knowledge.semantic_contracts import (
     H4A_CONTINUATION_GATE,
     PUBLIC_LIMITS,
@@ -152,7 +152,7 @@ def test_h4a_imports_do_not_load_heavy_semantic_or_comsol_modules():
     code = """
 import json, sys
 import src.knowledge.semantic_contracts
-import src.knowledge.semantic_benchmark
+import development_kit.benchmarks.semantic_benchmark
 import psutil
 for name in ('chromadb', 'torch', 'sentence_transformers', 'mph'):
     assert name not in sys.modules, name

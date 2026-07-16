@@ -19,7 +19,7 @@ from src.evidence.real_fixture import controlled_fixture_environment_from_h1_spe
 from src.tools.ownership import SolverOwnership
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 def _comsol_pids() -> set[int]:
     names = {"comsol", "comsolmphserver", "comsolbatch"}
@@ -224,8 +224,8 @@ def run_release_gate(
             "python": platform.python_version(),
             "mph": version("mph"),
             "mcp": version("mcp"),
-            "comsol_build": "must_match_release/support_matrix.json and probe evidence",
-            "java": "must_match_release/support_matrix.json and probe evidence",
+            "comsol_build": "must match development_kit/release/support_matrix.json and probe evidence",
+            "java": "must match development_kit/release/support_matrix.json and probe evidence",
         },
     }
 

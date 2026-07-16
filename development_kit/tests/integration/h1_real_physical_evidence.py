@@ -34,7 +34,13 @@ from src.evidence.h1_gate_runtime import (
 )
 
 
-DEFAULT_CONTRACT = ROOT / "release" / "integration_fixtures" / "h1_physical_evidence.json"
+DEFAULT_CONTRACT = (
+    ROOT
+    / "development_kit"
+    / "release"
+    / "integration_fixtures"
+    / "h1_physical_evidence.json"
+)
 
 
 def _atomic_json(path: Path, payload: dict[str, Any]) -> None:

@@ -3,7 +3,7 @@
   "schema_version": "1.0.0",
   "fixture_id": "h1_physical_evidence",
   "real_comsol_required": true,
-  "runner": "tests/integration/h1_real_physical_evidence.py",
+  "runner": "development_kit/tests/integration/h1_real_physical_evidence.py",
   "execution_spec_environment": "H1_EXECUTION_SPEC",
   "limits": {
     "max_contract_bytes": 65536,

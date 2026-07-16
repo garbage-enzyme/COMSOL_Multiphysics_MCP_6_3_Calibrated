@@ -8,7 +8,7 @@ This script:
 3. Creates embeddings and stores in ChromaDB
 
 Usage:
-    python scripts/build_knowledge_base.py [--limit N] [--rebuild]
+    python development_kit/scripts/build_knowledge_base.py [--limit N] [--rebuild]
 
 Options:
     --limit N     Only process first N PDF files (for testing)
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
 def setup_mirror():

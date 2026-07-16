@@ -19,7 +19,7 @@ import uuid
 
 import psutil
 
-from src.knowledge.semantic_benchmark import evaluate_lexical_baseline
+from development_kit.benchmarks.semantic_benchmark import evaluate_lexical_baseline
 from src.knowledge.semantic_contracts import (
     H4_PROMOTION_GATE,
     WORKER_PROTOCOL_SCHEMA_VERSION,

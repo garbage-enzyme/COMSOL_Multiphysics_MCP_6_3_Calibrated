@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -20,7 +20,13 @@ from src.evidence.h1_acceptance import (
 )
 
 
-DEFAULT_CONTRACT = ROOT / "release" / "integration_fixtures" / "h1_physical_evidence.json"
+DEFAULT_CONTRACT = (
+    ROOT
+    / "development_kit"
+    / "release"
+    / "integration_fixtures"
+    / "h1_physical_evidence.json"
+)
 
 
 def main() -> int:

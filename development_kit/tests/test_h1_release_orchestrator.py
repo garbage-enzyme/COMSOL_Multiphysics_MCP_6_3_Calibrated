@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from scripts.run_real_release_gate import run_release_gate
+from development_kit.scripts.run_real_release_gate import run_release_gate
 from src.evidence.real_fixture import MODEL_ENV
 
 

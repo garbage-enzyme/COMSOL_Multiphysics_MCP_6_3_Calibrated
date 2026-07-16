@@ -3,7 +3,7 @@
   "fixture_id": "job_recovery_cancellation",
   "evidence_state": "verified_baseline",
   "real_comsol_required": true,
-  "runner": "tests/integration/test_real_comsol.py",
+  "runner": "development_kit/tests/integration/test_real_comsol.py",
   "acceptance": {
     "immutable_spec_required": true,
     "valid_rows_are_duplicate_free_after_resume": true,

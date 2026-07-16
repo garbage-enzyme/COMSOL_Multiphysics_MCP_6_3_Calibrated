@@ -4,7 +4,7 @@ The dependency-only gate is reproducible and must run from a clean tree. It does
 not start COMSOL:
 
 ```powershell
-python scripts/release_gate.py
+python development_kit/scripts/release_gate.py
 ```
 
 The gate compiles `src`, `tests`, and `scripts`; runs the default unit suite;
@@ -17,11 +17,12 @@ Before a release:
 
 1. Confirm `git status --short` is empty.
 2. Run the dependency-only gate and archive its sanitized JSON report.
-3. Confirm `release/support_matrix.json` matches the intended version tuple.
+3. Confirm `development_kit/release/support_matrix.json` matches the intended
+   version tuple.
 4. On a free, licensed, version-pinned host, run the serial real gate explicitly:
 
    ```powershell
-   python scripts/run_real_release_gate.py --confirm RUN_REAL_COMSOL `
+   python development_kit/scripts/run_real_release_gate.py --confirm RUN_REAL_COMSOL `
      --fixture-spec D:\path\to\controlled_fixture_spec.json `
      --output D:\comsol_release\real_gate.json
    ```

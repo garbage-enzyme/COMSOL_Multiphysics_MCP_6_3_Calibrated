@@ -21,13 +21,13 @@ jobs:
       - name: Install dependency-only test environment
         run: python -m pip install ".[dev]"
       - name: Compile Python sources
-        run: python -m compileall -q src tests scripts
+        run: python -m compileall -q src development_kit
       - name: Run dependency-only regression suite
         run: python -m pytest -q
       - name: Build wheel and source distribution
         run: python -m build
       - name: Probe a clean non-editable wheel install
-        run: python scripts/release_gate.py --skip-tests --allow-dirty --artifact-root "$env:RUNNER_TEMP\comsol_release"
+        run: python development_kit/scripts/release_gate.py --skip-tests --allow-dirty --artifact-root "$env:RUNNER_TEMP\comsol_release"
 
   integration-contracts:
     runs-on: ubuntu-latest
@@ -42,4 +42,5 @@ jobs:
       - run: python -m pytest -q development_kit/tests/test_release_engineering.py
 
 # Real COMSOL tests are intentionally absent from hosted CI. Run the explicit,
-# serial scripts/run_real_release_gate.py gate on a licensed, version-pinned host.
+# serial development_kit/scripts/run_real_release_gate.py gate on a licensed,
+# version-pinned host.
