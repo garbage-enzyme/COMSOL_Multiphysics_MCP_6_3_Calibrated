@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import tarfile
 import tempfile
+import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -44,6 +47,36 @@ def _venv_python(venv_dir: Path) -> Path:
     return venv_dir / "bin" / "python"
 
 
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _distribution_inventory(path: Path) -> dict:
+    if path.suffix == ".whl":
+        with zipfile.ZipFile(path) as archive:
+            members = archive.namelist()
+    elif path.name.endswith(".tar.gz"):
+        with tarfile.open(path, "r:gz") as archive:
+            members = archive.getnames()
+    else:
+        raise ValueError(f"unsupported distribution artifact: {path.name}")
+    offenders = [name for name in members if "development_kit" in Path(name).parts]
+    if offenders:
+        raise RuntimeError(
+            f"ordinary distribution contains development_kit members: {offenders[:5]}"
+        )
+    return {
+        "filename": path.name,
+        "sha256": _sha256(path),
+        "member_count": len(members),
+        "development_kit_excluded": True,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--allow-dirty", action="store_true")
@@ -75,6 +108,13 @@ def main() -> int:
     if not args.skip_tests:
         _run([sys.executable, "-m", "pytest", "-q"])
     _run([sys.executable, "-m", "build", "--outdir", str(dist_dir)])
+    distributions = [
+        _distribution_inventory(path)
+        for path in sorted(dist_dir.iterdir())
+        if path.suffix == ".whl" or path.name.endswith(".tar.gz")
+    ]
+    if len(distributions) != 2:
+        raise RuntimeError(f"expected wheel and sdist, found {distributions}")
 
     if not args.skip_install:
         venv_dir = run_root / "venv"
@@ -110,6 +150,7 @@ def main() -> int:
         "compile_passed": True,
         "tests_run": not args.skip_tests,
         "package_build_passed": True,
+        "distribution_artifacts": distributions,
         "non_editable_install_run": not args.skip_install,
         "installed_probe": (
             json.loads(probe_result.read_text(encoding="utf-8"))

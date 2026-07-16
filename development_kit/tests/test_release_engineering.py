@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import subprocess
 import tomllib
+import zipfile
 
+import pytest
+
+from development_kit.scripts.release_gate import _distribution_inventory
 from development_kit.scripts.run_real_release_gate import _wait_clean_ownership
 
 
@@ -67,6 +72,9 @@ def test_support_matrix_matches_frozen_profile_counts_and_declared_dependencies(
     for package in ("matplotlib", "mcp", "mph", "numpy", "pydantic", "psutil", "scipy"):
         assert re.search(rf"(?m)^{package}(?:[<>=]|$)", dependencies)
     assert any(item.startswith("build>=") for item in pyproject["project"]["optional-dependencies"]["dev"])
+    assert pyproject["tool"]["hatch"]["build"]["targets"]["sdist"]["exclude"] == [
+        "/development_kit"
+    ]
 
 
 def test_repository_root_is_release_focused_and_free_of_generated_artifacts():
@@ -126,11 +134,30 @@ def test_release_integration_fixture_manifest_is_complete_and_sanitized():
         assert contract["fixture_id"] == entry["fixture_id"]
         assert contract["schema_version"] == "1.0.0"
         assert contract["acceptance"]
+        assert entry["sha256"] == hashlib.sha256(contract_path.read_bytes()).hexdigest()
+        assert entry["provenance"] == "repository_authored_contract"
+        assert entry["redistribution_state"] == "redistributable_under_repository_license"
+        assert entry["paper_derived"] is False
         for value in _strings(contract):
             assert "陆星" not in value
             assert "C:\\Users\\" not in value
             assert not PureWindowsPath(value).is_absolute()
             assert not PurePosixPath(value).is_absolute()
+
+
+def test_distribution_inventory_rejects_development_kit_members(tmp_path):
+    clean = tmp_path / "clean.whl"
+    with zipfile.ZipFile(clean, "w") as archive:
+        archive.writestr("src/server.py", "pass\n")
+    inventory = _distribution_inventory(clean)
+    assert inventory["development_kit_excluded"] is True
+    assert inventory["member_count"] == 1
+
+    contaminated = tmp_path / "contaminated.whl"
+    with zipfile.ZipFile(contaminated, "w") as archive:
+        archive.writestr("development_kit/tests/test_server.py", "pass\n")
+    with pytest.raises(RuntimeError, match="contains development_kit"):
+        _distribution_inventory(contaminated)
 
 
 def test_hosted_ci_is_dependency_only_and_real_gate_is_explicit():

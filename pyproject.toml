@@ -43,6 +43,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 
+[tool.hatch.build.targets.sdist]
+exclude = ["/development_kit"]
+
 [tool.pytest.ini_options]
 testpaths = ["development_kit/tests"]
 addopts = "--strict-markers -m 'not integration'"
