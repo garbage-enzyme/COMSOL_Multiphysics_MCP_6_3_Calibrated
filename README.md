@@ -121,7 +121,7 @@ The current full automated gate is **326 passed, 11 deselected**. Unit tests are
 
 ```bash
 python -m pytest -q
-python -m pytest -q -m integration tests/integration
+python -m pytest -q -m integration development_kit/tests/integration
 ```
 
 Real COMSOL checks include localized JSON transport; circle/union geometry; DXF import; parametric sweep properties; multiphysics coupling; clone cleanup; Unicode-path saving; solver ownership; durable interruption/restart/resume/cancellation; profile discovery; Wave Optics preflight and one-point audit; and bounded manual retrieval.

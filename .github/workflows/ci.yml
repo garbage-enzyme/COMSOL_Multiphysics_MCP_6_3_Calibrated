@@ -39,7 +39,7 @@ jobs:
           python-version: "3.11"
       - name: Validate sanitized real-COMSOL fixture contracts
         run: python -m pip install ".[dev]"
-      - run: python -m pytest -q tests/test_release_engineering.py
+      - run: python -m pytest -q development_kit/tests/test_release_engineering.py
 
 # Real COMSOL tests are intentionally absent from hosted CI. Run the explicit,
 # serial scripts/run_real_release_gate.py gate on a licensed, version-pinned host.

@@ -1,0 +1,224 @@
+"""Dependency-only E4 release-contract regression tests."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path, PurePosixPath, PureWindowsPath
+import re
+import subprocess
+import tomllib
+
+from scripts.run_real_release_gate import _wait_clean_ownership
+
+
+ROOT = Path(__file__).parents[2]
+RELEASE = ROOT / "release"
+FIXTURES = RELEASE / "integration_fixtures"
+SNAPSHOTS = ROOT / "development_kit" / "tests" / "snapshots"
+
+
+def _tracked_entries() -> list[tuple[str, str]]:
+    completed = subprocess.run(
+        ["git", "ls-files", "--stage"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [
+        (metadata.split()[0], path)
+        for metadata, path in (line.split("\t", 1) for line in completed.stdout.splitlines())
+    ]
+
+
+def _json(path: Path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield from _strings(key)
+            yield from _strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _strings(item)
+
+
+def test_support_matrix_matches_frozen_profile_counts_and_declared_dependencies():
+    matrix = _json(RELEASE / "support_matrix.json")
+    names = _json(SNAPSHOTS / "profile_tool_names.json")
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert matrix["schema_name"] == "comsol_mcp.release_support_matrix"
+    assert matrix["real_integration"] == {
+        "hosted_ci_default": False,
+        "licensed_host_required": True,
+        "serial_only": True,
+        "exact_version_evidence_required": True,
+        "pid_and_lease_cleanup_required": True,
+    }
+    assert {item["name"]: item["tool_count"] for item in matrix["profiles"]} == {
+        profile: len(tools) for profile, tools in names.items()
+    }
+    dependencies = "\n".join(pyproject["project"]["dependencies"])
+    for package in ("matplotlib", "mcp", "mph", "numpy", "pydantic", "psutil", "scipy"):
+        assert re.search(rf"(?m)^{package}(?:[<>=]|$)", dependencies)
+    assert any(item.startswith("build>=") for item in pyproject["project"]["optional-dependencies"]["dev"])
+
+
+def test_repository_root_is_release_focused_and_free_of_generated_artifacts():
+    entries = _tracked_entries()
+    root_files = {path for _mode, path in entries if "/" not in path}
+    assert root_files == {
+        ".gitattributes",
+        ".gitignore",
+        "DEPLOYMENT.md",
+        "DEPLOYMENT_CN.md",
+        "LICENSE",
+        "README.md",
+        "README_CN.md",
+        "pyproject.toml",
+    }
+
+    forbidden_suffixes = {".class", ".lock", ".mph", ".pyc", ".recovery", ".status"}
+    for mode, path_text in entries:
+        path = Path(path_text)
+        assert mode != "160000", f"orphaned gitlink: {path_text}"
+        assert path.name != ".DS_Store"
+        assert "__pycache__" not in path.parts
+        assert path.suffix not in forbidden_suffixes
+        assert path.name not in {"server_err.txt", "server_log.txt"}
+
+
+def test_public_tracked_text_has_no_user_profile_paths():
+    text_suffixes = {".json", ".md", ".py", ".toml", ".yaml", ".yml"}
+    for _mode, path_text in _tracked_entries():
+        path = Path(path_text)
+        if path.parts[0] == "development_kit" or path.suffix not in text_suffixes:
+            continue
+        text = (ROOT / path).read_text(encoding="utf-8", errors="replace")
+        assert "C:/Users/" not in text, path_text
+        assert "C:\\\\Users\\\\" not in text, path_text
+
+
+def test_release_integration_fixture_manifest_is_complete_and_sanitized():
+    manifest = _json(FIXTURES / "manifest.json")
+    expected = {
+        "capacitor_clientapi_regression",
+        "periodic_mesh_audit",
+        "reference_air_polarization",
+        "h1_physical_evidence",
+        "passive_port_closure",
+        "source_immutability",
+        "job_recovery_cancellation",
+        "lexical_manual_retrieval",
+    }
+    entries = manifest["fixtures"]
+    assert {entry["fixture_id"] for entry in entries} == expected
+
+    for entry in entries:
+        contract_path = FIXTURES / entry["contract"]
+        assert contract_path.parent == FIXTURES
+        contract = _json(contract_path)
+        assert contract["fixture_id"] == entry["fixture_id"]
+        assert contract["schema_version"] == "1.0.0"
+        assert contract["acceptance"]
+        for value in _strings(contract):
+            assert "陆星" not in value
+            assert "C:\\Users\\" not in value
+            assert not PureWindowsPath(value).is_absolute()
+            assert not PurePosixPath(value).is_absolute()
+
+
+def test_hosted_ci_is_dependency_only_and_real_gate_is_explicit():
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    real_gate = (ROOT / "scripts" / "run_real_release_gate.py").read_text(encoding="utf-8")
+
+    assert "python -m pytest -q" in workflow
+    assert "python -m build" in workflow
+    assert "release_gate.py --skip-tests" in workflow
+    assert "actions/checkout@v7" in workflow
+    assert "actions/setup-python@v6" in workflow
+    assert "-m integration" not in workflow
+    assert "RUN_REAL_COMSOL" in real_gate
+    assert 'choices=["RUN_REAL_COMSOL"]' in real_gate
+
+
+def test_installed_probe_checks_every_profile_without_solver_or_heavy_imports():
+    probe = (ROOT / "scripts" / "installed_package_probe.py").read_text(encoding="utf-8")
+
+    assert "for profile in PROFILE_NAMES" in probe
+    assert "snapshot_tool_schemas" in probe
+    assert "deployment_identity" in probe
+    assert "installed_site_package" in probe
+    assert "installed-package discovery must not start COMSOL" in probe
+    assert {"chromadb", "sentence_transformers", "torch"} <= set(
+        re.findall(r'"([a-z_]+)"', probe)
+    )
+
+
+def test_release_documentation_requires_restart_and_clean_tree():
+    checklist = (ROOT / "docs" / "release_checklist.md").read_text(encoding="utf-8")
+    migration = (ROOT / "docs" / "profile_migration.md").read_text(encoding="utf-8")
+
+    assert "clean tree" in checklist
+    assert "non-editably" in checklist
+    assert "Restart the MCP host" in checklist
+    assert "Profiles are immutable" in migration
+    assert "promotion rejected" in migration
+
+
+def test_real_release_gate_waits_for_fresh_complete_cleanup_without_stale_authority():
+    incomplete = {
+        "process_inventory": {"complete": False, "fresh": False},
+        "collision": True,
+        "lease": {"state": "absent"},
+    }
+    clean = {
+        "process_inventory": {"complete": True, "fresh": True},
+        "collision": False,
+        "lease": {"state": "absent"},
+    }
+
+    class Owner:
+        def __init__(self):
+            self.values = [incomplete, clean]
+
+        def status(self):
+            return self.values.pop(0)
+
+    ticks = iter([0.0, 0.1])
+    result = _wait_clean_ownership(
+        Owner(),
+        timeout_seconds=1.0,
+        poll_seconds=0.0,
+        clock=lambda: next(ticks),
+        sleeper=lambda _seconds: None,
+    )
+
+    assert result is clean
+
+
+def test_real_release_gate_timeout_preserves_fail_closed_collision():
+    blocked = {
+        "process_inventory": {"complete": False, "fresh": False},
+        "collision": True,
+        "lease": {"state": "absent"},
+    }
+
+    class Owner:
+        def status(self):
+            return blocked
+
+    result = _wait_clean_ownership(
+        Owner(),
+        timeout_seconds=0.0,
+        clock=lambda: 0.0,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert result is blocked
+    assert result["collision"] is True

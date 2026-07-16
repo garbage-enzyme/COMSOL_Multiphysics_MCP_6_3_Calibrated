@@ -62,7 +62,17 @@ def main() -> int:
     dist_dir = run_root / "dist"
     probe_result = run_root / "installed_probe.json"
 
-    _run([sys.executable, "-m", "compileall", "-q", "src", "tests", "scripts"])
+    _run(
+        [
+            sys.executable,
+            "-m",
+            "compileall",
+            "-q",
+            "src",
+            "development_kit/tests",
+            "scripts",
+        ]
+    )
     if not args.skip_tests:
         _run([sys.executable, "-m", "pytest", "-q"])
     _run([sys.executable, "-m", "build", "--outdir", str(dist_dir)])
@@ -85,7 +95,7 @@ def main() -> int:
                 str(python),
                 str(ROOT / "scripts" / "installed_package_probe.py"),
                 "--snapshot-dir",
-                str(ROOT / "tests" / "snapshots"),
+                str(ROOT / "development_kit" / "tests" / "snapshots"),
                 "--output",
                 str(probe_result),
             ],

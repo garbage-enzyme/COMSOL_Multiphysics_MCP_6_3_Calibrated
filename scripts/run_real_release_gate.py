@@ -110,7 +110,13 @@ def run_release_gate(
             raise ValueError("H1 release receipts must use new output paths")
         h1_command = [
             sys.executable,
-            str(ROOT / "tests" / "integration" / "h1_real_physical_evidence.py"),
+            str(
+                ROOT
+                / "development_kit"
+                / "tests"
+                / "integration"
+                / "h1_real_physical_evidence.py"
+            ),
             "--confirm", "RUN_REAL_COMSOL",
             "--spec", str(args.h1_spec),
             "--output", str(h1_receipt_path),
@@ -161,7 +167,7 @@ def run_release_gate(
                 "-q",
                 "-m",
                 "integration",
-                "tests/integration/test_real_comsol.py",
+                "development_kit/tests/integration/test_real_comsol.py",
             ],
             cwd=ROOT,
             text=True,
@@ -198,7 +204,7 @@ def run_release_gate(
             },
             "licensed_regression": {
                 **_completed_summary(suite_completed),
-                "test_target": "tests/integration/test_real_comsol.py",
+                "test_target": "development_kit/tests/integration/test_real_comsol.py",
                 "passed": suite_passed,
                 "skipped_reason": None if suite_completed is not None else "H1 did not pass",
                 "fixture_spec_sha256": (

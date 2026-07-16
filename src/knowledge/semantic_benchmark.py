@@ -23,7 +23,13 @@ from .semantic_contracts import (
 )
 
 
-DEFAULT_EVALUATION_PATH = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "h4_retrieval_evaluation.json"
+DEFAULT_EVALUATION_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "development_kit"
+    / "tests"
+    / "fixtures"
+    / "h4_retrieval_evaluation.json"
+)
 BASELINE_SCHEMA_VERSION = "1"
 
 

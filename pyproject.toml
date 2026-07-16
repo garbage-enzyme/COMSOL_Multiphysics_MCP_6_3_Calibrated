@@ -44,7 +44,7 @@ build-backend = "hatchling.build"
 packages = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["development_kit/tests"]
 addopts = "--strict-markers -m 'not integration'"
 markers = [
     "integration: launches a real COMSOL probe in a dedicated subprocess",
