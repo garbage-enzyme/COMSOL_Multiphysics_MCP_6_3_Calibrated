@@ -54,6 +54,16 @@ from .field_matrix import (
     normalize_validation_matrix_field_inputs,
 )
 from .field_render import render_field_png_bundle
+from .outcome_contract import (
+    EVIDENCE_COMPLETENESS_STATES,
+    EXECUTION_STATES,
+    NEXT_ELIGIBLE_ACTIONS,
+    OUTCOME_SCHEMA_NAME,
+    OUTCOME_SCHEMA_VERSION,
+    SCIENTIFIC_DISPOSITIONS,
+    build_outcome_contract,
+    validate_outcome_contract,
+)
 
 __all__ = [
     "EVIDENCE_STATES",
@@ -96,4 +106,12 @@ __all__ = [
     "bind_validation_matrix_field_request",
     "normalize_validation_matrix_field_inputs",
     "render_field_png_bundle",
+    "EVIDENCE_COMPLETENESS_STATES",
+    "EXECUTION_STATES",
+    "NEXT_ELIGIBLE_ACTIONS",
+    "OUTCOME_SCHEMA_NAME",
+    "OUTCOME_SCHEMA_VERSION",
+    "SCIENTIFIC_DISPOSITIONS",
+    "build_outcome_contract",
+    "validate_outcome_contract",
 ]

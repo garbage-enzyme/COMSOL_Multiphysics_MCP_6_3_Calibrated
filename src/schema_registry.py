@@ -59,6 +59,11 @@ def _entries() -> list[dict[str, Any]]:
             readable_versions=("1.0.0", "1.1.0"),
         ),
         _entry("comsol_mcp.environment_identity", "1.0.0", "src.environment_identity"),
+        _entry(
+            "comsol_mcp.execution_evidence_outcome",
+            "1.0.0",
+            "src.evidence.outcome_contract",
+        ),
         _entry("comsol_mcp.field_dataset_discovery", "1.0.0", "src.evidence.field_discovery"),
         _entry("comsol_mcp.field_evidence_manifest", "1.0.0", "src.evidence.field_manifest"),
         _entry("comsol_mcp.field_evidence_request", "1.1.0", "src.evidence.field_bundle"),

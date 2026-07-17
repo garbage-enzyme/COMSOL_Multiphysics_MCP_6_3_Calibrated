@@ -142,6 +142,7 @@ models are intentionally absent.
 - `development_kit/tests/test_mesh.py` — This module tests mesh helpers without a COMSOL client.
 - `development_kit/tests/test_mim_patch.py` — This module tests patch-metasurface helper behavior without a COMSOL client.
 - `development_kit/tests/test_model.py` — This module tests model management helpers without a COMSOL client.
+- `development_kit/tests/test_outcome_contract.py` — This module tests orthogonal execution, evidence, and scientific outcome contracts.
 - `development_kit/tests/test_native_cancel_probe.py` — This module tests native cancellation discovery and allowlisting without COMSOL.
 - `development_kit/tests/test_ownership.py` — This module tests solver ownership, leases, and collision detection.
 - `development_kit/tests/test_parameters.py` — This module tests parameter tools without a COMSOL client.
@@ -216,6 +217,7 @@ models are intentionally absent.
 - `src/evidence/field_render.py` — This module coordinates isolated field PNG rendering.
 - `src/evidence/field_sampling.py` — This module selects bounded raw samples for one declared slice.
 - `src/evidence/material_expressions.py` — This module constructs and previews dispersive material expressions.
+- `src/evidence/outcome_contract.py` — This module validates solver-free execution, evidence-completeness, and scientific-disposition outcomes.
 - `src/evidence/power_audit.py` — This module normalizes declared reference-power evidence.
 - `src/evidence/real_fixture.py` — This module validates portable controlled licensed-fixture contracts.
 - `src/evidence/reference_power_acceptance.py` — This module validates reference-power acceptance and execution inputs.
