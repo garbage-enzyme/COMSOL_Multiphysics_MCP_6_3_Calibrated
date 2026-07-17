@@ -99,9 +99,9 @@ async def _probe(command: Path, workdir: Path, stderr_path: Path) -> dict[str, A
                     ),
                     await _expect_rejection(
                         session,
-                        case_id="unexpected_capabilities_field",
-                        tool_name="capabilities",
-                        arguments={"unexpected": True},
+                        case_id="invalid_job_identifier_type",
+                        tool_name="job_status",
+                        arguments={"job_id": {"invalid": True}},
                     ),
                     await _expect_rejection(
                         session,
