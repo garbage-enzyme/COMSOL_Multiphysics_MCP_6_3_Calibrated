@@ -11,6 +11,7 @@ import sys
 import tomllib
 
 from src import __version__
+from src.build_identity import get_build_identity, package_content_sha256
 from src.compatibility import load_runtime_compatibility
 from src.tools.capabilities import get_capabilities
 from src.tools.capabilities import startup_capability_summary
@@ -39,8 +40,10 @@ def test_deployment_manifest_matches_frozen_profile_and_schema_snapshots():
 
     assert identity["available"] is True
     assert identity["schema_name"] == "comsol_mcp.deployment_identity"
-    assert identity["schema_version"] == "1.0.0"
+    assert identity["schema_version"] == "1.1.0"
     assert identity["package_version"] == __version__
+    assert identity["build_identity"] == get_build_identity()
+    assert identity["build_identity"]["package_version"] == __version__
     assert identity["full_tool_schemas_sha256"] == _sha256(
         SNAPSHOTS / "full_tool_schemas.json"
     )
@@ -54,6 +57,27 @@ def test_deployment_manifest_matches_frozen_profile_and_schema_snapshots():
     assert "陆星" not in serialized
     assert "C:\\Users\\" not in serialized
     assert str(ROOT) not in serialized
+
+
+def test_build_identity_ignores_generated_files_and_changes_with_package_bytes(tmp_path):
+    package = tmp_path / "src"
+    package.mkdir()
+    (package / "alpha.py").write_text("value = 1\n", encoding="utf-8")
+    nested = package / "data"
+    nested.mkdir()
+    (nested / "manifest.json").write_text('{"value":1}\n', encoding="utf-8")
+    first = package_content_sha256(package)
+
+    cache = package / "__pycache__"
+    cache.mkdir()
+    (cache / "alpha.pyc").write_bytes(b"generated")
+    assert package_content_sha256(package) == first
+
+    (package / "alpha.py").write_text("value = 2\n", encoding="utf-8")
+    assert package_content_sha256(package) != first
+    identity = get_build_identity(package)
+    assert identity["paths_included"] is False
+    assert str(tmp_path) not in json.dumps(identity)
 
 
 def test_package_version_has_one_authoritative_source():

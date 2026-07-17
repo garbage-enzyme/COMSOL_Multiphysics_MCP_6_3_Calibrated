@@ -10,6 +10,7 @@ import time
 
 from mcp.server.fastmcp import FastMCP
 
+from src.build_identity import get_build_identity
 from src.compatibility import load_runtime_compatibility
 from src.environment_identity import get_environment_identity
 from src.schema_registry import get_schema_registry
@@ -96,6 +97,7 @@ def _deployment_identity() -> dict:
         **manifest,
         "available": True,
         "package_version": package_version,
+        "build_identity": get_build_identity(),
         "source_classification": source_classification,
         "catalog_contract_sha256": _catalog_contract_sha256(),
         "contains_local_path": False,
@@ -155,7 +157,7 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
         "schema_registry": get_schema_registry(),
         "artifact_chain_verification": {
             "schema_name": "comsol_mcp.artifact_chain",
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "solver_free": True,
             "content_validation": "schema_identity_and_hash_chain",
             "path_redacted_receipt": True,

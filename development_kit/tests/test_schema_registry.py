@@ -47,7 +47,7 @@ def test_registry_is_complete_sorted_and_snapshot_stable():
     assert registry["schema_name"] == "comsol_mcp.schema_registry"
     assert registry["schema_version"] == "1.0.0"
     assert registry["producer"] == {"package": "comsol-mcp", "version": __version__}
-    assert registry["entry_count"] == len(entries) == 29
+    assert registry["entry_count"] == len(entries) == 30
     assert names == sorted(names)
     assert len(names) == len(set(names))
     assert set(names) == _named_schemas_in_source()
@@ -72,6 +72,13 @@ def test_every_entry_declares_read_write_and_non_mutating_migration_policy():
     )
     assert physical["readable_versions"] == ["1.0.0", "1.1.0"]
     assert physical["writable_version"] == "1.1.0"
+    deployment = next(
+        item
+        for item in get_schema_registry()["entries"]
+        if item["schema_name"] == "comsol_mcp.deployment_identity"
+    )
+    assert deployment["readable_versions"] == ["1.0.0", "1.1.0"]
+    assert deployment["writable_version"] == "1.1.0"
 
 
 def test_support_resolution_accepts_current_and_rejects_future_without_mutation():

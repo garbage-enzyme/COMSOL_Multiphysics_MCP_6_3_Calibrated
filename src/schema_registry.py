@@ -51,7 +51,13 @@ def _entries() -> list[dict[str, Any]]:
     entries = [
         _entry("comsol_mcp.artifact_chain", "1.0.0", "src.artifact_chain"),
         _entry("comsol_mcp.artifact_chain_verification", "1.0.0", "src.artifact_chain"),
-        _entry("comsol_mcp.deployment_identity", "1.0.0", "src.tools.capabilities"),
+        _entry("comsol_mcp.build_identity", "1.0.0", "src.build_identity"),
+        _entry(
+            "comsol_mcp.deployment_identity",
+            "1.1.0",
+            "src.tools.capabilities",
+            readable_versions=("1.0.0", "1.1.0"),
+        ),
         _entry("comsol_mcp.environment_identity", "1.0.0", "src.environment_identity"),
         _entry("comsol_mcp.field_dataset_discovery", "1.0.0", "src.evidence.field_discovery"),
         _entry("comsol_mcp.field_evidence_manifest", "1.0.0", "src.evidence.field_manifest"),
