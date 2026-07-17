@@ -18,11 +18,24 @@
       "psutil": "7.2.2",
       "pymupdf": "1.28.0"
     },
-    "test_result": "pending final corrected-branch verification",
-    "licensed_result": "pending provenance-bound compatibility gate"
+    "test_result": "645 passed, 13 deselected in 69.89 s; pip check clean",
+    "licensed_result": {
+      "status": "passed",
+      "source_commit": "f1750f79cb51f4e7b623911d2d30be5023e96dba",
+      "receipt": "D:/experimental_build/runtime/python_compatibility_f1750f7.json",
+      "receipt_sha256": "d89f42fe89357560da5bcb312f4ea9ff2571b938e2be0618e5efced382791387",
+      "comsol": "6.4.0.293",
+      "java": "21.0.7",
+      "measured_capacitance_pf": 1.8593794419540677,
+      "theory_capacitance_pf": 1.8593794406880002,
+      "relative_error": 6.809086114311227e-10,
+      "cleanup_passed": true
+    }
   },
   "release_lock": {
     "path": "constraints/release_locked_py314.txt",
+    "sha256": "d8304e7416d0be3a8f8c5613740f75c05c28483ddee3e376e4106b4a1db24c76",
+    "requirement_count": 46,
     "scope": "complete transitive default runtime dependencies",
     "install_mode": "pip --require-hashes followed by local wheel --no-deps"
   },

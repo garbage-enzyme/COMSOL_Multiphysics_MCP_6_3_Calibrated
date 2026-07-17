@@ -117,7 +117,7 @@ The electrostatics helper can create `ChargeConservation` and a material node be
 
 ## Verification
 
-The current dependency/process-only gate is **644 passed, 13 deselected**. Unit tests are side-effect-free: collection does not start COMSOL, and integration probes run only when explicitly requested in fresh, sequential subprocesses with exact process-tree cleanup. Repository-only tests, release fixtures, gates, and provenance are documented in `development_kit/README.md`; ordinary wheel/sdist artifacts exclude that directory.
+The current dependency/process-only gate is **645 passed, 13 deselected**. Unit tests are side-effect-free: collection does not start COMSOL, and integration probes run only when explicitly requested in fresh, sequential subprocesses with exact process-tree cleanup. Repository-only tests, release fixtures, gates, and provenance are documented in `development_kit/README.md`; ordinary wheel/sdist artifacts exclude that directory.
 
 ```bash
 python -m pytest -q
@@ -126,7 +126,7 @@ python -m pytest -q -m integration development_kit/tests/integration
 
 Real COMSOL checks include localized JSON transport; circle/union geometry; DXF import; parametric sweep properties; multiphysics coupling; clone cleanup; Unicode-path saving; solver ownership; durable interruption/restart/resume/cancellation; profile discovery; Wave Optics preflight and one-point audit; and bounded manual retrieval.
 
-The parallel-plate regression returns **1.8593794419540652 pF**, versus the theoretical **1.8593794406880002 pF**.
+The Python 3.14 licensed parallel-plate regression returns **1.8593794419540677 pF**, versus the theoretical **1.8593794406880002 pF**, on COMSOL **6.4.0.293**.
 
 ## Requirements and installation
 
