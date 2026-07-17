@@ -178,6 +178,7 @@ models are intentionally absent.
 - `development_kit/tests/test_server.py` — This module tests server construction and capabilities without starting a transport.
 - `development_kit/tests/test_spectral_characterization.py` — This module tests provenance-bound offline spectral validation and measurements.
 - `development_kit/tests/test_spectral_characterization_job.py` — This module tests immutable bounded durable spectral job specifications.
+- `development_kit/tests/test_spectral_rows.py` — This module tests hash-chained durable spectral rows and exact artifact-bound resume.
 - `development_kit/tests/test_study.py` — This module tests study helpers without a COMSOL client.
 - `development_kit/tests/test_tool_catalog.py` — This module tests deterministic tool catalog metadata and discovery.
 - `development_kit/tests/test_tool_profiles.py` — This module tests static profile selection, membership, and registration.
@@ -249,6 +250,7 @@ models are intentionally absent.
 - `src/jobs/resource_admission.py` — This module validates resource policy, telemetry, journals, and admission.
 - `src/jobs/sequence_worker.py` — This module provides an injected process-only durability worker.
 - `src/jobs/spectral_characterization.py` — This module normalizes immutable bounded durable spectral job specifications.
+- `src/jobs/spectral_rows.py` — This module persists hash-chained raw spectral points with artifact verification.
 - `src/jobs/store.py` — This module persists crash-durable job state and process-safe locks.
 - `src/jobs/validation_collectors.py` — This module adapts validation points to physical evidence collectors.
 - `src/jobs/validation_matrix.py` — This module normalizes bounded durable validation-matrix specifications.
