@@ -208,6 +208,7 @@ def main() -> int:
     run_root = Path(tempfile.mkdtemp(prefix="gate-", dir=artifact_root))
     dist_dir = run_root / "dist"
     probe_result = run_root / "installed_probe.json"
+    sbom_result = run_root / "sbom.cdx.json"
     dependency_lock = (
         _validated_dependency_lock(args.dependency_lock)
         if args.dependency_lock is not None
@@ -279,9 +280,28 @@ def main() -> int:
             env=environment,
             check=True,
         )
+        if dependency_lock is not None:
+            _run(
+                [
+                    str(python),
+                    str(ROOT / "development_kit" / "scripts" / "sbom_probe.py"),
+                    "--lock",
+                    str(dependency_lock),
+                    "--output",
+                    str(sbom_result),
+                ],
+                cwd=probe_workdir,
+            )
 
+    installed_probe = (
+        json.loads(probe_result.read_text(encoding="utf-8"))
+        if probe_result.is_file()
+        else None
+    )
+    sbom = json.loads(sbom_result.read_text(encoding="utf-8")) if sbom_result.is_file() else None
     report = {
-        "schema_version": "1.0.0",
+        "schema_name": "comsol_mcp.release_gate_receipt",
+        "schema_version": "2.0.0",
         "environment": {
             "python": platform.python_version(),
             "implementation": platform.python_implementation(),
@@ -305,12 +325,26 @@ def main() -> int:
             if dependency_lock is not None
             else None
         ),
-        "installed_probe": (
-            json.loads(probe_result.read_text(encoding="utf-8"))
-            if probe_result.is_file()
+        "installed_probe": installed_probe,
+        "inventory_hashes": (
+            installed_probe["release_inventories"] if installed_probe else None
+        ),
+        "sbom": (
+            {
+                "filename": sbom_result.name,
+                "sha256": _sha256(sbom_result),
+                "format": sbom["bomFormat"],
+                "spec_version": sbom["specVersion"],
+                "component_count": len(sbom["components"]),
+                "root_package_version": sbom["metadata"]["component"]["version"],
+            }
+            if sbom is not None
             else None
         ),
     }
+    report["receipt_sha256"] = hashlib.sha256(
+        json.dumps(report, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
     (run_root / "release_gate_report.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

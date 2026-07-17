@@ -39,6 +39,7 @@ def main() -> int:
     expected_schemas = _load_json(args.snapshot_dir / "full_tool_schemas.json")
     actual_counts: dict[str, int] = {}
     deployment_identities: list[dict] = []
+    release_inventories: dict | None = None
 
     if tuple(expected_names) != PROFILE_NAMES:
         raise AssertionError("installed profile order differs from the frozen snapshot")
@@ -54,9 +55,17 @@ def main() -> int:
         if schemas != expected_profile_schemas:
             raise AssertionError(f"installed {profile} schemas differ from snapshot")
         actual_counts[profile] = len(schemas)
-        deployment_identities.append(
-            get_capabilities(selection)["deployment_identity"]
-        )
+        capabilities = get_capabilities(selection)
+        deployment_identities.append(capabilities["deployment_identity"])
+        if release_inventories is None:
+            release_inventories = {
+                "schema_registry_sha256": capabilities["schema_registry"]["registry_sha256"],
+                "schema_entry_count": capabilities["schema_registry"]["entry_count"],
+                "catalog_contract_sha256": capabilities["deployment_identity"]["catalog_contract_sha256"],
+                "full_tool_schemas_sha256": capabilities["deployment_identity"]["full_tool_schemas_sha256"],
+                "profile_tool_names_sha256": capabilities["deployment_identity"]["profile_tool_names_sha256"],
+                "build_identity_sha256": capabilities["deployment_identity"]["build_identity"]["build_identity_sha256"],
+            }
 
     if not all(identity == deployment_identities[0] for identity in deployment_identities[1:]):
         raise AssertionError("installed profiles disagree on deployment identity")
@@ -72,7 +81,7 @@ def main() -> int:
 
     package_requirements = sorted(requires("comsol-mcp") or [])
     result = {
-        "schema_version": "1.0.0",
+        "schema_version": "1.1.0",
         "installed_package": {
             "name": "comsol-mcp",
             "version": version("comsol-mcp"),
@@ -81,6 +90,7 @@ def main() -> int:
         },
         "profile_counts": actual_counts,
         "deployment_identity": deployment_identity,
+        "release_inventories": release_inventories,
         "schema_snapshot_match": True,
         "comsol_client_started": False,
         "heavy_semantic_modules_imported": imported_heavy,

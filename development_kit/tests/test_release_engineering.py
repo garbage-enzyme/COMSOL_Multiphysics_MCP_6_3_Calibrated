@@ -389,11 +389,19 @@ def test_installed_probe_checks_every_profile_without_solver_or_heavy_imports():
     assert "for profile in PROFILE_NAMES" in probe
     assert "snapshot_tool_schemas" in probe
     assert "deployment_identity" in probe
+    assert "release_inventories" in probe
     assert "installed_site_package" in probe
     assert "installed-package discovery must not start COMSOL" in probe
     assert {"chromadb", "sentence_transformers", "torch"} <= set(
         re.findall(r'"([a-z_]+)"', probe)
     )
+    release_gate = (
+        ROOT / "development_kit" / "scripts" / "release_gate.py"
+    ).read_text(encoding="utf-8")
+    assert "sbom.cdx.json" in release_gate
+    assert "release_gate_receipt" in release_gate
+    assert "receipt_sha256" in release_gate
+    assert "inventory_hashes" in release_gate
 
 
 def test_release_documentation_requires_restart_and_clean_tree():

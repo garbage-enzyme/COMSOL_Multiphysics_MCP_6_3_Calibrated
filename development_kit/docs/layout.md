@@ -70,6 +70,7 @@ models are intentionally absent.
 - `development_kit/scripts/reference_power_gate_preflight.py` — This script validates reference-power gate inputs without starting COMSOL.
 - `development_kit/scripts/release_gate.py` — This script runs compile, test, package, clean-install, and installed-discovery gates.
 - `development_kit/scripts/run_real_release_gate.py` — This script orchestrates the explicit serial licensed COMSOL release gate.
+- `development_kit/scripts/sbom_probe.py` — This script generates a deterministic CycloneDX SBOM from the locked installed runtime.
 - `development_kit/scripts/security_gate.py` — This script evaluates pip-audit findings against the exact expiring review policy.
 
 ## Test fixtures and frozen snapshots
@@ -155,6 +156,7 @@ models are intentionally absent.
 - `development_kit/tests/test_reference_power_release_orchestrator.py` — This module tests mandatory serial release orchestration with fake processes.
 - `development_kit/tests/test_reference_power_runner.py` — This module tests reference-power coordinator and worker process boundaries.
 - `development_kit/tests/test_release_engineering.py` — This module tests repository, dependency, fixture, archive, and release policies.
+- `development_kit/tests/test_release_receipts.py` — This module tests deterministic SBOM and release inventory receipts.
 - `development_kit/tests/test_resource_admission.py` — This module tests resource policy normalization, telemetry, and admission decisions.
 - `development_kit/tests/test_results.py` — This module tests result normalization without a COMSOL client.
 - `development_kit/tests/test_runtime_paths.py` — This module tests shared ASCII-safe runtime and lease paths.
