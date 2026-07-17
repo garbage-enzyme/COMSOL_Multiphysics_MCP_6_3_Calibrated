@@ -44,8 +44,21 @@ _FORBIDDEN_SUFFIXES = {".class", ".lock", ".mph", ".pyc", ".recovery", ".status"
 _FORBIDDEN_NAMES = {".env", "credentials", "credentials.json", "id_rsa", "secrets.json"}
 
 
-def _run(command: list[str], *, cwd: Path = ROOT) -> None:
-    subprocess.run(command, cwd=cwd, check=True)
+def _run(
+    command: list[str],
+    *,
+    cwd: Path = ROOT,
+    env: dict[str, str] | None = None,
+) -> None:
+    subprocess.run(
+        command,
+        cwd=cwd,
+        env=env,
+        check=True,
+        creationflags=(
+            getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+        ),
+    )
 
 
 def _git_status() -> list[str]:
@@ -55,6 +68,9 @@ def _git_status() -> list[str]:
         check=True,
         capture_output=True,
         text=True,
+        creationflags=(
+            getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+        ),
     )
     return [line for line in completed.stdout.splitlines() if line]
 
@@ -72,6 +88,12 @@ def _venv_python(venv_dir: Path) -> Path:
     if os.name == "nt":
         return venv_dir / "Scripts" / "python.exe"
     return venv_dir / "bin" / "python"
+
+
+def _venv_console_entry(venv_dir: Path) -> Path:
+    if os.name == "nt":
+        return venv_dir / "Scripts" / "comsol-mcp.exe"
+    return venv_dir / "bin" / "comsol-mcp"
 
 
 def _lock_lane(path: Path) -> str:
@@ -209,6 +231,7 @@ def main() -> int:
     dist_dir = run_root / "dist"
     probe_result = run_root / "installed_probe.json"
     sbom_result = run_root / "sbom.cdx.json"
+    stdio_probe_result = run_root / "installed_stdio_probe.json"
     dependency_lock = (
         _validated_dependency_lock(args.dependency_lock)
         if args.dependency_lock is not None
@@ -267,7 +290,7 @@ def main() -> int:
         probe_workdir.mkdir()
         environment = os.environ.copy()
         environment.pop("PYTHONPATH", None)
-        subprocess.run(
+        _run(
             [
                 str(python),
                 str(ROOT / "development_kit" / "scripts" / "installed_package_probe.py"),
@@ -278,7 +301,6 @@ def main() -> int:
             ],
             cwd=probe_workdir,
             env=environment,
-            check=True,
         )
         if dependency_lock is not None:
             _run(
@@ -292,6 +314,19 @@ def main() -> int:
                 ],
                 cwd=probe_workdir,
             )
+        _run(
+            [
+                str(python),
+                str(ROOT / "development_kit" / "scripts" / "installed_stdio_probe.py"),
+                "--command",
+                str(_venv_console_entry(venv_dir)),
+                "--workdir",
+                str(run_root / "stdio_probe_workdir"),
+                "--output",
+                str(stdio_probe_result),
+            ],
+            cwd=probe_workdir,
+        )
 
     installed_probe = (
         json.loads(probe_result.read_text(encoding="utf-8"))
@@ -299,6 +334,11 @@ def main() -> int:
         else None
     )
     sbom = json.loads(sbom_result.read_text(encoding="utf-8")) if sbom_result.is_file() else None
+    stdio_probe = (
+        json.loads(stdio_probe_result.read_text(encoding="utf-8"))
+        if stdio_probe_result.is_file()
+        else None
+    )
     report = {
         "schema_name": "comsol_mcp.release_gate_receipt",
         "schema_version": "2.0.0",
@@ -326,6 +366,7 @@ def main() -> int:
             else None
         ),
         "installed_probe": installed_probe,
+        "installed_stdio_probe": stdio_probe,
         "inventory_hashes": (
             installed_probe["release_inventories"] if installed_probe else None
         ),

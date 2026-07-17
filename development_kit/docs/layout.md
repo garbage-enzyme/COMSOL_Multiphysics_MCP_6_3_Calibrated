@@ -65,6 +65,7 @@ models are intentionally absent.
 - `development_kit/scripts/__init__.py` — This file marks repository-only release utilities as a Python package.
 - `development_kit/scripts/generate_release_lock.py` — This script generates the complete hashed Windows Python release lock.
 - `development_kit/scripts/installed_package_probe.py` — This script verifies installed discovery, schemas, profiles, and deployment identity without COMSOL startup.
+- `development_kit/scripts/installed_stdio_probe.py` — This script verifies the installed console entry point over real MCP stdio transport.
 - `development_kit/scripts/planning_code_gate.py` — This script verifies the exact frozen planning-code compatibility surface.
 - `development_kit/scripts/python_compatibility_licensed_gate.py` — This script runs the pinned Python and COMSOL compatibility regression on a licensed host.
 - `development_kit/scripts/reference_power_gate_preflight.py` — This script validates reference-power gate inputs without starting COMSOL.
@@ -134,6 +135,7 @@ models are intentionally absent.
 - `development_kit/tests/test_geometry.py` — This module tests geometry helpers without a COMSOL client.
 - `development_kit/tests/test_incidence_config.py` — This module tests typed periodic incidence preview and mutation gates.
 - `development_kit/tests/test_integration_boundaries.py` — This module tests isolation and safety boundaries for integration probes.
+- `development_kit/tests/test_installed_stdio_probe.py` — This module tests installed stdio probe result decoding.
 - `development_kit/tests/test_job_state_stress.py` — This module stress-tests durable state readers and writers without COMSOL.
 - `development_kit/tests/test_lexical_manual.py` — This module tests bounded SQLite lexical manual search and page reading.
 - `development_kit/tests/test_material_expressions.py` — This module tests solver-free dispersive material-expression previews.

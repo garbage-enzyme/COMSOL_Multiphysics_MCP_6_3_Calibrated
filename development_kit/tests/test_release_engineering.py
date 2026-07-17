@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import subprocess
@@ -26,6 +27,7 @@ from development_kit.scripts.release_gate import (
     PLANNING_CODE_ALLOWLIST,
     _distribution_inventory,
     _lock_lane,
+    _run,
     _validated_dependency_lock,
 )
 from development_kit.scripts.run_real_release_gate import _wait_clean_ownership
@@ -75,6 +77,21 @@ def _strings(value):
     elif isinstance(value, list):
         for item in value:
             yield from _strings(item)
+
+
+def test_release_gate_subprocesses_use_hidden_windows_launch(monkeypatch):
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    _run(["python", "-c", "pass"])
+
+    assert calls[0][0] == ["python", "-c", "pass"]
+    expected = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    assert calls[0][1]["creationflags"] == expected
+    assert calls[0][1]["check"] is True
 
 
 def test_support_matrix_matches_frozen_profile_counts_and_declared_dependencies():
@@ -402,6 +419,8 @@ def test_installed_probe_checks_every_profile_without_solver_or_heavy_imports():
     assert "release_gate_receipt" in release_gate
     assert "receipt_sha256" in release_gate
     assert "inventory_hashes" in release_gate
+    assert "installed_stdio_probe.py" in release_gate
+    assert "installed_stdio_probe" in release_gate
 
 
 def test_release_documentation_requires_restart_and_clean_tree():
