@@ -25,7 +25,7 @@ _SPECTRAL_INPUT_FIELDS = {
 
 def _raw_spectral(tmp_path, index: int) -> dict:
     root = tmp_path / f"level-{index}"
-    root.mkdir(exist_ok=True)
+    root.mkdir(parents=True, exist_ok=True)
     normalized = spectral_job_spec(root, maximum_points=10)
     (root / "source.mph").write_bytes(f"model-level-{index}".encode("ascii"))
     value = {

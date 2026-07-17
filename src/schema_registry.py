@@ -34,6 +34,10 @@ from src.jobs.spectral_progress import (
     SPECTRAL_PROGRESS_SCHEMA_NAME,
     SPECTRAL_PROGRESS_SCHEMA_VERSION,
 )
+from src.jobs.convergence_campaign_rows import (
+    CONVERGENCE_CAMPAIGN_LEVEL_SCHEMA_NAME,
+    CONVERGENCE_CAMPAIGN_LEVEL_SCHEMA_VERSION,
+)
 from src.jobs.spectral_rows import (
     SPECTRAL_ROW_SCHEMA_NAME,
     SPECTRAL_ROW_SCHEMA_VERSION,
@@ -100,6 +104,12 @@ def _entries() -> list[dict[str, Any]]:
             CONVERGENCE_LADDER_SCHEMA,
             CONVERGENCE_SCHEMA_VERSION,
             "src.evidence.convergence_evaluation",
+        ),
+        _entry(
+            CONVERGENCE_CAMPAIGN_LEVEL_SCHEMA_NAME,
+            CONVERGENCE_CAMPAIGN_LEVEL_SCHEMA_VERSION,
+            "src.jobs.convergence_campaign_rows",
+            artifact_kind="durable_artifact",
         ),
         _entry(
             CONVERGENCE_EVALUATION_SCHEMA,

@@ -118,6 +118,7 @@ models are intentionally absent.
 - `development_kit/tests/test_clientapi_properties.py` — This module tests constrained clientapi property access with mocks.
 - `development_kit/tests/test_control_plane_metrics.py` — This module tests bounded control-plane latency, overload, and fairness evidence.
 - `development_kit/tests/test_convergence_campaign_job.py` — This module tests immutable bounded durable convergence campaign specifications.
+- `development_kit/tests/test_convergence_campaign_rows.py` — This module tests hash-chained durable convergence level evidence and artifact replay.
 - `development_kit/tests/test_convergence_evaluation.py` — This module tests ordered solver-free convergence evidence and policy evaluation.
 - `development_kit/tests/test_deployment_identity.py` — This module tests package version, build identity, and fresh-process deployment consistency.
 - `development_kit/tests/test_derived_geometry.py` — This module tests typed derived-geometry edits without COMSOL.
@@ -252,6 +253,7 @@ models are intentionally absent.
 - `src/jobs/__init__.py` — This file exports durable background-job primitives.
 - `src/jobs/cancel_worker.py` — This module coordinates detached durable cancellation and cleanup.
 - `src/jobs/convergence_campaign.py` — This module normalizes immutable bounded durable convergence campaign specifications.
+- `src/jobs/convergence_campaign_rows.py` — This module persists hash-chained convergence level evidence bound to completed spectral artifacts.
 - `src/jobs/field_review.py` — This module assembles paired validation-matrix field-review artifacts.
 - `src/jobs/manager.py` — This module handles durable job submission, status, cancellation, resume, and reconciliation.
 - `src/jobs/native_cancel_probe.py` — This module inspects allowlisted native cancellation support.
