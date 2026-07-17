@@ -172,6 +172,7 @@ models are intentionally absent.
 - `development_kit/tests/test_semantic_tools.py` — This module tests semantic profile schemas, configuration, and degradation behavior.
 - `development_kit/tests/test_semantic_worker_protocol.py` — This module tests isolated semantic worker protocol and containment.
 - `development_kit/tests/test_server.py` — This module tests server construction and capabilities without starting a transport.
+- `development_kit/tests/test_spectral_characterization.py` — This module tests provenance-bound offline spectral validation and measurements.
 - `development_kit/tests/test_study.py` — This module tests study helpers without a COMSOL client.
 - `development_kit/tests/test_tool_catalog.py` — This module tests deterministic tool catalog metadata and discovery.
 - `development_kit/tests/test_tool_profiles.py` — This module tests static profile selection, membership, and registration.
@@ -224,6 +225,7 @@ models are intentionally absent.
 - `src/evidence/real_fixture.py` — This module validates portable controlled licensed-fixture contracts.
 - `src/evidence/reference_power_acceptance.py` — This module validates reference-power acceptance and execution inputs.
 - `src/evidence/reference_power_gate.py` — This module evaluates reference-power receipts and artifact accounting.
+- `src/evidence/spectral_characterization.py` — This module validates and characterizes provenance-bound spectra without a solver.
 - `src/evidence/visual_review.py` — This module defines visual-review capability, request, receipt, and dual-review contracts.
 
 ## Durable job modules

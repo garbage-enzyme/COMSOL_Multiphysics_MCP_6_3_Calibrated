@@ -12,6 +12,11 @@ from src.evidence.reference_power_acceptance import (
     REFERENCE_POWER_CONTRACT_SCHEMA,
     REFERENCE_POWER_EXECUTION_SCHEMA,
 )
+from src.evidence.spectral_characterization import (
+    SPECTRAL_BUNDLE_SCHEMA,
+    SPECTRAL_DECISION_SCHEMA,
+    SPECTRAL_SCHEMA_VERSION,
+)
 
 
 _REGISTRY_SCHEMA = "comsol_mcp.schema_registry"
@@ -88,6 +93,16 @@ def _entries() -> list[dict[str, Any]]:
             "comsol_mcp.portfolio_evidence_verification",
             "1.0.0",
             "src.evidence.portfolio_verifier",
+        ),
+        _entry(
+            SPECTRAL_DECISION_SCHEMA,
+            SPECTRAL_SCHEMA_VERSION,
+            "src.evidence.spectral_characterization",
+        ),
+        _entry(
+            SPECTRAL_BUNDLE_SCHEMA,
+            SPECTRAL_SCHEMA_VERSION,
+            "src.evidence.spectral_characterization",
         ),
         _entry("comsol_mcp.resource_calibration_report", "1.0.0", "src.jobs.resource_admission"),
         _entry("comsol_mcp.resource_journal_entry", "1.0.0", "src.jobs.resource_admission"),
