@@ -361,3 +361,115 @@ def test_evaluation_hash_tampering_fails_closed():
 
     with pytest.raises(ValueError, match="noncanonical|hash"):
         validate_convergence_evaluation(tampered, ladder=ladder)
+
+
+def _fitted_level(index: int, center: float, predecessor: str | None):
+    configuration = f"{index + 7:x}" * 64
+    wavelengths = [5.0e-6 + (point - 10) * 0.02e-6 for point in range(21)]
+    rows = []
+    for point, wavelength in enumerate(wavelengths):
+        coordinate = (wavelength - center) / 0.06e-6
+        absorption = 0.1 + 0.8 / (1.0 + coordinate * coordinate)
+        rows.append({
+            "row_id": f"fit-{index}-point-{point}",
+            "raw_row_sha256": hashlib.sha256(f"fit-{index}-{point}".encode()).hexdigest(),
+            "configuration_sha256": configuration,
+            "requested_wavelength_m": wavelength,
+            "evaluated_wavelength_m": wavelength,
+            "frequency_wavelength_m": wavelength,
+            "R": 0.95 - absorption,
+            "T": 0.05,
+            "A": absorption,
+        })
+    bundle = build_spectral_point_bundle(
+        bundle_id=f"fitted-spectrum-{index}",
+        source_model={
+            "relative_identity": f"fixtures/fitted-source-{index}.mph",
+            "sha256": ("a" if index == 0 else "b") * 64,
+        },
+        configuration_sha256=configuration,
+        parameter_state={"mesh_level": index},
+        wavelength_convention={
+            "unit": "m", "requested_field": "requested_wavelength_m",
+            "evaluated_field": "evaluated_wavelength_m",
+            "frequency_derived_field": "frequency_wavelength_m",
+            "frequency_relation": "c_const/frequency",
+        },
+        expressions={"R": "R", "T": "T", "A": "A"},
+        rows=rows,
+    )
+    decision = build_spectral_analysis_decision(bundle, {
+        "response_quantity": "A", "candidate_polarity": "maximum",
+        "passivity_abs_tolerance": 1e-12, "closure_abs_tolerance": 1e-12,
+        "wavelength_sync_abs_m": 1e-15, "flat_response_abs_tolerance": 1e-12,
+        "minimum_point_count": 5,
+    })
+    characterization = build_spectral_characterization(bundle, decision, {
+        "peak_method": "local_polynomial_fit",
+        "baseline_rule": "declared_response", "baseline_response_value": 0.1,
+        "fwhm_definition": "half_prominence", "fit_support_points": 9,
+        "fit_support_sensitivity_points": [5, 7, 9, 11, 13],
+        "local_polynomial_degree": 2, "fit_max_evaluations": 20000,
+    })
+    return {
+        "level_id": f"fitted-mesh-{index}", "ordinal": index,
+        "declared_predecessor_level_id": predecessor,
+        "source_model_sha256": bundle["source_model"]["sha256"],
+        "configuration_sha256": configuration,
+        "mesh_counts": {
+            "element_count": 2000 * (index + 1),
+            "vertex_count": 1000 * (index + 1),
+        },
+        "material_identity_sha256": MATERIAL_SHA256,
+        "incidence_identity_sha256": INCIDENCE_SHA256,
+        "spectral_bundle": bundle, "analysis_decision": decision,
+        "candidate_measurements": characterization,
+        "optional_field_metrics": {}, "fixed_reference_diagnostics": {},
+    }
+
+
+def test_fit_support_outcome_change_blocks_automatic_acceptance():
+    levels = [
+        _fitted_level(0, 5.0e-6, None),
+        _fitted_level(1, 5.006e-6, "fitted-mesh-0"),
+    ]
+    ladder = build_convergence_ladder(ladder_id="fit-sensitive-ladder", levels=levels)
+    evaluation = evaluate_convergence(
+        ladder,
+        _policy(
+            metrics=[_metric("peak_wavelength_m", "m", absolute=4.4e-9)],
+            minimum_level_count=2,
+        ),
+    )
+    comparison = evaluation["pair_comparisons"][0]["comparisons"][0]
+    sensitivity = comparison["fit_support_sensitivity"]
+
+    assert comparison["passed"] is True
+    assert sensitivity["state"] == "compared"
+    assert sensitivity["common_support_point_counts"] == [5, 7, 9, 11, 13]
+    assert {item["passed"] for item in sensitivity["comparisons"]} == {False, True}
+    assert sensitivity["outcome_changed_by_support"] is True
+    assert sensitivity["policy_authority"] is False
+    assert evaluation["fit_sensitive"] is True
+    assert evaluation["scientific_disposition"] == "residual"
+    assert evaluation["reason_code"] == "fit_support_sensitive"
+
+
+def test_monotonicity_is_observation_and_fixed_reference_is_diagnostic_only():
+    ladder = build_convergence_ladder(ladder_id="three-mesh-ladder", levels=_levels())
+    evaluation = evaluate_convergence(ladder, _policy())
+    observations = {
+        item["metric"]: item for item in evaluation["monotonicity_observations"]
+    }
+
+    assert observations["peak_wavelength_m"]["state"] == "nondecreasing"
+    assert observations["peak_response_value"]["state"] == "constant"
+    assert observations["mesh:element_count"]["state"] == "nondecreasing"
+    assert all(item["convergence_proof"] is False for item in observations.values())
+    assert all(item["policy_authority"] is False for item in observations.values())
+    assert evaluation["scientific_disposition"] == "accepted"
+    assert len(evaluation["fixed_reference_diagnostics"]) == 2
+    for pair in evaluation["fixed_reference_diagnostics"]:
+        assert pair["governs_convergence"] is False
+        assert pair["comparisons"][0]["diagnostic_only"] is True
+        assert pair["comparisons"][0]["policy_authority"] is False

@@ -492,6 +492,77 @@ def _relative_change(
     return absolute_change / denominator
 
 
+def _fit_support_comparison(
+    previous: Mapping[str, Any],
+    current: Mapping[str, Any],
+    rule: Mapping[str, Any],
+    relative_denominator: str,
+    primary_passed: bool,
+) -> dict[str, Any]:
+    metric = rule["metric"]
+    if metric not in _BUILTIN_METRIC_UNITS:
+        return {
+            "state": "not_applicable",
+            "common_support_point_counts": [],
+            "comparisons": [],
+            "outcome_changed_by_support": False,
+            "policy_authority": False,
+        }
+    previous_by_count = {
+        item["support_point_count"]: item
+        for item in previous["fit_support_sensitivity"]["measurements"]
+        if item["state"] == "measured" and item.get(metric) is not None
+    }
+    current_by_count = {
+        item["support_point_count"]: item
+        for item in current["fit_support_sensitivity"]["measurements"]
+        if item["state"] == "measured" and item.get(metric) is not None
+    }
+    common = sorted(set(previous_by_count) & set(current_by_count))
+    comparisons = []
+    for count in common:
+        previous_value = float(previous_by_count[count][metric])
+        current_value = float(current_by_count[count][metric])
+        absolute_change = abs(current_value - previous_value)
+        relative_change = _relative_change(
+            previous_value, current_value, absolute_change, relative_denominator
+        )
+        absolute_passed = (
+            None if rule["absolute_tolerance"] is None
+            else absolute_change <= rule["absolute_tolerance"]
+        )
+        relative_passed = (
+            None if rule["relative_tolerance"] is None
+            else relative_change is not None and relative_change <= rule["relative_tolerance"]
+        )
+        declared = [
+            outcome for outcome in (absolute_passed, relative_passed)
+            if outcome is not None
+        ]
+        comparisons.append({
+            "support_point_count": count,
+            "previous_value": previous_value,
+            "current_value": current_value,
+            "absolute_change": absolute_change,
+            "relative_change": relative_change,
+            "absolute_passed": absolute_passed,
+            "relative_passed": relative_passed,
+            "passed": all(declared),
+        })
+    outcomes = [item["passed"] for item in comparisons]
+    changed = bool(outcomes) and (
+        any(outcome != primary_passed for outcome in outcomes)
+        or len(set(outcomes)) > 1
+    )
+    return {
+        "state": "compared" if comparisons else "not_available",
+        "common_support_point_counts": common,
+        "comparisons": comparisons,
+        "outcome_changed_by_support": changed,
+        "policy_authority": False,
+    }
+
+
 def _pair_comparison(
     previous: Mapping[str, Any],
     current: Mapping[str, Any],
@@ -520,6 +591,13 @@ def _pair_comparison(
             "evidence_complete": False,
             "previous_level_sha256": previous["level_sha256"],
             "current_level_sha256": current["level_sha256"],
+            "fit_support_sensitivity": {
+                "state": "not_evaluated_incomplete_primary_evidence",
+                "common_support_point_counts": [],
+                "comparisons": [],
+                "outcome_changed_by_support": False,
+                "policy_authority": False,
+            },
         }
     absolute_change = abs(float(current_value) - float(previous_value))
     relative_change = _relative_change(
@@ -537,6 +615,7 @@ def _pair_comparison(
     declared_checks = [
         result for result in (absolute_passed, relative_passed) if result is not None
     ]
+    passed = all(declared_checks)
     return {
         "metric": metric,
         "unit": rule["unit"],
@@ -546,11 +625,116 @@ def _pair_comparison(
         "relative_change": relative_change,
         "absolute_passed": absolute_passed,
         "relative_passed": relative_passed,
-        "passed": all(declared_checks),
+        "passed": passed,
         "evidence_complete": True,
         "previous_level_sha256": previous["level_sha256"],
         "current_level_sha256": current["level_sha256"],
+        "fit_support_sensitivity": _fit_support_comparison(
+            previous, current, rule, relative_denominator, passed
+        ),
     }
+
+
+def _monotonicity_observations(
+    levels: list[Mapping[str, Any]], rules: list[Mapping[str, Any]]
+) -> list[dict[str, Any]]:
+    observations = []
+    for rule in rules:
+        values = [_metric_value(level, rule["metric"])[0] for level in levels]
+        if any(value is None for value in values):
+            state = "unavailable"
+            differences = []
+        else:
+            numeric = [float(value) for value in values]
+            differences = [current - previous for previous, current in zip(numeric, numeric[1:])]
+            if all(change == 0.0 for change in differences):
+                state = "constant"
+            elif all(change >= 0.0 for change in differences):
+                state = "nondecreasing"
+            elif all(change <= 0.0 for change in differences):
+                state = "nonincreasing"
+            else:
+                state = "non_monotonic"
+        observations.append({
+            "metric": rule["metric"],
+            "unit": rule["unit"],
+            "state": state,
+            "adjacent_signed_changes": differences,
+            "convergence_proof": False,
+            "policy_authority": False,
+        })
+    for metric in ("element_count", "vertex_count"):
+        values = [level["mesh_counts"][metric] for level in levels]
+        differences = [current - previous for previous, current in zip(values, values[1:])]
+        state = (
+            "constant" if all(change == 0 for change in differences)
+            else "nondecreasing" if all(change >= 0 for change in differences)
+            else "nonincreasing" if all(change <= 0 for change in differences)
+            else "non_monotonic"
+        )
+        observations.append({
+            "metric": f"mesh:{metric}",
+            "unit": "count",
+            "state": state,
+            "adjacent_signed_changes": differences,
+            "convergence_proof": False,
+            "policy_authority": False,
+        })
+    return observations
+
+
+def _fixed_reference_pair_diagnostics(
+    levels: list[Mapping[str, Any]], relative_denominator: str
+) -> list[dict[str, Any]]:
+    diagnostics = []
+    for index in range(1, len(levels)):
+        previous = levels[index - 1]
+        current = levels[index]
+        names = sorted(
+            set(previous["fixed_reference_diagnostics"])
+            | set(current["fixed_reference_diagnostics"])
+        )
+        comparisons = []
+        for name in names:
+            previous_record = previous["fixed_reference_diagnostics"].get(name)
+            current_record = current["fixed_reference_diagnostics"].get(name)
+            complete = (
+                previous_record is not None
+                and current_record is not None
+                and previous_record["unit"] == current_record["unit"]
+            )
+            absolute_change = (
+                abs(current_record["value"] - previous_record["value"])
+                if complete else None
+            )
+            relative_change = (
+                _relative_change(
+                    previous_record["value"], current_record["value"],
+                    absolute_change, relative_denominator,
+                )
+                if complete else None
+            )
+            comparisons.append({
+                "diagnostic": name,
+                "unit": previous_record["unit"] if previous_record is not None else (
+                    current_record["unit"] if current_record is not None else None
+                ),
+                "previous_value": previous_record["value"] if previous_record else None,
+                "current_value": current_record["value"] if current_record else None,
+                "absolute_change": absolute_change,
+                "relative_change": relative_change,
+                "evidence_complete": complete,
+                "diagnostic_only": True,
+                "policy_authority": False,
+            })
+        diagnostics.append({
+            "pair_index": index - 1,
+            "previous_level_id": previous["level_id"],
+            "current_level_id": current["level_id"],
+            "comparisons": comparisons,
+            "governs_convergence": False,
+        })
+    return diagnostics
 
 
 def evaluate_convergence(
@@ -582,6 +766,10 @@ def evaluate_convergence(
             "passed": all(item["passed"] for item in comparisons),
         })
     governing = pairs if policy["governing_pairs"] == "all_adjacent" else pairs[-1:]
+    fit_sensitive = any(
+        comparison["fit_support_sensitivity"]["outcome_changed_by_support"]
+        for pair in governing for comparison in pair["comparisons"]
+    )
     issues = []
     if len(levels) < policy["minimum_level_count"]:
         issues.append("minimum_level_count_not_met")
@@ -590,6 +778,12 @@ def evaluate_convergence(
     if issues:
         disposition = "invalid_evidence"
         reason_code = issues[0]
+    elif fit_sensitive and policy["declared_cap_reached"]:
+        disposition = "unresolved_at_declared_cap"
+        reason_code = "fit_support_sensitive_at_declared_cap"
+    elif fit_sensitive:
+        disposition = "residual"
+        reason_code = "fit_support_sensitive"
     elif all(pair["passed"] for pair in governing):
         disposition = "accepted"
         reason_code = "all_governing_metric_checks_passed"
@@ -609,6 +803,13 @@ def evaluate_convergence(
         "pair_comparisons": pairs,
         "governing_pair_indices": [pair["pair_index"] for pair in governing],
         "evidence_issues": issues,
+        "fit_sensitive": fit_sensitive,
+        "monotonicity_observations": _monotonicity_observations(
+            levels, policy["metrics"]
+        ),
+        "fixed_reference_diagnostics": _fixed_reference_pair_diagnostics(
+            levels, policy["relative_denominator"]
+        ),
         "scientific_disposition": disposition,
         "reason_code": reason_code,
         "undeclared_configuration_started": False,
@@ -625,7 +826,9 @@ def validate_convergence_evaluation(
         "schema_name", "schema_version", "ladder_id", "ladder_sha256",
         "convergence_policy", "convergence_policy_sha256", "pair_comparisons",
         "governing_pair_indices", "evidence_issues", "scientific_disposition",
-        "reason_code", "undeclared_configuration_started", "evaluation_sha256",
+        "fit_sensitive", "monotonicity_observations",
+        "fixed_reference_diagnostics", "reason_code",
+        "undeclared_configuration_started", "evaluation_sha256",
     }
     if set(item) != expected:
         raise ValueError("convergence evaluation fields are invalid")
