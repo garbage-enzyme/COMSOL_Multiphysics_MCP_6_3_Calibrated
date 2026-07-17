@@ -137,6 +137,7 @@ def test_startup_capability_summary_is_compact_and_truthful(monkeypatch):
     assert "semantic_docs=disabled" in summary
     assert "lexical_manual=enabled" in summary
     assert "durable_jobs=staged_sweep" in summary
+    assert "convergence_campaign" in summary
     assert "durable_job_cancellation=verified" in summary
 
 

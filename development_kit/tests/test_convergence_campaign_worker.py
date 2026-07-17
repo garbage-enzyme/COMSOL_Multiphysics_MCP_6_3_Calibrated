@@ -15,6 +15,7 @@ from development_kit.tests.test_convergence_campaign_job import _raw_campaign
 from src.jobs.convergence_campaign import normalize_convergence_campaign_spec
 from src.jobs.convergence_campaign_rows import read_convergence_campaign_levels
 from src.jobs.convergence_campaign_worker import _run
+from src.jobs.manager import JobManager
 from src.jobs.store import JobStore, process_identity
 
 
@@ -224,3 +225,34 @@ def test_cleanup_failure_prevents_false_completed_state(tmp_path, ascii_root):
     assert code == 1
     assert state["status"] == "failed"
     assert "lease_release" in state["last_error"]["message"]
+
+
+def test_manager_exact_resubmission_observes_existing_campaign(tmp_path, ascii_root, monkeypatch):
+    raw = _raw_campaign(tmp_path / "sources")
+    raw["convergence_policy"]["declared_cap_reached"] = False
+    manager = JobManager(
+        ascii_root / "manager" / "jobs",
+        preflight=lambda **_kwargs: {"ready": True},
+        reconcile_on_start=False,
+    )
+    monkeypatch.setattr(manager, "_launch_worker", lambda *_args: process_identity(os.getpid()))
+
+    first = manager.submit(raw)
+    second = manager.submit(raw)
+    status = manager.status(first["job_id"])
+
+    assert second == {
+        "success": True,
+        "job_id": first["job_id"],
+        "status": "submitted",
+        "duplicate": True,
+        "action": "observe_existing",
+    }
+    assert status["convergence_progress"] == {
+        "declared_levels": 3,
+        "completed_levels": 0,
+        "pending_levels": 3,
+        "completed_level_ids": [],
+        "last_level_row_sha256": None,
+        "maximum_total_points": 30,
+    }

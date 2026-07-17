@@ -33,7 +33,7 @@ def register_job_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     def job_submit(spec: dict[str, Any]) -> dict[str, Any]:
-        """Validate and detach one bounded sweep, validation matrix, or adaptive spectrum job."""
+        """Validate and detach one bounded sweep, evidence matrix, adaptive spectrum, or convergence campaign."""
         return _job_call("job_submit", lambda: job_manager.submit(spec))
 
     @mcp.tool()

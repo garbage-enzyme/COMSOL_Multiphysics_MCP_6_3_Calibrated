@@ -13,6 +13,10 @@ from mcp.server.fastmcp import FastMCP
 from src.build_identity import get_build_identity
 from src.compatibility import load_runtime_compatibility
 from src.environment_identity import get_environment_identity
+from src.jobs.convergence_campaign import (
+    MAX_CONVERGENCE_CAMPAIGN_LEVELS,
+    MAX_CONVERGENCE_CAMPAIGN_POINTS,
+)
 from src.jobs.spectral_characterization import (
     MAX_REFINEMENT_STAGES,
     MAX_WINDOW_EXPANSIONS,
@@ -284,11 +288,12 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
                 "staged_sweep",
                 "validation_matrix",
                 "spectral_characterization",
+                "convergence_campaign",
             ],
             "control_tools": ["job_submit", "job_status", "job_tail", "job_cancel", "job_resume"],
             "cancellation_scope": (
                 "same-host durable staged_sweep, validation_matrix, and "
-                "spectral_characterization jobs "
+                "spectral_characterization and convergence_campaign jobs "
                 "owned by this runtime root"
             ),
             "cancellation_strategy": (
@@ -323,6 +328,17 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
                     "unbracketed_fwhm",
                     "fit_sensitive",
                 ],
+            },
+            "convergence_campaign": {
+                "composes_spectral_characterization": True,
+                "composes_offline_convergence_evaluation": True,
+                "exact_model_levels_only": True,
+                "maximum_levels_server_cap": MAX_CONVERGENCE_CAMPAIGN_LEVELS,
+                "maximum_total_points_server_cap": MAX_CONVERGENCE_CAMPAIGN_POINTS,
+                "one_solver_owner_per_campaign": True,
+                "own_peak_comparison": True,
+                "early_acceptance_requires_explicit_policy": True,
+                "undeclared_level_creation": False,
             },
         },
         "restart_required_after_source_changes": True,
@@ -362,7 +378,7 @@ def startup_capability_summary(selection: ProfileSelection | None = None) -> str
         f"tools={capabilities['tool_count']}; "
         f"target=COMSOL {targets['comsol']} exact licensed / MPh {targets['mph']}; "
         f"lexical_manual=enabled; semantic_docs={'active' if capabilities['semantic_search']['profile_active'] else 'disabled'}; "
-        "durable_jobs=staged_sweep,validation_matrix,spectral_characterization; "
+        "durable_jobs=staged_sweep,validation_matrix,spectral_characterization,convergence_campaign; "
         "solver_ownership=enforced; durable_job_cancellation=verified"
     )
 

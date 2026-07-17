@@ -16,6 +16,7 @@ import psutil
 
 from .process_control import inspect_identity, verify_absent
 from .resource_admission import normalize_resource_policy
+from .convergence_campaign import normalize_convergence_campaign_spec
 from .spectral_characterization import normalize_spectral_characterization_job_spec
 from .validation_matrix import normalize_validation_matrix_spec
 from .store import (
@@ -159,6 +160,7 @@ def _worker_module(job_type: str) -> str:
         "staged_sweep": "src.jobs.worker",
         "validation_matrix": "src.jobs.validation_worker",
         "spectral_characterization": "src.jobs.spectral_worker",
+        "convergence_campaign": "src.jobs.convergence_campaign_worker",
     }
     try:
         return modules[job_type]
@@ -173,6 +175,8 @@ def _point_count(spec: dict[str, Any]) -> int:
         return len(spec["points"])
     if spec["job_type"] == "spectral_characterization":
         return int(spec["maximum_points"])
+    if spec["job_type"] == "convergence_campaign":
+        return int(spec["maximum_total_points"])
     return len(spec["parameter_values"])
 
 
@@ -207,6 +211,8 @@ class JobManager:
             spec = normalize_validation_matrix_spec(raw_spec)
         elif job_type == "spectral_characterization":
             spec = normalize_spectral_characterization_job_spec(raw_spec)
+        elif job_type == "convergence_campaign":
+            spec = normalize_convergence_campaign_spec(raw_spec)
         else:
             spec = validate_staged_sweep_spec(raw_spec)
         worker_module = _worker_module(spec["job_type"])
@@ -228,7 +234,9 @@ class JobManager:
             "progress": {"completed": 0, "total": total_points},
             "last_error": None,
         }
-        if spec["job_type"] in {"validation_matrix", "spectral_characterization"}:
+        if spec["job_type"] in {
+            "validation_matrix", "spectral_characterization", "convergence_campaign"
+        }:
             with JobLock(self.store.root / ".submit.lock"):
                 duplicate = self._find_exact_duplicate(
                     spec["job_type"], spec["spec_fingerprint"]
@@ -295,20 +303,30 @@ class JobManager:
         return None
 
     def _run_preflight(self, spec: dict[str, Any]) -> dict[str, Any]:
+        model_path = (
+            spec["levels"][0]["spectral_job"]["source_model_path"]
+            if spec.get("job_type") == "convergence_campaign"
+            else spec["source_model_path"]
+        )
+        requested_version = (
+            spec["levels"][0]["spectral_job"].get("version")
+            if spec.get("job_type") == "convergence_campaign"
+            else spec.get("version")
+        )
         if self._preflight is not None:
             return self._preflight(
-                model_path=spec["source_model_path"],
+                model_path=model_path,
                 output_path=str(self.store.root / "probe"),
-                requested_version=spec.get("version"),
+                requested_version=requested_version,
             )
         from src.tools.ownership import SolverOwnership
         from src.tools.session import session_manager
 
         return SolverOwnership(self.store.root.parent).preflight(
             session_state=session_manager.get_status(),
-            model_path=spec["source_model_path"],
+            model_path=model_path,
             output_path=str(self.store.root / "probe"),
-            requested_version=spec.get("version"),
+            requested_version=requested_version,
         )
 
     def _launch_worker(self, job_id: str, module: str) -> dict[str, Any]:
@@ -579,6 +597,7 @@ class JobManager:
             "staged_sweep",
             "validation_matrix",
             "spectral_characterization",
+            "convergence_campaign",
         }:
             if self._preflight is None:
                 from src.tools.ownership import SolverOwnership
@@ -726,6 +745,23 @@ class JobManager:
                     "stage_count": len(stages),
                     "last_stage_sha256": stages[-1]["stage_sha256"] if stages else None,
                     "last_row_sha256": rows[-1]["row_sha256"] if rows else None,
+                }
+            elif spec.get("job_type") == "convergence_campaign":
+                from .convergence_campaign_rows import read_convergence_campaign_levels
+
+                directory = self.store.job_dir(job_id)
+                rows = read_convergence_campaign_levels(
+                    directory / "convergence_levels.jsonl",
+                    spec,
+                    artifact_root=directory,
+                )
+                state["convergence_progress"] = {
+                    "declared_levels": len(spec["levels"]),
+                    "completed_levels": len(rows),
+                    "pending_levels": len(spec["levels"]) - len(rows),
+                    "completed_level_ids": [row["level_id"] for row in rows],
+                    "last_level_row_sha256": rows[-1]["row_sha256"] if rows else None,
+                    "maximum_total_points": spec["maximum_total_points"],
                 }
             return {"success": True, "job_id": job_id, **state}
 
