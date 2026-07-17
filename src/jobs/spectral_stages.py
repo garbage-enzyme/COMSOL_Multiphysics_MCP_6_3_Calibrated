@@ -115,8 +115,12 @@ def build_spectral_stage_plan(
         raise ValueError("stage_kind is unsupported")
     if not isinstance(planning_reason, str) or not planning_reason or len(planning_reason) > 128:
         raise ValueError("planning_reason must be a bounded nonempty string")
-    lower = _finite(window_lower_m, "window_lower_m", positive=True)
-    upper = _finite(window_upper_m, "window_upper_m", positive=True)
+    lower = normalize_spectral_wavelength_m(
+        _finite(window_lower_m, "window_lower_m", positive=True)
+    )
+    upper = normalize_spectral_wavelength_m(
+        _finite(window_upper_m, "window_upper_m", positive=True)
+    )
     if upper <= lower:
         raise ValueError("stage window upper bound must exceed its lower bound")
     if not isinstance(requested_wavelengths_m, list) or not requested_wavelengths_m:

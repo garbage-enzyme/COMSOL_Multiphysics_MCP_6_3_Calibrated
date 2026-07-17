@@ -189,3 +189,21 @@ def test_stage_targets_deduplicate_one_ulp_center_variants(tmp_path):
     )
     assert variant["requested_points"][0]["point_fingerprint"] == center
     assert variant["requested_wavelengths_m"] == [5e-6]
+
+
+def test_stage_window_and_endpoint_share_the_same_canonical_precision(tmp_path):
+    spec = _spec(tmp_path)
+    upper = 5.2181529726057296e-6
+    endpoint = 5.21815297260573e-6
+    plan = build_spectral_stage_plan(
+        spec,
+        stage_index=1,
+        stage_kind="refinement",
+        planning_reason="window_precision_regression",
+        window_lower_m=5.0e-6,
+        window_upper_m=upper,
+        requested_wavelengths_m=[endpoint],
+        previous_stage_sha256="a" * 64,
+        evidence_row_sha256="b" * 64,
+    )
+    assert plan["window"]["upper_m"] == plan["requested_wavelengths_m"][0]
