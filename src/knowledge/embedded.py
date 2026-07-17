@@ -1,6 +1,5 @@
 """Knowledge base tools for COMSOL MCP Server."""
 
-import os
 from pathlib import Path
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
@@ -344,165 +343,13 @@ def get_best_practices(category: str) -> dict:
     }
 
 
-# Module-level PDF search functions for direct import and testing
-def _validate_ascii_path(path: str | None, label: str) -> str | None:
-    """Return an error string if the path contains non-ASCII characters, else None."""
-    if path is None:
-        return None
-    path_str = str(path)
-    if not path_str.isascii():
-        return f"{label} contains non-ASCII characters ('{path_str}'). "
-    if not os.path.exists(path_str):
-        return f"{label} does not exist: '{path_str}'."
-    return None
-
-
-def get_pdf_search(query: str, n_results: int = 5,
-                   module: Optional[str] = None,
-                   db_dir: Optional[str] = None,
-                   pdf_dir: Optional[str] = None) -> dict:
-    """Search COMSOL PDF documentation using semantic search.
-
-    Args:
-        query: Search query describing what you're looking for
-        n_results: Number of results to return (default: 5, max: 20)
-        module: Optional module filter (e.g., "CFD_Module", "Heat_Transfer_Module")
-        db_dir: ChromaDB index directory (use ASCII-only path, e.g. "D:/comsol_kb_v2")
-        pdf_dir: PDF source directory (use ASCII-only path)
-    """
-    for path, label in [(db_dir, "db_dir"), (pdf_dir, "pdf_dir")]:
-        err = _validate_ascii_path(path, label)
-        if err:
-            return {"success": False, "error": err}
-
-    from .retriever import get_retriever, get_retriever_with_opts, check_pdf_dependencies
-
-    deps = check_pdf_dependencies()
-    if not deps.get("chromadb") or not deps.get("pymupdf"):
-        return {
-            "success": False,
-            "error": "PDF search requires additional dependencies. Install with: pip install chromadb pymupdf sentence-transformers",
-            "missing_deps": [k for k, v in deps.items() if not v],
-        }
-
-    retriever = get_retriever_with_opts(pdf_dir=pdf_dir, db_dir=db_dir) if (db_dir or pdf_dir) else get_retriever()
-    if not retriever.is_initialized:
-        retriever.initialize()
-    stats = retriever.get_stats()
-
-    if not stats.get("initialized") or stats.get("count", 0) == 0:
-        return {
-            "success": False,
-            "error": "PDF knowledge base not built. Run the build script first.",
-            "hint": "From a source checkout, run: python development_kit/scripts/build_knowledge_base.py",
-        }
-
-    n_results = min(n_results, 20)
-    results = retriever.search(query, n_results, module)
-
-    return {
-        "success": True,
-        "query": query,
-        "module_filter": module,
-        "results": [r.to_dict() for r in results],
-        "count": len(results),
-        "total_indexed": stats.get("count", 0),
-        "db_dir": str(retriever.db_dir),
-        "pdf_dir": str(retriever.pdf_dir),
-    }
-
-
-def get_pdf_search_status(db_dir: Optional[str] = None,
-                          pdf_dir: Optional[str] = None) -> dict:
-    """Get the status of the PDF documentation search system.
-
-    Args:
-        db_dir: ChromaDB index directory (use ASCII-only path, e.g. "D:/comsol_kb_v2")
-        pdf_dir: PDF source directory (use ASCII-only path)
-    """
-    for path, label in [(db_dir, "db_dir"), (pdf_dir, "pdf_dir")]:
-        err = _validate_ascii_path(path, label)
-        if err:
-            return {"success": False, "error": err}
-
-    from .retriever import get_retriever, get_retriever_with_opts, check_pdf_dependencies
-    from .pdf_processor import PDFProcessor, DEFAULT_PDF_DIR
-    
-    deps = check_pdf_dependencies()
-    
-    result = {
-        "success": True,
-        "dependencies": deps,
-        "all_deps_installed": all(deps.values()),
-    }
-    
-    if not deps.get("chromadb"):
-        result["status"] = "Dependencies not installed"
-        result["hint"] = "Run: pip install chromadb pymupdf sentence-transformers"
-        return result
-    
-    retriever = get_retriever_with_opts(pdf_dir=pdf_dir, db_dir=db_dir) if (db_dir or pdf_dir) else get_retriever()
-    if not retriever.is_initialized:
-        retriever.initialize()
-    stats = retriever.get_stats()
-    result["vector_store"] = stats
-    
-    pdf_source = pdf_dir or str(DEFAULT_PDF_DIR)
-    try:
-        processor = PDFProcessor(pdf_source)
-        modules = processor.get_available_modules()
-        result["pdf_modules_available"] = len(modules)
-        result["modules"] = [m["name"] for m in modules[:20]]
-        if len(modules) > 20:
-            result["modules"].append(f"... and {len(modules) - 20} more")
-    except Exception as e:
-        result["pdf_error"] = str(e)
-    
-    result["db_dir"] = str(retriever.db_dir)
-    result["pdf_dir"] = str(retriever.pdf_dir)
-    
-    if stats.get("count", 0) == 0:
-        result["status"] = "Knowledge base not built"
-        result["hint"] = (
-            "From a source checkout, run: "
-            "python development_kit/scripts/build_knowledge_base.py"
-        )
-    else:
-        result["status"] = "Ready"
-    
-    return result
-
-
-def get_pdf_list_modules() -> dict:
-    """List all available COMSOL documentation modules."""
-    from .pdf_processor import PDFProcessor, DEFAULT_PDF_DIR
-    
-    try:
-        processor = PDFProcessor(DEFAULT_PDF_DIR)
-        modules = processor.get_available_modules()
-        
-        return {
-            "success": True,
-            "modules": modules,
-            "count": len(modules),
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-        }
-
-
 def register_knowledge_tools(
     mcp: FastMCP,
-    *,
-    include_pdf_search: bool = False,
 ) -> None:
-    """Register lightweight knowledge tools and optional semantic PDF tools.
+    """Register lightweight static knowledge tools.
 
-    Semantic PDF search is excluded from the default profile because invoking it
-    can initialize ChromaDB and an embedding model in the COMSOL control process.
-    Its implementation remains available for an explicit isolated profile.
+    These tools serve static prompt-based documentation and do not import
+    ChromaDB, sentence-transformers, or any embedding backend.
     """
     
     @mcp.tool()
@@ -592,59 +439,3 @@ def register_knowledge_tools(
             Best practices for the specified category
         """
         return get_best_practices(category)
-
-    if not include_pdf_search:
-        return
-    
-    @mcp.tool()
-    def pdf_search(query: str, n_results: int = 5,
-                   module: Optional[str] = None,
-                   db_dir: Optional[str] = None,
-                   pdf_dir: Optional[str] = None) -> dict:
-        """
-        Search COMSOL PDF documentation using semantic search.
-
-        ⚠️  db_dir / pdf_dir must use ASCII-only paths (no Chinese/Unicode characters).
-           hnswlib (ChromaDB's C++ backend) cannot open indices on non-ASCII paths.
-           Example: db_dir="D:/comsol_kb_v2"  (not a non-ASCII profile path)
-
-        Args:
-            query: Search query describing what you're looking for
-            n_results: Number of results to return (default: 5, max: 20)
-            module: Optional module filter (e.g., "CFD_Module", "Heat_Transfer_Module")
-            db_dir: ChromaDB index directory (optional, overrides default)
-            pdf_dir: PDF source directory (optional, overrides default)
-
-        Returns:
-            Search results with relevant documentation snippets
-        """
-        return get_pdf_search(query, n_results, module, db_dir, pdf_dir)
-
-    @mcp.tool()
-    def pdf_search_status(db_dir: Optional[str] = None,
-                          pdf_dir: Optional[str] = None) -> dict:
-        """
-        Get the status of the PDF documentation search system.
-
-        ⚠️  db_dir / pdf_dir must use ASCII-only paths (no Chinese/Unicode characters).
-           hnswlib (ChromaDB's C++ backend) cannot open indices on non-ASCII paths.
-
-        Args:
-            db_dir: ChromaDB index directory (optional, overrides default)
-            pdf_dir: PDF source directory (optional, overrides default)
-
-        Returns:
-            Status information including whether the knowledge base is built,
-            number of indexed documents, and available modules.
-        """
-        return get_pdf_search_status(db_dir, pdf_dir)
-    
-    @mcp.tool()
-    def pdf_list_modules() -> dict:
-        """
-        List all available COMSOL documentation modules.
-        
-        Returns:
-            List of module names with file counts
-        """
-        return get_pdf_list_modules()

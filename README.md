@@ -48,7 +48,7 @@ profile `core`, and `connected=false`.
 - **Durable background work.** Staged sweeps run in detached workers with immutable specifications, atomic state, fsync'd CSV journals, checkpoints, validated resume, and verified same-host cancellation.
 - **Wave Optics validation.** A focused profile provides read-only model preflight and a one-wavelength evidence audit for periodic metasurfaces.
 - **Bounded offline manuals.** SQLite FTS5/BM25 search and page retrieval run outside the COMSOL control process and return compact source/page citations.
-- **Honest optional semantic retrieval.** The isolated semantic profile is contained, but its current MiniLM baseline did not meet quality and memory promotion gates. Lexical manual search remains the recommended default.
+- **Honest optional semantic retrieval.** The isolated semantic profile is contained, but its baseline model did not meet quality and memory promotion gates. Lexical manual search remains the recommended default.
 
 ## Profiles
 
@@ -61,7 +61,7 @@ Set `COMSOL_MCP_PROFILE` before starting the server. A profile is fixed for the 
 | `wave_optics` | 63 | Recommended for metasurfaces: `core` plus derived-geometry edits, material preview, locale-safe field discovery and bounded NPZ/manifest extraction, periodic-mesh audit/smoke, visual-review contracts, Wave Optics preflight, point/reference audits, and staged workflows. |
 | `semantic_docs` | 41 | `core` plus isolated experimental vector-assisted manual retrieval. |
 | `experimental` | 64 | Explicit opt-in generic creation, async, property escape hatches, and project helpers. |
-| `full` | 120 | Broad compatibility/discovery surface, including optional semantic tools. |
+| `full` | 120 | Broad compatibility/discovery surface containing every tool across all profiles. |
 
 Call `capabilities` to discover the active profile, exact registered tools, target versions, disabled groups, and restart requirements without starting COMSOL. Its bounded `deployment_identity` reports source-tree versus installed-package loading plus frozen profile/schema and catalog hashes, so a host restart can detect same-version stale installs or source shadowing without exposing local paths.
 
@@ -97,9 +97,9 @@ Without a caller-supplied versioned validation policy, an audit is evidence-only
 
 ## Manual retrieval
 
-`manual_search` and `manual_read_pages` are the production documentation path. They use an offline SQLite FTS5/BM25 index, bounded worker processes, and compact source/page citations. The MCP control process does not import ChromaDB, Torch, or SentenceTransformer for this path.
+`manual_search` and `manual_read_pages` are the production documentation path. They use an offline SQLite FTS5/BM25 index, bounded worker processes, and compact source/page citations. The MCP control process does not import Torch or SentenceTransformer for this path.
 
-`semantic_docs` is opt-in and isolated from COMSOL control. Its current CPU-only MiniLM implementation is an English diagnostic baseline, not a multilingual or production-quality claim: the frozen benchmark improved exact-match recall but regressed paraphrase/multi-concept recall, returned no direct-Chinese matches, failed negative-query abstention, and grew substantially in memory during soak testing. Keep `core` plus lexical manual search for normal work.
+`semantic_docs` is opt-in and isolated from COMSOL control. Its isolated-worker vector retrieval is an English diagnostic baseline, not a multilingual or production-quality claim: the frozen benchmark improved exact-match recall but regressed paraphrase/multi-concept recall, returned no direct-Chinese matches, failed negative-query abstention, and grew substantially in memory during soak testing. The baseline model and its index assets have been removed; a replacement model would require a full benchmark gate before re-deployment. Keep `core` plus lexical manual search for normal work.
 
 ## ClientAPI compatibility notes
 
@@ -117,7 +117,7 @@ The electrostatics helper can create `ChargeConservation` and a material node be
 
 ## Verification
 
-The current dependency/process-only gate is **643 passed, 13 deselected**. Unit tests are side-effect-free: collection does not start COMSOL, and integration probes run only when explicitly requested in fresh, sequential subprocesses with exact process-tree cleanup. Repository-only tests, release fixtures, gates, and provenance are documented in `development_kit/README.md`; ordinary wheel/sdist artifacts exclude that directory.
+The current dependency/process-only gate is **644 passed, 13 deselected**. Unit tests are side-effect-free: collection does not start COMSOL, and integration probes run only when explicitly requested in fresh, sequential subprocesses with exact process-tree cleanup. Repository-only tests, release fixtures, gates, and provenance are documented in `development_kit/README.md`; ordinary wheel/sdist artifacts exclude that directory.
 
 ```bash
 python -m pytest -q
@@ -145,7 +145,7 @@ python -m pip install ".[manuals]"
 python -m src.knowledge.lexical_manual build --index D:\comsol_docs_fts\manuals.sqlite3
 ```
 
-For optional isolated semantic retrieval:
+For optional isolated semantic retrieval (sentence-transformers, not ChromaDB):
 
 ```powershell
 python -m pip install ".[semantic-docs]"
@@ -186,7 +186,7 @@ This is a COMSOL 6.4+ standalone/clientapi compatibility and reliability fork, n
 | Solver concurrency | No same-host ownership protocol. | Process-aware lease, external-client detection, status, preflight, and stale-lease recovery that never kills an unowned process. |
 | Long runs | Interactive/current-process workflows. | Detached durable jobs with immutable specs, fsync'd rows, checkpoints, validated resume, and verified cancellation cleanup. |
 | Wave Optics | General tools only. | A dedicated preflight plus one-point evidence audit for periodic metasurfaces, with raw evidence separated from caller policy. |
-| Manual search | Legacy in-process semantic PDF path can load heavy dependencies. | Bounded isolated lexical manual retrieval is the production default; experimental semantic retrieval is isolated and explicitly not promoted. |
+| Manual search | No bounded manual retrieval. | Bounded isolated lexical manual retrieval is the production default; experimental semantic retrieval is isolated and explicitly not promoted. The legacy in-process ChromaDB path has been removed. |
 | Windows paths | No special guarantee for Unicode save paths. | Clientapi Java save path for Unicode `.mph` saves; ASCII-only runtime/index roots for native and durable artifacts. |
 
 Use this fork when the upstream server fails under MPh standalone with errors such as `No matching overloads`, `Operation_cannot_be_created_in_this_context`, or client-list indexing errors. Use `full` only when compatibility with a broad legacy surface is genuinely required.
