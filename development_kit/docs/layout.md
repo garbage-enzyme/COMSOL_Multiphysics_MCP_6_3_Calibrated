@@ -188,6 +188,7 @@ models are intentionally absent.
 - `development_kit/tests/test_spectral_rows.py` — This module tests hash-chained durable spectral rows and exact artifact-bound resume.
 - `development_kit/tests/spectral_job_fixtures.py` — This module creates sanitized fake point-audit artifacts for durable spectral tests.
 - `development_kit/tests/test_spectral_runner.py` — This module tests the adaptive spectral point loop, summaries, and fault recovery.
+- `development_kit/tests/test_spectral_level_execution.py` — This module tests loaded-model spectral execution with shared resource and collector machinery.
 - `development_kit/tests/test_spectral_stages.py` — This module tests immutable spectral stage planning, freezing, and replay.
 - `development_kit/tests/test_spectral_worker.py` — This module tests injected spectral worker ownership, resources, state, and cleanup.
 - `development_kit/tests/test_study.py` — This module tests study helpers without a COMSOL client.
@@ -267,6 +268,7 @@ models are intentionally absent.
 - `src/jobs/spectral_characterization.py` — This module normalizes immutable bounded durable spectral job specifications.
 - `src/jobs/spectral_progress.py` — This module derives bounded adaptive spectral transitions from frozen stages and durable rows.
 - `src/jobs/spectral_runner.py` — This module runs the solver-independent adaptive spectral point loop and summary writes.
+- `src/jobs/spectral_level_execution.py` — This module runs the accepted spectral pipeline against an already loaded owned model.
 - `src/jobs/spectral_rows.py` — This module persists hash-chained raw spectral points with artifact verification.
 - `src/jobs/spectral_stages.py` — This module builds and atomically freezes hash-chained adaptive spectral stage plans.
 - `src/jobs/spectral_worker.py` — This module runs detached adaptive spectral jobs through the shared solver runtime.
