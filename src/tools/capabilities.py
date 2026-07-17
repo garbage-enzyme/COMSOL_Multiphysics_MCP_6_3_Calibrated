@@ -11,6 +11,7 @@ import time
 from mcp.server.fastmcp import FastMCP
 
 from src.compatibility import load_runtime_compatibility
+from src.environment_identity import get_environment_identity
 from src.evidence.contracts import (
     EVIDENCE_STATES,
     PHYSICAL_EVIDENCE_SCHEMA_NAME,
@@ -149,6 +150,7 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
             "acceptance": "exact_licensed_acceptance",
         },
         "runtime_compatibility": compatibility,
+        "environment_identity": get_environment_identity(),
         "deployment_identity": _deployment_identity(),
         "session": {
             "connected": bool(status.get("connected")),
