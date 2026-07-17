@@ -614,9 +614,9 @@ _TRANSITION_FIELDS = {
     "current_peak_wavelength_m", "current_candidate_classification",
     "peak_within_guard", "peak_at_search_boundary",
     "boundary_side", "ambiguous_candidates",
-    "expansion_proposed", "expansion_window_m",
-    "expansion_within_bounds", "expansion_count_exceeded",
-    "branch_followed", "caller_asserted_continuity",
+    "expansion_required", "expansion_requested", "expansion_window_m",
+    "expansion_exhausted", "expansion_count_exceeded",
+    "branch_followed", "branch_recovered", "caller_asserted_continuity",
     "next_request_window_m", "transition_sha256",
 }
 _PLAN_FIELDS = {
@@ -704,8 +704,11 @@ def _compute_expansion(
     if boundary_side in ("upper", "both"):
         new_upper = min(search["upper_m"] + guard, bounds["upper_m"])
     width = new_upper - new_lower
+    changed = new_lower < search["lower_m"] or new_upper > search["upper_m"]
     within_bounds = (
-        width > 0.0
+        changed
+        and new_lower < new_upper
+        and width > 0.0
         and width <= max_total
         and new_lower >= bounds["lower_m"]
         and new_upper <= bounds["upper_m"]
@@ -732,48 +735,78 @@ def _one_transition(
     peak_within_guard = False
     peak_at_boundary = False
     ambiguous = False
-    expansion_proposed = False
+    expansion_required = False
+    expansion_requested = False
     expansion_window = None
-    expansion_within_bounds = True
+    expansion_exhausted = False
     expansion_count_exceeded = False
     branch_followed = False
+    branch_recovered = False
     caller_asserted = False
 
-    if previous_peak is None:
-        branch_followed = False
-    elif classification == "multi_candidate":
+    if classification == "multi_candidate":
         ambiguous = True
-        if policy["continuity_rule"] == "explicit_measured_evidence":
+        if (
+            previous_peak is not None
+            and policy["continuity_rule"] == "explicit_measured_evidence"
+        ):
             branch_followed = True
             caller_asserted = True
     elif classification == "boundary_high":
         peak_at_boundary = True
+        expansion_required = True
         if total_expansions < policy["max_expansions"]:
-            expansion_proposed = True
-            expansion_window, expansion_within_bounds = _compute_expansion(
+            expansion_window, expansion_available = _compute_expansion(
                 current["search_window_m"],
                 boundary_side,
                 guard,
                 bounds,
                 policy["max_total_window_m"],
             )
-            if expansion_proposed and expansion_within_bounds:
+            if expansion_available:
+                expansion_requested = True
                 total_expansions += 1
+            else:
+                expansion_exhausted = True
         else:
             expansion_count_exceeded = True
-        if expansion_within_bounds and not expansion_count_exceeded:
-            branch_followed = True
     elif current_peak is not None:
-        peak_within_guard = abs(current_peak - previous_peak) <= guard
-        branch_followed = peak_within_guard
+        if previous["candidate"]["classification"] == "boundary_high":
+            expected_window, expansion_available = _compute_expansion(
+                previous["search_window_m"],
+                previous["candidate"]["boundary_side"],
+                guard,
+                bounds,
+                policy["max_total_window_m"],
+            )
+            previous_boundary_side = previous["candidate"]["boundary_side"]
+            boundary_reference = (
+                previous["search_window_m"][f"{previous_boundary_side}_m"]
+                if previous_boundary_side in ("lower", "upper")
+                else None
+            )
+            if (
+                expansion_available
+                and boundary_reference is not None
+                and current["search_window_m"] == expected_window
+            ):
+                peak_within_guard = abs(current_peak - boundary_reference) <= guard
+                branch_recovered = peak_within_guard
+                branch_followed = branch_recovered
+        elif previous_peak is not None:
+            peak_within_guard = abs(current_peak - previous_peak) <= guard
+            branch_followed = peak_within_guard
     else:
         branch_followed = False
 
-    seed_peak = current_peak if current_peak is not None else previous_peak
-    next_request = (
-        _compute_next_request(seed_peak, guard, bounds)
-        if seed_peak is not None else None
-    )
+    if expansion_required:
+        next_request = expansion_window
+    else:
+        seed_peak = current_peak if current_peak is not None else previous_peak
+        next_request = (
+            _compute_next_request(seed_peak, guard, bounds)
+            if seed_peak is not None else None
+        )
 
     body = {
         "transition_index": current["ordinal"] - 1,
@@ -789,11 +822,13 @@ def _one_transition(
         "peak_at_search_boundary": peak_at_boundary,
         "boundary_side": boundary_side,
         "ambiguous_candidates": ambiguous,
-        "expansion_proposed": expansion_proposed,
+        "expansion_required": expansion_required,
+        "expansion_requested": expansion_requested,
         "expansion_window_m": expansion_window,
-        "expansion_within_bounds": expansion_within_bounds,
+        "expansion_exhausted": expansion_exhausted,
         "expansion_count_exceeded": expansion_count_exceeded,
         "branch_followed": branch_followed,
+        "branch_recovered": branch_recovered,
         "caller_asserted_continuity": caller_asserted,
         "next_request_window_m": next_request,
     }
@@ -821,26 +856,48 @@ def plan_branch_continuation(
     ambiguous_count = sum(1 for t in transitions if t["ambiguous_candidates"])
     followed_count = sum(1 for t in transitions if t["branch_followed"])
     cap_exceeded = any(t["expansion_count_exceeded"] for t in transitions)
-    bounds_exceeded = any(
-        t["expansion_proposed"] and not t["expansion_within_bounds"]
-        for t in transitions
-    )
+    expansion_exhausted = any(t["expansion_exhausted"] for t in transitions)
     unresolved_ambiguity = any(
         t["ambiguous_candidates"] and not t["caller_asserted_continuity"]
         for t in transitions
     )
 
-    if cap_exceeded or bounds_exceeded or unresolved_ambiguity:
+    recovered_expansion_indexes = {
+        index - 1
+        for index, transition in enumerate(transitions)
+        if index > 0 and transition["branch_recovered"]
+    }
+    pending_expansion = any(
+        transition["expansion_requested"] and index not in recovered_expansion_indexes
+        for index, transition in enumerate(transitions)
+    )
+    transitions_resolved = all(
+        transition["branch_followed"]
+        or (
+            transition["expansion_requested"]
+            and index in recovered_expansion_indexes
+        )
+        for index, transition in enumerate(transitions)
+    )
+
+    if cap_exceeded or expansion_exhausted or unresolved_ambiguity:
         disposition = "unresolved_at_declared_cap"
         if cap_exceeded:
             reason_code = "expansion_count_exceeded_at_declared_cap"
-        elif bounds_exceeded:
-            reason_code = "expansion_exceeds_absolute_bounds"
+        elif expansion_exhausted:
+            reason_code = "boundary_expansion_exhausted_at_declared_cap"
         else:
             reason_code = "ambiguous_candidates_without_continuity_rule"
-    elif followed_count == len(transitions):
+    elif transitions_resolved:
         disposition = "accepted"
-        reason_code = "all_transitions_branch_followed"
+        reason_code = (
+            "all_transitions_branch_followed"
+            if followed_count == len(transitions)
+            else "all_boundary_expansions_recovered"
+        )
+    elif pending_expansion:
+        disposition = "residual"
+        reason_code = "boundary_expansion_requires_measured_evidence"
     elif policy["declared_cap_reached"]:
         disposition = "unresolved_at_declared_cap"
         reason_code = "branch_not_followed_at_declared_cap"
@@ -885,8 +942,9 @@ def _validate_transition(value: Any, expected_index: int) -> dict[str, Any]:
         raise ValueError(f"{label}.current_candidate_classification is unsupported")
     for field in (
         "peak_within_guard", "peak_at_search_boundary", "ambiguous_candidates",
-        "expansion_proposed", "expansion_within_bounds",
-        "expansion_count_exceeded", "branch_followed", "caller_asserted_continuity",
+        "expansion_required", "expansion_requested", "expansion_exhausted",
+        "expansion_count_exceeded", "branch_followed", "branch_recovered",
+        "caller_asserted_continuity",
     ):
         if not isinstance(item[field], bool):
             raise ValueError(f"{label}.{field} must be boolean")

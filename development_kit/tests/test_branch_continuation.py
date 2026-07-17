@@ -100,6 +100,98 @@ def _spectral_artifacts(index: int, center: float, amplitude: float = 0.9):
     return bundle, decision, characterization
 
 
+def _custom_state(
+    index: int,
+    wavelengths: list[float],
+    absorption_values: list[float],
+    predecessor: str | None,
+    *,
+    coordinate_value: float,
+    label: str,
+):
+    configuration = _hex_id(f"{label}-config-{index}")
+    rows = []
+    for row_index, (wavelength, absorption) in enumerate(
+        zip(wavelengths, absorption_values, strict=True)
+    ):
+        raw = {"label": label, "state": index, "row": row_index}
+        rows.append({
+            "row_id": f"{label}-{index}-point-{row_index}",
+            "raw_row_sha256": hashlib.sha256(
+                json.dumps(raw, sort_keys=True).encode("utf-8")
+            ).hexdigest(),
+            "configuration_sha256": configuration,
+            "requested_wavelength_m": wavelength,
+            "evaluated_wavelength_m": wavelength,
+            "frequency_wavelength_m": wavelength,
+            "R": 0.95 - absorption,
+            "T": 0.05,
+            "A": absorption,
+        })
+    bundle = build_spectral_point_bundle(
+        bundle_id=f"{label}-spectrum-{index}",
+        source_model={
+            "relative_identity": f"fixtures/{label}-{index}.mph",
+            "sha256": _hex_id(f"{label}-source-{index}"),
+        },
+        configuration_sha256=configuration,
+        parameter_state={"coordinate_index": index},
+        wavelength_convention={
+            "unit": "m",
+            "requested_field": "requested_wavelength_m",
+            "evaluated_field": "evaluated_wavelength_m",
+            "frequency_derived_field": "frequency_wavelength_m",
+            "frequency_relation": "c_const/frequency",
+        },
+        expressions={"R": "R", "T": "T", "A": "1-R-T"},
+        rows=rows,
+    )
+    analysis_policy = {
+        "response_quantity": "A",
+        "candidate_polarity": "maximum",
+        "passivity_abs_tolerance": 1e-12,
+        "closure_abs_tolerance": 1e-12,
+        "wavelength_sync_abs_m": 1e-15,
+        "flat_response_abs_tolerance": 1e-12,
+        "minimum_point_count": 5,
+    }
+    measurement_policy = {
+        "peak_method": "measured_grid",
+        "baseline_rule": "declared_response",
+        "baseline_response_value": 0.1,
+        "fwhm_definition": "half_prominence",
+        "fit_support_points": None,
+        "fit_support_sensitivity_points": [],
+        "local_polynomial_degree": None,
+        "fit_max_evaluations": None,
+    }
+    decision = build_spectral_analysis_decision(bundle, analysis_policy)
+    characterization = build_spectral_characterization(
+        bundle, decision, measurement_policy
+    )
+    return {
+        "state_id": f"coord-{index}",
+        "ordinal": index,
+        "declared_predecessor_state_id": predecessor,
+        "coordinate_name": "incidence_angle",
+        "coordinate_value": coordinate_value,
+        "coordinate_unit": "deg",
+        "coordinate_identity_sha256": _hex_id(f"{label}-coordinate-{index}"),
+        "polarization": "TM",
+        "source_model_sha256": bundle["source_model"]["sha256"],
+        "configuration_sha256": configuration,
+        "material_identity_sha256": MATERIAL_SHA256,
+        "search_window_m": {
+            "lower_m": min(wavelengths),
+            "upper_m": max(wavelengths),
+        },
+        "spectral_bundle": bundle,
+        "analysis_decision": decision,
+        "candidate_measurements": characterization,
+        "optional_field_metrics": {},
+    }
+
+
 def _state(
     index: int,
     center: float,
@@ -562,6 +654,85 @@ class TestBranchContinuationPlanning:
             _continuation_policy(),
         )
         assert first["plan_sha256"] == second["plan_sha256"]
+
+    def test_boundary_expansion_requires_later_measured_recovery(self):
+        guard = 0.2e-6
+        normal = _state(0, 5.0e-6, None, coordinate_value=0.0)
+        boundary_wavelengths = [5.05e-6 + index * 0.05e-6 for index in range(7)]
+        boundary = _custom_state(
+            1,
+            boundary_wavelengths,
+            [0.1, 0.2, 0.3, 0.5, 0.7, 0.85, 0.95],
+            "coord-0",
+            coordinate_value=5.0,
+            label="boundary-request",
+        )
+        pending_states = build_continuation_states(
+            states_id="pending-expansion", states=[normal, boundary]
+        )
+        pending = plan_branch_continuation(
+            pending_states, _continuation_policy(guard_window_m=guard)
+        )
+        request = pending["coordinate_transitions"][0]
+        assert request["expansion_required"] is True
+        assert request["expansion_requested"] is True
+        assert request["branch_followed"] is False
+        assert request["branch_recovered"] is False
+        assert pending["scientific_disposition"] == "residual"
+
+        expanded_lower = boundary_wavelengths[0]
+        expanded_upper = boundary_wavelengths[-1] + guard
+        recovery_wavelengths = [
+            expanded_lower + index * (expanded_upper - expanded_lower) / 6
+            for index in range(7)
+        ]
+        recovered = _custom_state(
+            2,
+            recovery_wavelengths,
+            [0.1, 0.3, 0.5, 0.9, 0.5, 0.3, 0.1],
+            "coord-1",
+            coordinate_value=10.0,
+            label="boundary-recovery",
+        )
+        recovered_states = build_continuation_states(
+            states_id="measured-recovery", states=[normal, boundary, recovered]
+        )
+        recovered_plan = plan_branch_continuation(
+            recovered_states, _continuation_policy(guard_window_m=guard)
+        )
+        recovery = recovered_plan["coordinate_transitions"][1]
+        assert request["expansion_window_m"] == recovered["search_window_m"]
+        assert recovery["branch_recovered"] is True
+        assert recovery["branch_followed"] is True
+        assert recovered_plan["scientific_disposition"] == "accepted"
+        assert recovered_plan["reason_code"] == "all_boundary_expansions_recovered"
+
+    def test_unchanged_expansion_at_absolute_bound_is_unresolved(self):
+        normal = _state(0, 5.0e-6, None, coordinate_value=0.0)
+        wavelengths = [4.0e-6 + index * (2.0e-6 / 6) for index in range(7)]
+        boundary = _custom_state(
+            1,
+            wavelengths,
+            [0.1, 0.2, 0.3, 0.5, 0.7, 0.85, 0.95],
+            "coord-0",
+            coordinate_value=5.0,
+            label="absolute-bound",
+        )
+        states = build_continuation_states(
+            states_id="exhausted-boundary", states=[normal, boundary]
+        )
+        policy = _continuation_policy(guard_window_m=0.5e-6)
+        policy["absolute_bounds_m"] = {"lower_m": 3.0e-6, "upper_m": 6.0e-6}
+        plan = plan_branch_continuation(states, policy)
+        transition = plan["coordinate_transitions"][0]
+        assert transition["expansion_required"] is True
+        assert transition["expansion_requested"] is False
+        assert transition["expansion_window_m"] is None
+        assert transition["expansion_exhausted"] is True
+        assert transition["branch_followed"] is False
+        assert transition["branch_recovered"] is False
+        assert plan["scientific_disposition"] == "unresolved_at_declared_cap"
+        assert plan["reason_code"] == "boundary_expansion_exhausted_at_declared_cap"
 
     def test_validate_branch_continuation_plan_round_trips(self):
         states_input = _build_dispersive_states(4, shift=0.1e-6)
