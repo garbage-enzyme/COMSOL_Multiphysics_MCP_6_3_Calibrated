@@ -19,7 +19,7 @@ PROFILE_DESCRIPTIONS = {
     "wave_optics": "Recommended metasurface profile: core plus material preview, field-dataset discovery, visual-review contracts, Wave Optics preflight, point audit, and staged workflows.",
     "semantic_docs": "Core plus isolated immutable BM25/vector manual retrieval and worker controls.",
     "experimental": "Core plus explicitly risky, generic, asynchronous, and project helpers.",
-    "full": "Backward-compatible discovery surface containing every legacy and field evidence tool.",
+    "full": "Backward-compatible discovery surface with legacy broad-path behavior and weaker containment guarantees.",
 }
 
 PROFILE_MATURITY = {
@@ -111,6 +111,7 @@ class ProfiledRegistrar:
                     tool_name=name,
                     side_effect_class=metadata.side_effect_class,
                     concurrency_class=metadata.concurrency_class,
+                    profile_name=self.profile_selection.name,
                 )
                 return real_decorator(guarded)
             return function

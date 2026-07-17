@@ -245,13 +245,39 @@ def guard_tool_call(
     tool_name: str,
     side_effect_class: str,
     concurrency_class: str,
+    profile_name: str = "full",
 ) -> Callable[..., Any]:
     """Wrap one registered tool with fail-fast COMSOL operation arbitration."""
-    if concurrency_class != "comsol_bound":
-        return function
-
     @functools.wraps(function)
     def guarded(*args: Any, **kwargs: Any) -> Any:
+        from src.path_policy import validate_tool_paths
+
+        try:
+            normalized_args, normalized_kwargs, path_evidence = validate_tool_paths(
+                function,
+                args,
+                kwargs,
+                tool_name=tool_name,
+                profile_name=profile_name,
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            return {
+                "success": False,
+                "error": str(exc),
+                "path_policy": {
+                    "schema_name": "comsol_mcp.path_policy",
+                    "schema_version": "1.0.0",
+                    "enforced": profile_name != "full",
+                    "accepted": False,
+                    "error_type": type(exc).__name__,
+                },
+            }
+        if concurrency_class != "comsol_bound":
+            result = function(*normalized_args, **normalized_kwargs)
+            if isinstance(result, dict):
+                result = dict(result)
+                result["path_policy"] = {**path_evidence, "accepted": True}
+            return result
         arbiter = get_operation_arbiter()
         claim, acquisition = arbiter.try_acquire(
             tool_name=tool_name,
@@ -262,10 +288,11 @@ def guard_tool_call(
                 "success": False,
                 "error": "Another COMSOL-bound operation owns the runtime.",
                 "operation_gate": acquisition,
+                "path_policy": {**path_evidence, "accepted": True},
             }
         result: Any
         try:
-            result = function(*args, **kwargs)
+            result = function(*normalized_args, **normalized_kwargs)
         finally:
             release = arbiter.release(claim)
         if isinstance(result, dict):
@@ -274,6 +301,7 @@ def guard_tool_call(
                 **acquisition,
                 "release": release,
             }
+            result["path_policy"] = {**path_evidence, "accepted": True}
             if not release["verified"]:
                 result["success"] = False
                 result["error"] = "Operation completed but lock release could not be verified."

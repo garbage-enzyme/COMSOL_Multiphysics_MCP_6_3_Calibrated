@@ -40,6 +40,7 @@ from .profiles import (
 from .session import session_manager
 from src.knowledge.semantic_runtime import semantic_capability_status
 from src.utils.control_plane import attach_control_plane_evidence
+from src.path_policy import PathPolicy
 
 
 _DEPLOYMENT_MANIFEST = Path(__file__).resolve().parents[1] / "deployment_manifest.json"
@@ -296,6 +297,20 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
             "field_collector_requires_preceding_point_audit": True,
         },
         "restart_required_after_source_changes": True,
+        "server_safety": {
+            "operation_arbitration": {
+                "schema_name": "comsol_mcp.operation_lock",
+                "schema_version": "1.0.0",
+                "comsol_bound_serialized": True,
+                "control_plane_remains_available": True,
+                "cross_process_runtime_lock": True,
+            },
+            "path_policy": PathPolicy.from_environment().capability(
+                enforced=active_selection.name != "full"
+            ),
+            "compatibility_profile": "full",
+            "compatibility_profile_weaker_guarantees": True,
+        },
     }
     result.update(_profile_inventory(active_selection))
     return attach_control_plane_evidence("capabilities", started, result)
