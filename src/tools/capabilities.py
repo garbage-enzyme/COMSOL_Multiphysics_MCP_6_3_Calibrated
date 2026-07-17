@@ -12,6 +12,7 @@ from mcp.server.fastmcp import FastMCP
 
 from src.compatibility import load_runtime_compatibility
 from src.environment_identity import get_environment_identity
+from src.schema_registry import get_schema_registry
 from src.evidence.contracts import (
     EVIDENCE_STATES,
     PHYSICAL_EVIDENCE_SCHEMA_NAME,
@@ -151,6 +152,7 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
         },
         "runtime_compatibility": compatibility,
         "environment_identity": get_environment_identity(),
+        "schema_registry": get_schema_registry(),
         "deployment_identity": _deployment_identity(),
         "session": {
             "connected": bool(status.get("connected")),
