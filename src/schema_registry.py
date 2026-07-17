@@ -49,6 +49,8 @@ def _entry(
 def _entries() -> list[dict[str, Any]]:
     legacy_point_audit = "comsol_mcp.wave_optics_point_audit"
     entries = [
+        _entry("comsol_mcp.artifact_chain", "1.0.0", "src.artifact_chain"),
+        _entry("comsol_mcp.artifact_chain_verification", "1.0.0", "src.artifact_chain"),
         _entry("comsol_mcp.deployment_identity", "1.0.0", "src.tools.capabilities"),
         _entry("comsol_mcp.environment_identity", "1.0.0", "src.environment_identity"),
         _entry("comsol_mcp.field_dataset_discovery", "1.0.0", "src.evidence.field_discovery"),

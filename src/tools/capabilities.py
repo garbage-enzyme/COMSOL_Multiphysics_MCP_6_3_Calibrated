@@ -153,6 +153,13 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
         "runtime_compatibility": compatibility,
         "environment_identity": get_environment_identity(),
         "schema_registry": get_schema_registry(),
+        "artifact_chain_verification": {
+            "schema_name": "comsol_mcp.artifact_chain",
+            "schema_version": "1.0.0",
+            "solver_free": True,
+            "content_validation": "schema_identity_and_hash_chain",
+            "path_redacted_receipt": True,
+        },
         "deployment_identity": _deployment_identity(),
         "session": {
             "connected": bool(status.get("connected")),
