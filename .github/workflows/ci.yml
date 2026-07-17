@@ -9,7 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  unit-and-package:
+  unit-and-package-py311:
+    name: unit-and-package (Python 3.11, production lane)
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -20,6 +21,8 @@ jobs:
           cache: pip
       - name: Install dependency-only test environment
         run: python -m pip install ".[dev]"
+      - name: Verify pip check
+        run: python -m pip check
       - name: Compile Python sources
         run: python -m compileall -q src development_kit
       - name: Run dependency-only regression suite
@@ -28,6 +31,26 @@ jobs:
         run: python -m build
       - name: Probe a clean non-editable wheel install
         run: python development_kit/scripts/release_gate.py --skip-tests --allow-dirty --artifact-root "$env:RUNNER_TEMP\comsol_release"
+
+  unit-and-package-py314:
+    name: unit-and-package (Python 3.14, experimental lane)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+      - name: Install dependency-only test environment
+        run: python -m pip install ".[dev]"
+      - name: Verify pip check
+        run: python -m pip check
+      - name: Compile Python sources
+        run: python -m compileall -q src development_kit
+      - name: Run dependency-only regression suite
+        run: python -m pytest -q
 
   integration-contracts:
     runs-on: ubuntu-latest
