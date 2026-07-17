@@ -619,7 +619,8 @@ class TestContinuationStateBinding:
 
 def _continuation_policy(*, guard_window_m=0.5e-6, max_expansions=3,
                          max_total_window_m=4.0e-6, declared_cap_reached=False,
-                         continuity_rule="guard_window", stop_policy="continue_all_declared"):
+                         continuity_evidence=None,
+                         stop_policy="continue_all_declared"):
     return {
         "policy_id": "continuation-policy-test",
         "guard_window_m": guard_window_m,
@@ -628,9 +629,41 @@ def _continuation_policy(*, guard_window_m=0.5e-6, max_expansions=3,
         "max_total_window_m": max_total_window_m,
         "point_budget": 64,
         "stop_policy": stop_policy,
-        "continuity_rule": continuity_rule,
+        "continuity_evidence": (
+            [] if continuity_evidence is None else continuity_evidence
+        ),
         "declared_cap_reached": declared_cap_reached,
     }
+
+
+def _multi_candidate_states():
+    normal = _state(0, 5.0e-6, None, coordinate_value=0.0)
+    multi = _custom_state(
+        1,
+        [4.9e-6, 4.95e-6, 5.0e-6, 5.05e-6, 5.1e-6],
+        [0.1, 0.8, 0.1, 0.7, 0.1],
+        "coord-0",
+        coordinate_value=5.0,
+        label="crossing-candidates",
+    )
+    return build_continuation_states(
+        states_id="crossing-candidates", states=[normal, multi]
+    )
+
+
+def _measured_continuity_evidence(states, *, row_index=1, tolerance=0.1e-6):
+    previous_peak = states["states"][0]["candidate"]["peak_wavelength_m"]
+    selected_row = states["states"][1]["spectral_artifacts"]["raw_rows"][row_index]
+    selected_wavelength = selected_row["requested_wavelength_m"]
+    body = {
+        "transition_index": 0,
+        "selected_candidate_wavelength_m": selected_wavelength,
+        "supporting_raw_row_sha256": selected_row["raw_row_sha256"],
+        "metric_name": "absolute_wavelength_shift_m",
+        "measured_value": abs(selected_wavelength - previous_peak),
+        "tolerance": tolerance,
+    }
+    return {**body, "evidence_sha256": _canonical_hash(body)}
 
 
 class TestBranchContinuationPlanning:
@@ -733,6 +766,61 @@ class TestBranchContinuationPlanning:
         assert transition["branch_recovered"] is False
         assert plan["scientific_disposition"] == "unresolved_at_declared_cap"
         assert plan["reason_code"] == "boundary_expansion_exhausted_at_declared_cap"
+
+    def test_multi_candidate_requires_hash_bound_measured_continuity(self):
+        states = _multi_candidate_states()
+        without_evidence = plan_branch_continuation(states, _continuation_policy())
+        transition = without_evidence["coordinate_transitions"][0]
+        assert transition["ambiguous_candidates"] is True
+        assert transition["branch_followed"] is False
+        assert transition["measured_continuity_verified"] is False
+        assert without_evidence["scientific_disposition"] != "accepted"
+
+        evidence = _measured_continuity_evidence(states)
+        with_evidence = plan_branch_continuation(
+            states, _continuation_policy(continuity_evidence=[evidence])
+        )
+        transition = with_evidence["coordinate_transitions"][0]
+        assert transition["selected_candidate_wavelength_m"] == evidence[
+            "selected_candidate_wavelength_m"
+        ]
+        assert transition["continuity_evidence_sha256"] == evidence["evidence_sha256"]
+        assert transition["measured_continuity_verified"] is True
+        assert transition["branch_followed"] is True
+        assert with_evidence["scientific_disposition"] == "accepted"
+
+    def test_policy_string_alone_cannot_resolve_multi_candidate(self):
+        states = _multi_candidate_states()
+        policy = _continuation_policy()
+        policy["continuity_rule"] = "explicit_measured_evidence"
+        with pytest.raises(ValueError, match="fields are invalid"):
+            plan_branch_continuation(states, policy)
+
+    def test_self_rehashed_false_continuity_metric_fails_closed(self):
+        states = _multi_candidate_states()
+        evidence = _measured_continuity_evidence(states)
+        evidence["measured_value"] = 0.0
+        evidence_body = dict(evidence)
+        evidence_body.pop("evidence_sha256")
+        evidence["evidence_sha256"] = _canonical_hash(evidence_body)
+        with pytest.raises(ValueError, match="does not match the bound measurements"):
+            plan_branch_continuation(
+                states, _continuation_policy(continuity_evidence=[evidence])
+            )
+
+    def test_continuity_evidence_rejects_non_candidate_raw_row(self):
+        states = _multi_candidate_states()
+        evidence = _measured_continuity_evidence(states)
+        evidence["supporting_raw_row_sha256"] = states["states"][0][
+            "spectral_artifacts"
+        ]["raw_rows"][0]["raw_row_sha256"]
+        evidence_body = dict(evidence)
+        evidence_body.pop("evidence_sha256")
+        evidence["evidence_sha256"] = _canonical_hash(evidence_body)
+        with pytest.raises(ValueError, match="not a measured candidate"):
+            plan_branch_continuation(
+                states, _continuation_policy(continuity_evidence=[evidence])
+            )
 
     def test_validate_branch_continuation_plan_round_trips(self):
         states_input = _build_dispersive_states(4, shift=0.1e-6)
@@ -892,12 +980,10 @@ class TestBranchContinuationPlanning:
         with pytest.raises(ValueError, match="absolute_bounds_m"):
             plan_branch_continuation(states, policy)
 
-    def test_invalid_continuity_rule_is_rejected(self):
-        states_input = _build_dispersive_states(3)
-        states = build_continuation_states(states_id="test", states=states_input)
-        policy = _continuation_policy()
-        policy["continuity_rule"] = "auto"
-        with pytest.raises(ValueError, match="continuity_rule"):
+    def test_malformed_continuity_evidence_is_rejected(self):
+        states = _multi_candidate_states()
+        policy = _continuation_policy(continuity_evidence=[{}])
+        with pytest.raises(ValueError, match="fields are invalid"):
             plan_branch_continuation(states, policy)
 
 

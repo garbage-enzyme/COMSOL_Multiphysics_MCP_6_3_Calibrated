@@ -291,6 +291,12 @@ def _summarize_state(value: Any, expected_ordinal: int) -> dict[str, Any]:
         search_window["lower_m"] <= candidate_peak <= search_window["upper_m"]
     ):
         raise ValueError(f"{label} measured candidate lies outside its tested search window")
+    candidate_row_ids = set(decision["candidate_row_ids"])
+    candidate_row_sha256s = [
+        row["raw_row_sha256"]
+        for row in bundle["rows"]
+        if row["row_id"] in candidate_row_ids
+    ]
     body = {
         "state_id": state_id,
         "ordinal": ordinal,
@@ -316,6 +322,7 @@ def _summarize_state(value: Any, expected_ordinal: int) -> dict[str, Any]:
                 "measurement_configuration_sha256"
             ],
             "raw_rows": spectral_rows,
+            "candidate_row_sha256s": candidate_row_sha256s,
         },
         "candidate": candidate,
         "optional_field_metrics": _normalize_metric_mapping(
@@ -373,7 +380,7 @@ def _validate_state_summary(value: Any, expected_ordinal: int) -> dict[str, Any]
         {
             "bundle_sha256", "decision_sha256", "characterization_sha256",
             "analysis_policy_sha256", "measurement_configuration_sha256",
-            "raw_rows",
+            "raw_rows", "candidate_row_sha256s",
         },
         f"{label}.spectral_artifacts",
     )
@@ -411,10 +418,32 @@ def _validate_state_summary(value: Any, expected_ordinal: int) -> dict[str, Any]
         )
     }
     normalized_artifacts["raw_rows"] = normalized_raw_rows
+    candidate_hashes = artifacts["candidate_row_sha256s"]
+    if not isinstance(candidate_hashes, list):
+        raise ValueError(
+            f"{label}.spectral_artifacts.candidate_row_sha256s must be a list"
+        )
+    normalized_candidate_hashes = [
+        _hash(
+            digest,
+            f"{label}.spectral_artifacts.candidate_row_sha256s[{index}]",
+        )
+        for index, digest in enumerate(candidate_hashes)
+    ]
+    if (
+        len(normalized_candidate_hashes) != len(set(normalized_candidate_hashes))
+        or not set(normalized_candidate_hashes).issubset(raw_hashes)
+    ):
+        raise ValueError(f"{label}.spectral_artifacts candidate row hashes are invalid")
+    normalized_artifacts["candidate_row_sha256s"] = normalized_candidate_hashes
     candidate = _exact_fields(item["candidate"], _CANDIDATE_FIELDS, f"{label}.candidate")
     classification = candidate["classification"]
     if classification not in _VALID_CLASSIFICATIONS:
         raise ValueError(f"{label}.candidate.classification is unsupported")
+    if classification == "multi_candidate" and len(normalized_candidate_hashes) < 2:
+        raise ValueError(f"{label} multi-candidate state lacks candidate row bindings")
+    if classification == "interior_candidate" and len(normalized_candidate_hashes) != 1:
+        raise ValueError(f"{label} interior candidate row binding is invalid")
     measurement_state = candidate["measurement_state"]
     if measurement_state not in ("measured", "not_measured"):
         raise ValueError(f"{label}.candidate.measurement_state is invalid")
@@ -603,11 +632,16 @@ def validate_continuation_states(value: Any) -> dict[str, Any]:
 _POLICY_FIELDS = {
     "policy_id", "guard_window_m", "absolute_bounds_m",
     "max_expansions", "max_total_window_m", "point_budget",
-    "stop_policy", "continuity_rule", "declared_cap_reached",
+    "stop_policy", "continuity_evidence", "declared_cap_reached",
 }
 _BOUNDARY_SIDES = {"lower", "upper", "both"}
 _STOP_POLICIES = {"stop_at_first_unresolved", "continue_all_declared"}
-_CONTINUITY_RULES = {"guard_window", "explicit_measured_evidence"}
+_CONTINUITY_EVIDENCE_FIELDS = {
+    "transition_index", "selected_candidate_wavelength_m",
+    "supporting_raw_row_sha256", "metric_name", "measured_value",
+    "tolerance", "evidence_sha256",
+}
+_CONTINUITY_METRICS = {"absolute_wavelength_shift_m"}
 _TRANSITION_FIELDS = {
     "transition_index", "previous_state_id", "current_state_id",
     "declared_adjacent", "previous_peak_wavelength_m",
@@ -616,7 +650,9 @@ _TRANSITION_FIELDS = {
     "boundary_side", "ambiguous_candidates",
     "expansion_required", "expansion_requested", "expansion_window_m",
     "expansion_exhausted", "expansion_count_exceeded",
-    "branch_followed", "branch_recovered", "caller_asserted_continuity",
+    "branch_followed", "branch_recovered",
+    "selected_candidate_wavelength_m", "continuity_evidence_sha256",
+    "measured_continuity_verified",
     "next_request_window_m", "transition_sha256",
 }
 _PLAN_FIELDS = {
@@ -657,8 +693,6 @@ def _normalize_continuation_policy(
         raise ValueError("continuation_policy.point_budget must be a positive integer")
     if item["stop_policy"] not in _STOP_POLICIES:
         raise ValueError("continuation_policy.stop_policy is unsupported")
-    if item["continuity_rule"] not in _CONTINUITY_RULES:
-        raise ValueError("continuation_policy.continuity_rule is unsupported")
     if not isinstance(item["declared_cap_reached"], bool):
         raise ValueError("continuation_policy.declared_cap_reached must be boolean")
     for state in states["states"]:
@@ -667,6 +701,91 @@ def _normalize_continuation_policy(
             raise ValueError(
                 "continuation_policy.absolute_bounds_m must contain every state search window"
             )
+    continuity_evidence = item["continuity_evidence"]
+    if not isinstance(continuity_evidence, list):
+        raise ValueError("continuation_policy.continuity_evidence must be a list")
+    if len(continuity_evidence) > len(states["states"]) - 1:
+        raise ValueError("continuation_policy.continuity_evidence exceeds transition count")
+    normalized_evidence = []
+    evidence_indexes = set()
+    for evidence_position, evidence_value in enumerate(continuity_evidence):
+        evidence_label = (
+            f"continuation_policy.continuity_evidence[{evidence_position}]"
+        )
+        evidence = _exact_fields(
+            evidence_value, _CONTINUITY_EVIDENCE_FIELDS, evidence_label
+        )
+        transition_index = evidence["transition_index"]
+        if (
+            isinstance(transition_index, bool)
+            or not isinstance(transition_index, int)
+            or not 0 <= transition_index < len(states["states"]) - 1
+        ):
+            raise ValueError(f"{evidence_label}.transition_index is invalid")
+        if transition_index in evidence_indexes:
+            raise ValueError("continuation_policy contains duplicate continuity evidence")
+        evidence_indexes.add(transition_index)
+        previous = states["states"][transition_index]
+        current = states["states"][transition_index + 1]
+        if current["candidate"]["classification"] != "multi_candidate":
+            raise ValueError(f"{evidence_label} is only valid for a multi-candidate state")
+        previous_peak = previous["candidate"]["peak_wavelength_m"]
+        if previous_peak is None:
+            raise ValueError(f"{evidence_label} requires a preceding measured peak")
+        selected_wavelength = _finite(
+            evidence["selected_candidate_wavelength_m"],
+            f"{evidence_label}.selected_candidate_wavelength_m",
+        )
+        supporting_hash = _hash(
+            evidence["supporting_raw_row_sha256"],
+            f"{evidence_label}.supporting_raw_row_sha256",
+        )
+        if supporting_hash not in current["spectral_artifacts"]["candidate_row_sha256s"]:
+            raise ValueError(
+                f"{evidence_label} supporting raw row is not a measured candidate"
+            )
+        matching_rows = [
+            row for row in current["spectral_artifacts"]["raw_rows"]
+            if row["raw_row_sha256"] == supporting_hash
+        ]
+        if (
+            len(matching_rows) != 1
+            or matching_rows[0]["requested_wavelength_m"] != selected_wavelength
+        ):
+            raise ValueError(
+                f"{evidence_label} selected candidate is not bound to its raw spectral row"
+            )
+        metric_name = evidence["metric_name"]
+        if metric_name not in _CONTINUITY_METRICS:
+            raise ValueError(f"{evidence_label}.metric_name is unsupported")
+        measured_value = _finite(
+            evidence["measured_value"], f"{evidence_label}.measured_value"
+        )
+        tolerance = _finite(evidence["tolerance"], f"{evidence_label}.tolerance")
+        if measured_value < 0.0 or tolerance <= 0.0:
+            raise ValueError(f"{evidence_label} metric values are invalid")
+        expected_value = abs(selected_wavelength - previous_peak)
+        if measured_value != expected_value:
+            raise ValueError(
+                f"{evidence_label}.measured_value does not match the bound measurements"
+            )
+        if measured_value > tolerance:
+            raise ValueError(f"{evidence_label} exceeds its declared tolerance")
+        evidence_body = {
+            "transition_index": transition_index,
+            "selected_candidate_wavelength_m": selected_wavelength,
+            "supporting_raw_row_sha256": supporting_hash,
+            "metric_name": metric_name,
+            "measured_value": measured_value,
+            "tolerance": tolerance,
+        }
+        supplied_hash = _hash(
+            evidence["evidence_sha256"], f"{evidence_label}.evidence_sha256"
+        )
+        if _sha256(evidence_body) != supplied_hash:
+            raise ValueError(f"{evidence_label} hash does not match")
+        normalized_evidence.append({**evidence_body, "evidence_sha256": supplied_hash})
+    normalized_evidence.sort(key=lambda entry: entry["transition_index"])
     return {
         "policy_id": _identifier(item["policy_id"], "continuation_policy.policy_id"),
         "guard_window_m": guard,
@@ -675,7 +794,7 @@ def _normalize_continuation_policy(
         "max_total_window_m": max_total,
         "point_budget": point_budget,
         "stop_policy": item["stop_policy"],
-        "continuity_rule": item["continuity_rule"],
+        "continuity_evidence": normalized_evidence,
         "declared_cap_reached": item["declared_cap_reached"],
     }
 
@@ -742,16 +861,26 @@ def _one_transition(
     expansion_count_exceeded = False
     branch_followed = False
     branch_recovered = False
-    caller_asserted = False
+    selected_candidate = None
+    continuity_evidence_sha256 = None
+    measured_continuity_verified = False
 
     if classification == "multi_candidate":
         ambiguous = True
-        if (
-            previous_peak is not None
-            and policy["continuity_rule"] == "explicit_measured_evidence"
-        ):
+        continuity_evidence = next(
+            (
+                evidence for evidence in policy["continuity_evidence"]
+                if evidence["transition_index"] == current["ordinal"] - 1
+            ),
+            None,
+        )
+        if continuity_evidence is not None:
             branch_followed = True
-            caller_asserted = True
+            selected_candidate = continuity_evidence[
+                "selected_candidate_wavelength_m"
+            ]
+            continuity_evidence_sha256 = continuity_evidence["evidence_sha256"]
+            measured_continuity_verified = True
     elif classification == "boundary_high":
         peak_at_boundary = True
         expansion_required = True
@@ -802,7 +931,13 @@ def _one_transition(
     if expansion_required:
         next_request = expansion_window
     else:
-        seed_peak = current_peak if current_peak is not None else previous_peak
+        seed_peak = (
+            current_peak
+            if current_peak is not None
+            else selected_candidate
+            if selected_candidate is not None
+            else previous_peak
+        )
         next_request = (
             _compute_next_request(seed_peak, guard, bounds)
             if seed_peak is not None else None
@@ -829,7 +964,9 @@ def _one_transition(
         "expansion_count_exceeded": expansion_count_exceeded,
         "branch_followed": branch_followed,
         "branch_recovered": branch_recovered,
-        "caller_asserted_continuity": caller_asserted,
+        "selected_candidate_wavelength_m": selected_candidate,
+        "continuity_evidence_sha256": continuity_evidence_sha256,
+        "measured_continuity_verified": measured_continuity_verified,
         "next_request_window_m": next_request,
     }
     return {**body, "transition_sha256": _sha256(body)}, total_expansions
@@ -858,7 +995,7 @@ def plan_branch_continuation(
     cap_exceeded = any(t["expansion_count_exceeded"] for t in transitions)
     expansion_exhausted = any(t["expansion_exhausted"] for t in transitions)
     unresolved_ambiguity = any(
-        t["ambiguous_candidates"] and not t["caller_asserted_continuity"]
+        t["ambiguous_candidates"] and not t["measured_continuity_verified"]
         for t in transitions
     )
 
@@ -887,7 +1024,7 @@ def plan_branch_continuation(
         elif expansion_exhausted:
             reason_code = "boundary_expansion_exhausted_at_declared_cap"
         else:
-            reason_code = "ambiguous_candidates_without_continuity_rule"
+            reason_code = "ambiguous_candidates_without_measured_evidence"
     elif transitions_resolved:
         disposition = "accepted"
         reason_code = (
@@ -944,7 +1081,7 @@ def _validate_transition(value: Any, expected_index: int) -> dict[str, Any]:
         "peak_within_guard", "peak_at_search_boundary", "ambiguous_candidates",
         "expansion_required", "expansion_requested", "expansion_exhausted",
         "expansion_count_exceeded", "branch_followed", "branch_recovered",
-        "caller_asserted_continuity",
+        "measured_continuity_verified",
     ):
         if not isinstance(item[field], bool):
             raise ValueError(f"{label}.{field} must be boolean")
@@ -957,6 +1094,12 @@ def _validate_transition(value: Any, expected_index: int) -> dict[str, Any]:
     next_request = item["next_request_window_m"]
     if next_request is not None:
         _normalize_search_window(next_request, f"{label}.next_request_window_m")
+    selected_candidate = item["selected_candidate_wavelength_m"]
+    if selected_candidate is not None:
+        _finite(selected_candidate, f"{label}.selected_candidate_wavelength_m")
+    evidence_hash = item["continuity_evidence_sha256"]
+    if evidence_hash is not None:
+        _hash(evidence_hash, f"{label}.continuity_evidence_sha256")
     supplied_hash = _hash(item["transition_sha256"], f"{label}.transition_sha256")
     rebuilt = dict(item)
     rebuilt.pop("transition_sha256")
