@@ -164,6 +164,7 @@ class TestSessionManager:
         sm = SessionManager()
         sm._client = FakeClient()
         sm._models = {"model": FakeModel()}
+        sm._model_paths = {"model": str(tmp_path / "model.mph")}
         sm._current_model = "model"
         try:
             status = sm.get_status()

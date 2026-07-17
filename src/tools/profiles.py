@@ -7,6 +7,7 @@ import os
 from typing import Any, Callable, Mapping
 
 from .catalog import PROFILE_NAMES, TOOL_METADATA
+from src.operation_arbiter import guard_tool_call
 
 
 PROFILE_ENV_VAR = "COMSOL_MCP_PROFILE"
@@ -104,7 +105,14 @@ class ProfiledRegistrar:
         def decorator(function: Callable) -> Callable:
             name = kwargs.get("name") or function.__name__
             if name in self._enabled_names:
-                return real_decorator(function)
+                metadata = TOOL_METADATA[name]
+                guarded = guard_tool_call(
+                    function,
+                    tool_name=name,
+                    side_effect_class=metadata.side_effect_class,
+                    concurrency_class=metadata.concurrency_class,
+                )
+                return real_decorator(guarded)
             return function
 
         return decorator

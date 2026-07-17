@@ -19,6 +19,7 @@ class ToolMetadata:
     group: str
     maturity: str
     side_effect_class: str
+    concurrency_class: str
     starts_solver: bool
     intended_profiles: tuple[str, ...]
 
@@ -284,6 +285,24 @@ _STARTS_SOLVER = frozenset({
     "wave_optics_point_audit", "wave_optics_reference_audit",
 })
 
+_CONTROL_PLANE_TOOLS = frozenset({
+    "capabilities", "solver_status", "solver_preflight",
+    "solver_recover_stale_lease", "job_status", "job_tail", "job_cancel",
+    "comsol_status", "study_get_progress", "study_cancel", "study_wait",
+    "semantic_status", "semantic_worker_reset",
+})
+
+_SOLVER_FREE_TOOLS = frozenset({
+    "manual_search", "manual_read_pages", "semantic_search",
+    "docs_get", "docs_list", "physics_get_guide", "troubleshoot",
+    "modeling_best_practices", "wave_optics_material_expression_preview",
+    "visual_review_capability_normalize", "visual_review_request_create",
+    "visual_review_receipt_create", "visual_review_dual_evaluate",
+    "spectral_characterize", "convergence_evaluate", "branch_continuation_plan",
+    "geometry_fin_preview", "geometry_blocks_preview",
+    "wave_optics_incidence_preview",
+})
+
 _CORE_TOOLS = frozenset({
     "capabilities",
     "solver_status", "solver_preflight", "solver_recover_stale_lease",
@@ -380,6 +399,13 @@ def _build_registry() -> dict[str, ToolMetadata]:
                 group=group,
                 maturity="experimental" if name in _EXPERIMENTAL_TOOLS else "verified",
                 side_effect_class=_SIDE_EFFECTS.get(name, "read_only"),
+                concurrency_class=(
+                    "control_plane"
+                    if name in _CONTROL_PLANE_TOOLS
+                    else "solver_free"
+                    if name in _SOLVER_FREE_TOOLS
+                    else "comsol_bound"
+                ),
                 starts_solver=name in _STARTS_SOLVER,
                 intended_profiles=tuple(
                     profile for profile in PROFILE_NAMES if name in profile_tools[profile]

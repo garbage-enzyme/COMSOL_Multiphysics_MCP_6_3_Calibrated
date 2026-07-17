@@ -67,6 +67,9 @@ def test_every_registered_tool_has_complete_canonical_metadata():
         assert metadata.group
         assert metadata.maturity in {"verified", "experimental"}
         assert metadata.side_effect_class
+        assert metadata.concurrency_class in {
+            "control_plane", "solver_free", "comsol_bound",
+        }
         assert isinstance(metadata.starts_solver, bool)
         assert metadata.intended_profiles
         assert set(metadata.intended_profiles) <= set(PROFILE_NAMES)

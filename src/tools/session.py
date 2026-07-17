@@ -25,6 +25,7 @@ class SessionManager:
                 instance = super().__new__(cls)
                 instance._client = None
                 instance._models = {}
+                instance._model_paths = {}
                 instance._model_cleanup_paths = {}
                 instance._current_model = None
                 # comsol_start runs mph.Client() in this background thread.
@@ -282,6 +283,7 @@ class SessionManager:
         for name in list(self._model_cleanup_paths):
             self._cleanup_model_artifact(name)
         self._models.clear()
+        self._model_paths.clear()
         self._current_model = None
         try:
             mph_session.client = None
@@ -319,13 +321,14 @@ class SessionManager:
                 "message": "No active COMSOL session."
             }
         
+        # Status must remain responsive while a COMSOL call is blocked. Do not
+        # invoke clientapi or model methods here; report only locally tracked state.
         model_list = []
-        for name in self._client.names():
+        for name in self._models:
             model_info = {"name": name}
-            if name in self._models:
-                model = self._models[name]
-                model_file = model.file() if hasattr(model, 'file') else None
-                model_info["file"] = str(model_file) if model_file is not None else None
+            model_path = self._model_paths.get(name)
+            if model_path is not None:
+                model_info["file"] = model_path
             model_list.append(model_info)
         
         return {
@@ -390,6 +393,8 @@ class SessionManager:
             self._current_model = name
         try:
             model_path = model.file() if hasattr(model, "file") else None
+            if model_path is not None:
+                self._model_paths[name] = str(model_path)
             self._ownership.heartbeat(model_path=str(model_path) if model_path else None)
         except Exception:
             pass
@@ -449,6 +454,7 @@ class SessionManager:
             try:
                 self._client.remove(self._models[name])
                 del self._models[name]
+                self._model_paths.pop(name, None)
                 self._cleanup_model_artifact(name)
                 if self._current_model == name:
                     self._current_model = next(iter(self._models.keys()), None)
