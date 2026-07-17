@@ -18,6 +18,7 @@ from src.evidence.spectral_characterization import (
 
 
 BRANCH_CONTINUATION_STATES_SCHEMA = "comsol_mcp.branch_continuation_states"
+BRANCH_CONTINUATION_PLAN_SCHEMA = "comsol_mcp.branch_continuation_plan"
 BRANCH_CONTINUATION_SCHEMA_VERSION = "1.0.0"
 MAX_CONTINUATION_STATES = 64
 MAX_OPTIONAL_METRICS = 32
@@ -41,7 +42,7 @@ _METRIC_FIELDS = {"value", "unit", "evidence_artifact_sha256"}
 _CANDIDATE_FIELDS = {
     "classification", "measurement_state",
     "peak_wavelength_m", "peak_response_value",
-    "fwhm_m", "quality_factor",
+    "fwhm_m", "quality_factor", "boundary_side",
 }
 _STATE_SUMMARY_FIELDS = {
     "state_id", "ordinal", "declared_predecessor_state_id",
@@ -159,6 +160,7 @@ def _normalize_metric_mapping(value: Any, label: str) -> dict[str, dict[str, Any
 def _extract_candidate(
     decision: Mapping[str, Any],
     characterization: Mapping[str, Any],
+    bundle: Mapping[str, Any],
 ) -> dict[str, Any]:
     classification = decision["classification"]
     if classification not in _VALID_CLASSIFICATIONS:
@@ -168,6 +170,18 @@ def _extract_candidate(
     measurement_state = characterization["measurement_state"]
     if measurement_state not in ("measured", "not_measured"):
         raise ValueError("spectral characterization measurement_state is invalid")
+    boundary_side = None
+    if classification == "boundary_high":
+        boundary_ids = set(decision["boundary_row_ids"])
+        row_ids = [row["row_id"] for row in bundle["rows"]]
+        sides = []
+        if row_ids and row_ids[0] in boundary_ids:
+            sides.append("lower")
+        if row_ids and row_ids[-1] in boundary_ids:
+            sides.append("upper")
+        if not sides:
+            raise ValueError("boundary_high decision has no recognizable boundary side")
+        boundary_side = "both" if len(sides) == 2 else sides[0]
     candidate = characterization["candidate"]
     measured = measurement_state == "measured" and candidate is not None
     if measured:
@@ -194,6 +208,7 @@ def _extract_candidate(
                 and quality["value"] is not None
                 else None
             ),
+            "boundary_side": boundary_side,
         }
     return {
         "classification": classification,
@@ -202,6 +217,7 @@ def _extract_candidate(
         "peak_response_value": None,
         "fwhm_m": None,
         "quality_factor": None,
+        "boundary_side": boundary_side,
     }
 
 
@@ -251,7 +267,7 @@ def _summarize_state(value: Any, expected_ordinal: int) -> dict[str, Any]:
         raise ValueError(f"{label} source model hash does not match its spectral bundle")
     if bundle["configuration_sha256"] != configuration_hash:
         raise ValueError(f"{label} configuration hash does not match its spectral bundle")
-    candidate = _extract_candidate(decision, characterization)
+    candidate = _extract_candidate(decision, characterization, bundle)
     body = {
         "state_id": state_id,
         "ordinal": ordinal,
@@ -384,7 +400,27 @@ def _validate_state_summary(value: Any, expected_ordinal: int) -> dict[str, Any]
             None if candidate["quality_factor"] is None
             else _finite(candidate["quality_factor"], f"{label}.candidate.quality_factor")
         ),
+        "boundary_side": candidate["boundary_side"],
     }
+    if (
+        normalized_candidate["boundary_side"] is not None
+        and normalized_candidate["boundary_side"] not in ("lower", "upper", "both")
+    ):
+        raise ValueError(f"{label}.candidate.boundary_side is invalid")
+    if (
+        normalized_candidate["boundary_side"] is not None
+        and classification != "boundary_high"
+    ):
+        raise ValueError(
+            f"{label}.candidate.boundary_side is only valid for boundary_high"
+        )
+    if (
+        classification == "boundary_high"
+        and normalized_candidate["boundary_side"] is None
+    ):
+        raise ValueError(
+            f"{label}.candidate.boundary_side is required for boundary_high"
+        )
     if complete and normalized_candidate["peak_wavelength_m"] is None:
         raise ValueError(f"{label}.candidate measured state requires a peak wavelength")
     body = {
@@ -514,10 +550,335 @@ def validate_continuation_states(value: Any) -> dict[str, Any]:
     return deepcopy(item)
 
 
+_POLICY_FIELDS = {
+    "policy_id", "guard_window_m", "absolute_bounds_m",
+    "max_expansions", "max_total_window_m", "point_budget",
+    "stop_policy", "continuity_rule", "declared_cap_reached",
+}
+_BOUNDARY_SIDES = {"lower", "upper", "both"}
+_STOP_POLICIES = {"stop_at_first_unresolved", "continue_all_declared"}
+_CONTINUITY_RULES = {"guard_window", "explicit_measured_evidence"}
+_TRANSITION_FIELDS = {
+    "transition_index", "previous_state_id", "current_state_id",
+    "declared_adjacent", "previous_peak_wavelength_m",
+    "current_peak_wavelength_m", "current_candidate_classification",
+    "peak_within_guard", "peak_at_search_boundary",
+    "boundary_side", "ambiguous_candidates",
+    "expansion_proposed", "expansion_window_m",
+    "expansion_within_bounds", "expansion_count_exceeded",
+    "branch_followed", "caller_asserted_continuity",
+    "next_request_window_m", "transition_sha256",
+}
+_PLAN_FIELDS = {
+    "schema_name", "schema_version", "states_id", "states_sha256",
+    "continuation_policy", "continuation_policy_sha256",
+    "coordinate_transitions", "total_expansions_proposed",
+    "ambiguous_transition_count", "branch_followed_transition_count",
+    "scientific_disposition", "reason_code",
+    "branch_disappearance_claimed", "undeclared_coordinate_started",
+    "plan_sha256",
+}
+
+
+def _normalize_continuation_policy(
+    value: Any, *, states: Mapping[str, Any]
+) -> dict[str, Any]:
+    item = _exact_fields(value, _POLICY_FIELDS, "continuation_policy")
+    guard = _finite(item["guard_window_m"], "continuation_policy.guard_window_m")
+    if guard <= 0.0:
+        raise ValueError("continuation_policy.guard_window_m must be positive")
+    bounds = _exact_fields(
+        item["absolute_bounds_m"], _WINDOW_FIELDS, "continuation_policy.absolute_bounds_m"
+    )
+    lower = _finite(bounds["lower_m"], "continuation_policy.absolute_bounds_m.lower_m")
+    upper = _finite(bounds["upper_m"], "continuation_policy.absolute_bounds_m.upper_m")
+    if not (0.0 < lower < upper):
+        raise ValueError("continuation_policy.absolute_bounds_m must have 0 < lower_m < upper_m")
+    max_expansions = item["max_expansions"]
+    if isinstance(max_expansions, bool) or not isinstance(max_expansions, int) or max_expansions < 0:
+        raise ValueError("continuation_policy.max_expansions must be a nonnegative integer")
+    max_total = _finite(
+        item["max_total_window_m"], "continuation_policy.max_total_window_m"
+    )
+    if max_total <= 0.0:
+        raise ValueError("continuation_policy.max_total_window_m must be positive")
+    point_budget = item["point_budget"]
+    if isinstance(point_budget, bool) or not isinstance(point_budget, int) or point_budget <= 0:
+        raise ValueError("continuation_policy.point_budget must be a positive integer")
+    if item["stop_policy"] not in _STOP_POLICIES:
+        raise ValueError("continuation_policy.stop_policy is unsupported")
+    if item["continuity_rule"] not in _CONTINUITY_RULES:
+        raise ValueError("continuation_policy.continuity_rule is unsupported")
+    if not isinstance(item["declared_cap_reached"], bool):
+        raise ValueError("continuation_policy.declared_cap_reached must be boolean")
+    for state in states["states"]:
+        window = state["search_window_m"]
+        if window["lower_m"] < lower or window["upper_m"] > upper:
+            raise ValueError(
+                "continuation_policy.absolute_bounds_m must contain every state search window"
+            )
+    return {
+        "policy_id": _identifier(item["policy_id"], "continuation_policy.policy_id"),
+        "guard_window_m": guard,
+        "absolute_bounds_m": {"lower_m": lower, "upper_m": upper},
+        "max_expansions": max_expansions,
+        "max_total_window_m": max_total,
+        "point_budget": point_budget,
+        "stop_policy": item["stop_policy"],
+        "continuity_rule": item["continuity_rule"],
+        "declared_cap_reached": item["declared_cap_reached"],
+    }
+
+
+def _compute_next_request(
+    seed_peak: float,
+    guard: float,
+    bounds: Mapping[str, float],
+) -> dict[str, float]:
+    lower = max(seed_peak - guard, bounds["lower_m"])
+    upper = min(seed_peak + guard, bounds["upper_m"])
+    return {"lower_m": lower, "upper_m": upper}
+
+
+def _compute_expansion(
+    search: Mapping[str, float],
+    boundary_side: str,
+    guard: float,
+    bounds: Mapping[str, float],
+    max_total: float,
+) -> tuple[dict[str, float] | None, bool]:
+    new_lower = search["lower_m"]
+    new_upper = search["upper_m"]
+    if boundary_side in ("lower", "both"):
+        new_lower = max(search["lower_m"] - guard, bounds["lower_m"])
+    if boundary_side in ("upper", "both"):
+        new_upper = min(search["upper_m"] + guard, bounds["upper_m"])
+    width = new_upper - new_lower
+    within_bounds = (
+        width > 0.0
+        and width <= max_total
+        and new_lower >= bounds["lower_m"]
+        and new_upper <= bounds["upper_m"]
+    )
+    if not within_bounds:
+        return None, False
+    return {"lower_m": new_lower, "upper_m": new_upper}, True
+
+
+def _one_transition(
+    previous: Mapping[str, Any],
+    current: Mapping[str, Any],
+    policy: Mapping[str, Any],
+    total_expansions: int,
+) -> tuple[dict[str, Any], int]:
+    previous_peak = previous["candidate"]["peak_wavelength_m"]
+    current_candidate = current["candidate"]
+    current_peak = current_candidate["peak_wavelength_m"]
+    classification = current_candidate["classification"]
+    boundary_side = current_candidate["boundary_side"]
+    guard = policy["guard_window_m"]
+    bounds = policy["absolute_bounds_m"]
+
+    peak_within_guard = False
+    peak_at_boundary = False
+    ambiguous = False
+    expansion_proposed = False
+    expansion_window = None
+    expansion_within_bounds = True
+    expansion_count_exceeded = False
+    branch_followed = False
+    caller_asserted = False
+
+    if previous_peak is None:
+        branch_followed = False
+    elif classification == "multi_candidate":
+        ambiguous = True
+        if policy["continuity_rule"] == "explicit_measured_evidence":
+            branch_followed = True
+            caller_asserted = True
+    elif classification == "boundary_high":
+        peak_at_boundary = True
+        if total_expansions < policy["max_expansions"]:
+            expansion_proposed = True
+            expansion_window, expansion_within_bounds = _compute_expansion(
+                current["search_window_m"],
+                boundary_side,
+                guard,
+                bounds,
+                policy["max_total_window_m"],
+            )
+            if expansion_proposed and expansion_within_bounds:
+                total_expansions += 1
+        else:
+            expansion_count_exceeded = True
+        if expansion_within_bounds and not expansion_count_exceeded:
+            branch_followed = True
+    elif current_peak is not None:
+        peak_within_guard = abs(current_peak - previous_peak) <= guard
+        branch_followed = peak_within_guard
+    else:
+        branch_followed = False
+
+    seed_peak = current_peak if current_peak is not None else previous_peak
+    next_request = (
+        _compute_next_request(seed_peak, guard, bounds)
+        if seed_peak is not None else None
+    )
+
+    body = {
+        "transition_index": current["ordinal"] - 1,
+        "previous_state_id": previous["state_id"],
+        "current_state_id": current["state_id"],
+        "declared_adjacent": (
+            current["declared_predecessor_state_id"] == previous["state_id"]
+        ),
+        "previous_peak_wavelength_m": previous_peak,
+        "current_peak_wavelength_m": current_peak,
+        "current_candidate_classification": classification,
+        "peak_within_guard": peak_within_guard,
+        "peak_at_search_boundary": peak_at_boundary,
+        "boundary_side": boundary_side,
+        "ambiguous_candidates": ambiguous,
+        "expansion_proposed": expansion_proposed,
+        "expansion_window_m": expansion_window,
+        "expansion_within_bounds": expansion_within_bounds,
+        "expansion_count_exceeded": expansion_count_exceeded,
+        "branch_followed": branch_followed,
+        "caller_asserted_continuity": caller_asserted,
+        "next_request_window_m": next_request,
+    }
+    return {**body, "transition_sha256": _sha256(body)}, total_expansions
+
+
+def plan_branch_continuation(
+    states: Mapping[str, Any],
+    continuation_policy: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Plan bounded per-coordinate continuation windows from ordered spectral evidence."""
+    normalized_states = validate_continuation_states(states)
+    policy = _normalize_continuation_policy(
+        continuation_policy, states=normalized_states
+    )
+    all_states = normalized_states["states"]
+    transitions = []
+    total_expansions = 0
+    for index in range(1, len(all_states)):
+        transition, total_expansions = _one_transition(
+            all_states[index - 1], all_states[index], policy, total_expansions
+        )
+        transitions.append(transition)
+
+    ambiguous_count = sum(1 for t in transitions if t["ambiguous_candidates"])
+    followed_count = sum(1 for t in transitions if t["branch_followed"])
+    cap_exceeded = any(t["expansion_count_exceeded"] for t in transitions)
+    bounds_exceeded = any(
+        t["expansion_proposed"] and not t["expansion_within_bounds"]
+        for t in transitions
+    )
+    unresolved_ambiguity = any(
+        t["ambiguous_candidates"] and not t["caller_asserted_continuity"]
+        for t in transitions
+    )
+
+    if cap_exceeded or bounds_exceeded or unresolved_ambiguity:
+        disposition = "unresolved_at_declared_cap"
+        if cap_exceeded:
+            reason_code = "expansion_count_exceeded_at_declared_cap"
+        elif bounds_exceeded:
+            reason_code = "expansion_exceeds_absolute_bounds"
+        else:
+            reason_code = "ambiguous_candidates_without_continuity_rule"
+    elif followed_count == len(transitions):
+        disposition = "accepted"
+        reason_code = "all_transitions_branch_followed"
+    elif policy["declared_cap_reached"]:
+        disposition = "unresolved_at_declared_cap"
+        reason_code = "branch_not_followed_at_declared_cap"
+    else:
+        disposition = "residual"
+        reason_code = "branch_not_followed"
+
+    body = {
+        "schema_name": BRANCH_CONTINUATION_PLAN_SCHEMA,
+        "schema_version": BRANCH_CONTINUATION_SCHEMA_VERSION,
+        "states_id": normalized_states["states_id"],
+        "states_sha256": normalized_states["states_sha256"],
+        "continuation_policy": policy,
+        "continuation_policy_sha256": _sha256(policy),
+        "coordinate_transitions": transitions,
+        "total_expansions_proposed": total_expansions,
+        "ambiguous_transition_count": ambiguous_count,
+        "branch_followed_transition_count": followed_count,
+        "scientific_disposition": disposition,
+        "reason_code": reason_code,
+        "branch_disappearance_claimed": False,
+        "undeclared_coordinate_started": False,
+    }
+    return {**body, "plan_sha256": _sha256(body)}
+
+
+def _validate_transition(value: Any, expected_index: int) -> dict[str, Any]:
+    label = f"coordinate_transitions[{expected_index}]"
+    item = _exact_fields(value, _TRANSITION_FIELDS, label)
+    if item["transition_index"] != expected_index:
+        raise ValueError(f"{label}.transition_index must match list order")
+    for field in ("previous_state_id", "current_state_id"):
+        _identifier(item[field], f"{label}.{field}")
+    if not isinstance(item["declared_adjacent"], bool):
+        raise ValueError(f"{label}.declared_adjacent must be boolean")
+    for field in ("previous_peak_wavelength_m", "current_peak_wavelength_m"):
+        value = item[field]
+        if value is not None:
+            _finite(value, f"{label}.{field}")
+    classification = item["current_candidate_classification"]
+    if classification not in _VALID_CLASSIFICATIONS:
+        raise ValueError(f"{label}.current_candidate_classification is unsupported")
+    for field in (
+        "peak_within_guard", "peak_at_search_boundary", "ambiguous_candidates",
+        "expansion_proposed", "expansion_within_bounds",
+        "expansion_count_exceeded", "branch_followed", "caller_asserted_continuity",
+    ):
+        if not isinstance(item[field], bool):
+            raise ValueError(f"{label}.{field} must be boolean")
+    side = item["boundary_side"]
+    if side is not None and side not in _BOUNDARY_SIDES:
+        raise ValueError(f"{label}.boundary_side is invalid")
+    expansion_window = item["expansion_window_m"]
+    if expansion_window is not None:
+        _normalize_search_window(expansion_window, f"{label}.expansion_window_m")
+    next_request = item["next_request_window_m"]
+    if next_request is not None:
+        _normalize_search_window(next_request, f"{label}.next_request_window_m")
+    supplied_hash = _hash(item["transition_sha256"], f"{label}.transition_sha256")
+    rebuilt = dict(item)
+    rebuilt.pop("transition_sha256")
+    if _sha256(rebuilt) != supplied_hash:
+        raise ValueError(f"{label} is noncanonical or its hash does not match")
+    return deepcopy(item)
+
+
+def validate_branch_continuation_plan(
+    value: Any, *, states: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Recompute one continuation plan and reject hash tampering."""
+    item = _mapping(value, "branch_continuation_plan")
+    if set(item) != _PLAN_FIELDS:
+        raise ValueError("branch continuation plan fields are invalid")
+    rebuilt = plan_branch_continuation(states, item["continuation_policy"])
+    if item != rebuilt:
+        raise ValueError(
+            "branch continuation plan is noncanonical or its hash does not match"
+        )
+    return deepcopy(rebuilt)
+
+
 __all__ = [
+    "BRANCH_CONTINUATION_PLAN_SCHEMA",
     "BRANCH_CONTINUATION_SCHEMA_VERSION",
     "BRANCH_CONTINUATION_STATES_SCHEMA",
     "MAX_CONTINUATION_STATES",
     "build_continuation_states",
+    "plan_branch_continuation",
+    "validate_branch_continuation_plan",
     "validate_continuation_states",
 ]

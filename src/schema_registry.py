@@ -9,6 +9,7 @@ from typing import Any
 
 from src import __version__
 from src.evidence.branch_continuation import (
+    BRANCH_CONTINUATION_PLAN_SCHEMA,
     BRANCH_CONTINUATION_SCHEMA_VERSION,
     BRANCH_CONTINUATION_STATES_SCHEMA,
 )
@@ -67,6 +68,11 @@ def _entries() -> list[dict[str, Any]]:
         _entry("comsol_mcp.artifact_chain", "1.0.0", "src.artifact_chain"),
         _entry("comsol_mcp.artifact_chain_verification", "1.0.0", "src.artifact_chain"),
         _entry("comsol_mcp.build_identity", "1.0.0", "src.build_identity"),
+        _entry(
+            BRANCH_CONTINUATION_PLAN_SCHEMA,
+            BRANCH_CONTINUATION_SCHEMA_VERSION,
+            "src.evidence.branch_continuation",
+        ),
         _entry(
             BRANCH_CONTINUATION_STATES_SCHEMA,
             BRANCH_CONTINUATION_SCHEMA_VERSION,
