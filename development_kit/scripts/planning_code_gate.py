@@ -34,6 +34,7 @@ _PATTERN = re.compile(
 
 
 def _matches(text: str) -> list[dict[str, object]]:
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     return [
         {"token": match.group(), "start": match.start()}
         for match in _PATTERN.finditer(text)

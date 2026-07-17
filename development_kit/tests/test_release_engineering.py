@@ -161,6 +161,12 @@ def test_active_implementation_has_only_enumerated_legacy_phase_codes():
         require_all_allowlisted=True,
     )
     assert receipt["verified"] is True
+    crlf_receipt = verify_planning_code_texts(
+        {path: text.replace("\n", "\r\n") for path, text in texts.items()},
+        allowlist=load_planning_code_allowlist(PLANNING_CODE_ALLOWLIST),
+        require_all_allowlisted=True,
+    )
+    assert crlf_receipt == receipt
 
 
 def test_public_tracked_text_has_no_user_profile_paths():
