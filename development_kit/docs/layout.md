@@ -87,6 +87,7 @@ models are intentionally absent.
 - `development_kit/tests/integration/__init__.py` — This file marks explicit subprocess-isolated integration tests as a Python package.
 - `development_kit/tests/integration/clientapi_property_acceptance.py` — This gate checks constrained clientapi property round trips without solving.
 - `development_kit/tests/integration/coordinator_claim_kill.py` — This helper stops only the exact coordinator process after a durable claim.
+- `development_kit/tests/integration/convergence_campaign_acceptance.py` — This runner executes one explicit licensed durable convergence campaign.
 - `development_kit/tests/integration/derived_geometry_acceptance.py` — This gate checks typed derived-geometry edits on controlled COMSOL input.
 - `development_kit/tests/integration/durable_cancel_acceptance.py` — This gate checks real durable cancellation with an explicit local fixture.
 - `development_kit/tests/integration/incidence_configuration_acceptance.py` — This gate checks typed periodic incidence mutation and readback.
@@ -121,6 +122,7 @@ models are intentionally absent.
 - `development_kit/tests/test_convergence_campaign_rows.py` — This module tests hash-chained durable convergence level evidence and artifact replay.
 - `development_kit/tests/test_convergence_campaign_runner.py` — This module tests composed spectral-level execution, convergence stopping, and exact resume.
 - `development_kit/tests/test_convergence_campaign_worker.py` — This module tests convergence worker ownership, later-level recovery, and cleanup failure.
+- `development_kit/tests/test_convergence_acceptance_runner.py` — This module tests the licensed convergence runner contract without starting COMSOL.
 - `development_kit/tests/test_convergence_evaluation.py` — This module tests ordered solver-free convergence evidence and policy evaluation.
 - `development_kit/tests/test_deployment_identity.py` — This module tests package version, build identity, and fresh-process deployment consistency.
 - `development_kit/tests/test_derived_geometry.py` — This module tests typed derived-geometry edits without COMSOL.
