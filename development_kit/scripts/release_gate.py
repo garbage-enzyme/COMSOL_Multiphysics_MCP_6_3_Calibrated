@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from pathlib import PurePosixPath, PureWindowsPath
 import platform
 import subprocess
 import sys
@@ -14,8 +15,33 @@ import tarfile
 import tempfile
 import zipfile
 
+if __package__:
+    from .planning_code_gate import (
+        TEXT_SUFFIXES,
+        load_planning_code_allowlist,
+        verify_planning_code_texts,
+    )
+else:
+    from planning_code_gate import (  # type: ignore[no-redef]
+        TEXT_SUFFIXES,
+        load_planning_code_allowlist,
+        verify_planning_code_texts,
+    )
+
 
 ROOT = Path(__file__).resolve().parents[2]
+PLANNING_CODE_ALLOWLIST = (
+    ROOT / "development_kit" / "release" / "planning_code_allowlist.json"
+)
+_FORBIDDEN_PARTS = {
+    "comsol_models",
+    "development_kit",
+    "knowledge_base",
+    "knowledge_base_v2",
+    "pdf",
+}
+_FORBIDDEN_SUFFIXES = {".class", ".lock", ".mph", ".pyc", ".recovery", ".status"}
+_FORBIDDEN_NAMES = {".env", "credentials", "credentials.json", "id_rsa", "secrets.json"}
 
 
 def _run(command: list[str], *, cwd: Path = ROOT) -> None:
@@ -79,25 +105,83 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _distribution_inventory(path: Path) -> dict:
+def _normalized_archive_path(name: str) -> str:
+    raw = name.replace("\\", "/")
+    pure = PurePosixPath(raw)
+    if pure.is_absolute() or PureWindowsPath(raw).is_absolute() or ".." in pure.parts:
+        raise RuntimeError(f"distribution contains unsafe path: {name}")
+    parts = list(pure.parts)
+    if parts and parts[0].startswith("comsol_mcp-"):
+        parts = parts[1:]
+    return "/".join(parts)
+
+
+def _distribution_files(path: Path) -> tuple[list[str], dict[str, bytes]]:
     if path.suffix == ".whl":
         with zipfile.ZipFile(path) as archive:
             members = archive.namelist()
+            files = {
+                _normalized_archive_path(info.filename): archive.read(info)
+                for info in archive.infolist()
+                if not info.is_dir()
+            }
     elif path.name.endswith(".tar.gz"):
         with tarfile.open(path, "r:gz") as archive:
             members = archive.getnames()
+            files = {}
+            for member in archive.getmembers():
+                if not member.isfile():
+                    continue
+                stream = archive.extractfile(member)
+                if stream is None:
+                    raise RuntimeError(f"cannot read distribution member: {member.name}")
+                files[_normalized_archive_path(member.name)] = stream.read()
     else:
         raise ValueError(f"unsupported distribution artifact: {path.name}")
-    offenders = [name for name in members if "development_kit" in Path(name).parts]
+    return members, files
+
+
+def _distribution_inventory(path: Path) -> dict:
+    members, files = _distribution_files(path)
+    normalized = [_normalized_archive_path(name) for name in members]
+    offenders = []
+    for name in normalized:
+        pure = PurePosixPath(name)
+        lowered_parts = {part.casefold() for part in pure.parts}
+        if (
+            lowered_parts & _FORBIDDEN_PARTS
+            or pure.suffix.casefold() in _FORBIDDEN_SUFFIXES
+            or pure.name.casefold() in _FORBIDDEN_NAMES
+        ):
+            offenders.append(name)
     if offenders:
         raise RuntimeError(
-            f"ordinary distribution contains development_kit members: {offenders[:5]}"
+            f"ordinary distribution contains forbidden members: {offenders[:5]}"
         )
+    texts = {}
+    for name, payload in files.items():
+        if PurePosixPath(name).suffix.casefold() not in TEXT_SUFFIXES:
+            continue
+        try:
+            text = payload.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise RuntimeError(f"distribution text member is not UTF-8: {name}") from exc
+        if "C:\\Users\\" in text or "C:/Users/" in text or "陆星" in text:
+            raise RuntimeError(f"distribution text contains a private user path: {name}")
+        texts[name] = text
+    planning_receipt = verify_planning_code_texts(
+        texts,
+        allowlist=load_planning_code_allowlist(PLANNING_CODE_ALLOWLIST),
+        require_all_allowlisted=False,
+    )
     return {
         "filename": path.name,
         "sha256": _sha256(path),
         "member_count": len(members),
         "development_kit_excluded": True,
+        "forbidden_entries_absent": True,
+        "private_user_paths_absent": True,
+        "planning_code_gate": planning_receipt,
     }
 
 

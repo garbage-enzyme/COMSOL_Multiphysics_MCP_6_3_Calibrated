@@ -1,0 +1,41 @@
+{
+  "schema_name": "comsol_mcp.planning_code_allowlist",
+  "schema_version": "1.0.0",
+  "entries": [
+    {
+      "path": "development_kit/docs/legacy_phase_compatibility.md",
+      "match_count": 10,
+      "match_sha256": "369c15ea237cbc3b6a027669513db3549872397e24db60bdb3f51d7bcb5665fc"
+    },
+    {
+      "path": "development_kit/release/integration_fixtures/reference_power_evidence.json",
+      "match_count": 1,
+      "match_sha256": "98d79e3596cf33caf308ffaf007ec8724573495a0fbb32ca6f15798801e60ca6"
+    },
+    {
+      "path": "development_kit/scripts/run_real_release_gate.py",
+      "match_count": 16,
+      "match_sha256": "6f51a4734f4865e704af7426b9fd7bab250d98948310128920b29197a9038c39"
+    },
+    {
+      "path": "development_kit/tests/test_durable_job_control_plane.py",
+      "match_count": 1,
+      "match_sha256": "0e3d6d4504bdf6f1d276159cb066348662eb01090ffe63ff969c6ca1d6aea1d9"
+    },
+    {
+      "path": "development_kit/tests/test_reference_power_acceptance.py",
+      "match_count": 1,
+      "match_sha256": "8da5ddec0ac9deb9152f04d2645fde63d9fafbe6337d0f58e1ed7f2b3555a180"
+    },
+    {
+      "path": "development_kit/tests/test_reference_power_runner.py",
+      "match_count": 1,
+      "match_sha256": "b3c34326a3fbaa3d7dbdc2d6ae7889800c76973a15756110b73e63dcdc7f0646"
+    },
+    {
+      "path": "src/evidence/reference_power_acceptance.py",
+      "match_count": 31,
+      "match_sha256": "18aa9c5e8451072800679c6af222a8f2a044bd61170cd54b0f8a2f460c6470a3"
+    }
+  ]
+}

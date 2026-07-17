@@ -47,6 +47,7 @@ models are intentionally absent.
 ## Release contracts and fixtures
 
 - `development_kit/release/support_matrix.json` — This file declares release identity sources, profile states, and licensed-gate requirements.
+- `development_kit/release/planning_code_allowlist.json` — This file freezes historical planning-code matches by path, count, and hash.
 - `development_kit/release/integration_fixtures/manifest.json` — This file inventories sanitized integration contracts and their canonical hashes.
 - `development_kit/release/integration_fixtures/capacitor_clientapi_regression.json` — This contract defines the analytic capacitor clientapi regression.
 - `development_kit/release/integration_fixtures/job_recovery_cancellation.json` — This contract defines durable recovery and cancellation acceptance.
@@ -62,6 +63,7 @@ models are intentionally absent.
 - `development_kit/scripts/__init__.py` — This file marks repository-only release utilities as a Python package.
 - `development_kit/scripts/generate_release_lock.py` — This script generates the complete hashed Windows Python release lock.
 - `development_kit/scripts/installed_package_probe.py` — This script verifies installed discovery, schemas, profiles, and deployment identity without COMSOL startup.
+- `development_kit/scripts/planning_code_gate.py` — This script verifies the exact frozen planning-code compatibility surface.
 - `development_kit/scripts/python_compatibility_licensed_gate.py` — This script runs the pinned Python and COMSOL compatibility regression on a licensed host.
 - `development_kit/scripts/reference_power_gate_preflight.py` — This script validates reference-power gate inputs without starting COMSOL.
 - `development_kit/scripts/release_gate.py` — This script runs compile, test, package, clean-install, and installed-discovery gates.

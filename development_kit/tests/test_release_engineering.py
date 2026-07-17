@@ -17,7 +17,13 @@ from development_kit.scripts.python_compatibility_licensed_gate import (
     _select_expected_backend,
     _status_is_clean,
 )
+from development_kit.scripts.planning_code_gate import (
+    TEXT_SUFFIXES,
+    load_planning_code_allowlist,
+    verify_planning_code_texts,
+)
 from development_kit.scripts.release_gate import (
+    PLANNING_CODE_ALLOWLIST,
     _distribution_inventory,
     _lock_lane,
     _validated_dependency_lock,
@@ -143,30 +149,18 @@ def test_repository_layout_documents_every_tracked_file_once():
 
 
 def test_active_implementation_has_only_enumerated_legacy_phase_codes():
-    phase_pattern = re.compile(
-        r"(?<![A-Za-z0-9_])(?:[EMH][0-9]+[A-Za-z]?|P(?:3|4|9|10|11|12))(?![A-Za-z0-9_])"
-        r"|(?<![A-Za-z0-9])(?:h1|h2a|h2d|h2f|h3c|h3d|h3e|h3f|h4a|h4b|h4c|h4d|h4e|h4f|e4r)(?![A-Za-z0-9])"
-    )
-    allowed = {
-        "development_kit/docs/legacy_phase_compatibility.md",
-        "development_kit/release/integration_fixtures/reference_power_evidence.json",
-        "development_kit/scripts/run_real_release_gate.py",
-        "development_kit/tests/test_durable_job_control_plane.py",
-        "development_kit/tests/test_reference_power_acceptance.py",
-        "development_kit/tests/test_reference_power_release_orchestrator.py",
-        "development_kit/tests/test_reference_power_runner.py",
-        "development_kit/tests/test_release_engineering.py",
-        "src/evidence/reference_power_acceptance.py",
-    }
-    violations = []
+    texts = {}
     for _mode, path_text in _tracked_entries():
         path = Path(path_text)
-        if path.suffix not in {".json", ".md", ".py", ".toml", ".yaml", ".yml"}:
+        if path.suffix not in TEXT_SUFFIXES:
             continue
-        text = (ROOT / path).read_text(encoding="utf-8", errors="replace")
-        if phase_pattern.search(text) and path_text not in allowed:
-            violations.append(path_text)
-    assert violations == []
+        texts[path_text] = (ROOT / path).read_text(encoding="utf-8", errors="replace")
+    receipt = verify_planning_code_texts(
+        texts,
+        allowlist=load_planning_code_allowlist(PLANNING_CODE_ALLOWLIST),
+        require_all_allowlisted=True,
+    )
+    assert receipt["verified"] is True
 
 
 def test_public_tracked_text_has_no_user_profile_paths():
@@ -219,13 +213,45 @@ def test_distribution_inventory_rejects_development_kit_members(tmp_path):
         archive.writestr("src/server.py", "pass\n")
     inventory = _distribution_inventory(clean)
     assert inventory["development_kit_excluded"] is True
+    assert inventory["forbidden_entries_absent"] is True
+    assert inventory["planning_code_gate"]["verified"] is True
     assert inventory["member_count"] == 1
 
     contaminated = tmp_path / "contaminated.whl"
     with zipfile.ZipFile(contaminated, "w") as archive:
         archive.writestr("development_kit/tests/test_server.py", "pass\n")
-    with pytest.raises(RuntimeError, match="contains development_kit"):
+    with pytest.raises(RuntimeError, match="forbidden members"):
         _distribution_inventory(contaminated)
+
+
+def test_distribution_inventory_enforces_frozen_planning_codes_and_private_paths(tmp_path):
+    legacy = tmp_path / "legacy.whl"
+    with zipfile.ZipFile(legacy, "w") as archive:
+        archive.writestr(
+            "src/evidence/reference_power_acceptance.py",
+            (ROOT / "src" / "evidence" / "reference_power_acceptance.py").read_bytes(),
+        )
+    assert _distribution_inventory(legacy)["planning_code_gate"][
+        "matched_occurrence_count"
+    ] == 31
+
+    unexpected = tmp_path / "unexpected.whl"
+    with zipfile.ZipFile(unexpected, "w") as archive:
+        archive.writestr("src/new_module.py", "marker = '" + "E" + "2'\n")
+    with pytest.raises(RuntimeError, match="planning-code compatibility surface changed"):
+        _distribution_inventory(unexpected)
+
+    private = tmp_path / "private.whl"
+    with zipfile.ZipFile(private, "w") as archive:
+        archive.writestr("src/config.json", '{"path":"C:/Users/example/private"}\n')
+    with pytest.raises(RuntimeError, match="private user path"):
+        _distribution_inventory(private)
+
+    model = tmp_path / "model.whl"
+    with zipfile.ZipFile(model, "w") as archive:
+        archive.writestr("src/private_model.mph", b"binary")
+    with pytest.raises(RuntimeError, match="forbidden members"):
+        _distribution_inventory(model)
 
 
 def test_hosted_ci_is_dependency_only_and_real_gate_is_explicit():
