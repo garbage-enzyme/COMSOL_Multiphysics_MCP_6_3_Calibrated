@@ -230,6 +230,9 @@ def test_distribution_inventory_rejects_development_kit_members(tmp_path):
 
 def test_hosted_ci_is_dependency_only_and_real_gate_is_explicit():
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    dependency_report = (
+        ROOT / ".github" / "workflows" / "dependency_report.yml"
+    ).read_text(encoding="utf-8")
     real_gate = (
         ROOT / "development_kit" / "scripts" / "run_real_release_gate.py"
     ).read_text(encoding="utf-8")
@@ -237,8 +240,16 @@ def test_hosted_ci_is_dependency_only_and_real_gate_is_explicit():
     assert "python -m pytest -q" in workflow
     assert "python -m build" in workflow
     assert "release_gate.py --skip-tests" in workflow
-    assert "actions/checkout@v7" in workflow
-    assert "actions/setup-python@v6" in workflow
+    action_references = re.findall(
+        r"(?m)^\s*- uses: (actions/(?:checkout|setup-python))@([^\s]+)$",
+        workflow + "\n" + dependency_report,
+    )
+    assert len(action_references) == 6
+    assert all(re.fullmatch(r"[0-9a-f]{40}", revision) for _action, revision in action_references)
+    assert "# actions/checkout v7.0.0" in workflow
+    assert "# actions/setup-python v6.2.0" in workflow
+    assert "# actions/checkout v7.0.0" in dependency_report
+    assert "# actions/setup-python v6.2.0" in dependency_report
     assert "continue-on-error" not in workflow
     assert "Python 3.14, default production lane" in workflow
     assert "release_locked_py314.txt" in workflow
