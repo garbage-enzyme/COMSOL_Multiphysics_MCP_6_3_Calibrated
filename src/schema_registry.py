@@ -9,6 +9,7 @@ from typing import Any
 
 from src import __version__
 from src.evidence.convergence_evaluation import (
+    CONVERGENCE_EVALUATION_SCHEMA,
     CONVERGENCE_LADDER_SCHEMA,
     CONVERGENCE_SCHEMA_VERSION,
 )
@@ -64,6 +65,11 @@ def _entries() -> list[dict[str, Any]]:
         _entry("comsol_mcp.build_identity", "1.0.0", "src.build_identity"),
         _entry(
             CONVERGENCE_LADDER_SCHEMA,
+            CONVERGENCE_SCHEMA_VERSION,
+            "src.evidence.convergence_evaluation",
+        ),
+        _entry(
+            CONVERGENCE_EVALUATION_SCHEMA,
             CONVERGENCE_SCHEMA_VERSION,
             "src.evidence.convergence_evaluation",
         ),

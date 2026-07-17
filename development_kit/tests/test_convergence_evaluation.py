@@ -10,6 +10,8 @@ import pytest
 
 from src.evidence.convergence_evaluation import (
     build_convergence_ladder,
+    evaluate_convergence,
+    validate_convergence_evaluation,
     validate_convergence_ladder,
 )
 from src.evidence.spectral_characterization import (
@@ -212,3 +214,150 @@ def test_ladder_hash_tampering_and_duplicate_spectral_artifacts_fail_closed():
     levels[2]["configuration_sha256"] = levels[1]["configuration_sha256"]
     with pytest.raises(ValueError, match="duplicate"):
         build_convergence_ladder(ladder_id="duplicate-artifacts", levels=levels)
+
+
+def _metric(
+    name: str,
+    unit: str,
+    *,
+    absolute: float | None = None,
+    relative: float | None = None,
+):
+    return {
+        "metric": name,
+        "unit": unit,
+        "absolute_tolerance": absolute,
+        "relative_tolerance": relative,
+    }
+
+
+def _policy(**overrides):
+    value = {
+        "policy_id": "declared-convergence-policy",
+        "metrics": [
+            _metric("peak_wavelength_m", "m", absolute=10e-9),
+            _metric("peak_response_value", "1", absolute=1e-6),
+        ],
+        "minimum_level_count": 3,
+        "governing_pairs": "final_pair",
+        "relative_denominator": "previous_abs",
+        "declared_cap_reached": False,
+    }
+    value.update(overrides)
+    return value
+
+
+def test_three_level_final_pair_passes_only_declared_metrics_and_tolerances():
+    ladder = build_convergence_ladder(ladder_id="three-mesh-ladder", levels=_levels())
+    evaluation = evaluate_convergence(ladder, _policy())
+
+    assert evaluation["scientific_disposition"] == "accepted"
+    assert evaluation["governing_pair_indices"] == [1]
+    assert evaluation["pair_comparisons"][0]["passed"] is False
+    assert evaluation["pair_comparisons"][1]["passed"] is True
+    final_peak = evaluation["pair_comparisons"][1]["comparisons"][0]
+    assert final_peak["absolute_change"] == pytest.approx(5e-9)
+    assert final_peak["absolute_passed"] is True
+    assert final_peak["previous_level_sha256"] == ladder["levels"][1]["level_sha256"]
+    assert validate_convergence_evaluation(evaluation, ladder=ladder) == evaluation
+
+
+def test_all_adjacent_policy_fails_when_earlier_pair_misses_the_same_gate():
+    ladder = build_convergence_ladder(ladder_id="three-mesh-ladder", levels=_levels())
+    evaluation = evaluate_convergence(
+        ladder, _policy(governing_pairs="all_adjacent")
+    )
+
+    assert evaluation["governing_pair_indices"] == [0, 1]
+    assert evaluation["scientific_disposition"] == "residual"
+    assert evaluation["reason_code"] == "governing_metric_checks_failed"
+    assert evaluation["undeclared_configuration_started"] is False
+
+
+def test_stable_amplitude_cannot_hide_excessive_own_peak_shift():
+    ladder = build_convergence_ladder(ladder_id="three-mesh-ladder", levels=_levels())
+    policy = _policy(metrics=[
+        _metric("peak_response_value", "1", absolute=1e-6),
+        _metric("peak_wavelength_m", "m", absolute=1e-9),
+    ])
+    evaluation = evaluate_convergence(ladder, policy)
+    comparisons = {
+        item["metric"]: item
+        for item in evaluation["pair_comparisons"][-1]["comparisons"]
+    }
+
+    assert comparisons["peak_response_value"]["passed"] is True
+    assert comparisons["peak_wavelength_m"]["passed"] is False
+    assert evaluation["scientific_disposition"] == "residual"
+
+
+def test_failed_final_pair_at_explicit_cap_is_unresolved_not_execution_failure():
+    ladder = build_convergence_ladder(ladder_id="three-mesh-ladder", levels=_levels())
+    evaluation = evaluate_convergence(
+        ladder,
+        _policy(
+            metrics=[_metric("peak_wavelength_m", "m", absolute=1e-9)],
+            declared_cap_reached=True,
+        ),
+    )
+
+    assert evaluation["scientific_disposition"] == "unresolved_at_declared_cap"
+    assert evaluation["reason_code"] == "governing_metric_checks_failed_at_declared_cap"
+    assert evaluation["undeclared_configuration_started"] is False
+
+
+def test_absolute_relative_and_optional_field_metrics_use_declared_units():
+    ladder = build_convergence_ladder(ladder_id="three-mesh-ladder", levels=_levels())
+    evaluation = evaluate_convergence(
+        ladder,
+        _policy(metrics=[
+            _metric("peak_wavelength_m", "m", relative=0.002),
+            _metric("field:field_integral", "J", absolute=0.11),
+        ]),
+    )
+
+    final = evaluation["pair_comparisons"][-1]["comparisons"]
+    assert final[0]["relative_change"] == pytest.approx(5e-9 / 5.02e-6)
+    assert final[0]["relative_passed"] is True
+    assert final[1]["absolute_change"] == pytest.approx(0.1)
+    assert final[1]["passed"] is True
+
+
+def test_missing_metric_or_minimum_levels_returns_invalid_evidence():
+    ladder = build_convergence_ladder(ladder_id="three-mesh-ladder", levels=_levels())
+    missing = evaluate_convergence(
+        ladder,
+        _policy(metrics=[_metric("field:not_present", "1", absolute=0.1)]),
+    )
+    minimum = evaluate_convergence(ladder, _policy(minimum_level_count=4))
+
+    assert missing["scientific_disposition"] == "invalid_evidence"
+    assert missing["evidence_issues"] == ["governing_metric_evidence_incomplete"]
+    assert minimum["scientific_disposition"] == "invalid_evidence"
+    assert minimum["evidence_issues"] == ["minimum_level_count_not_met"]
+
+
+@pytest.mark.parametrize(
+    "policy,match",
+    [
+        (_policy(metrics=[_metric("peak_wavelength_m", "m")]), "tolerance"),
+        (_policy(metrics=[_metric("peak_wavelength_m", "nm", absolute=1.0)]), "unit"),
+        (_policy(metrics=[_metric("fixed_reference_amplitude", "1", absolute=0.1)]), "fixed-reference"),
+        (_policy(metrics=[_metric("diagnostic:amplitude", "1", absolute=0.1)]), "fixed-reference"),
+        (_policy(governing_pairs="best_pair"), "governing_pairs"),
+    ],
+)
+def test_undeclared_ambiguous_and_fixed_reference_rules_fail_closed(policy, match):
+    ladder = build_convergence_ladder(ladder_id="three-mesh-ladder", levels=_levels())
+    with pytest.raises(ValueError, match=match):
+        evaluate_convergence(ladder, policy)
+
+
+def test_evaluation_hash_tampering_fails_closed():
+    ladder = build_convergence_ladder(ladder_id="three-mesh-ladder", levels=_levels())
+    evaluation = evaluate_convergence(ladder, _policy())
+    tampered = deepcopy(evaluation)
+    tampered["scientific_disposition"] = "residual"
+
+    with pytest.raises(ValueError, match="noncanonical|hash"):
+        validate_convergence_evaluation(tampered, ladder=ladder)

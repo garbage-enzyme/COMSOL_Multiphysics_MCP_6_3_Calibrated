@@ -17,6 +17,7 @@ from src.evidence.spectral_characterization import (
 
 
 CONVERGENCE_LADDER_SCHEMA = "comsol_mcp.convergence_ladder"
+CONVERGENCE_EVALUATION_SCHEMA = "comsol_mcp.convergence_evaluation"
 CONVERGENCE_SCHEMA_VERSION = "1.0.0"
 MAX_CONVERGENCE_LEVELS = 32
 MAX_OPTIONAL_METRICS = 32
@@ -38,6 +39,17 @@ _LEVEL_SUMMARY_FIELDS = {
     "incidence_identity_sha256", "spectral_artifacts", "evidence_state",
     "measurements", "fit_support_sensitivity", "optional_field_metrics",
     "fixed_reference_diagnostics", "level_sha256",
+}
+_POLICY_FIELDS = {
+    "policy_id", "metrics", "minimum_level_count", "governing_pairs",
+    "relative_denominator", "declared_cap_reached",
+}
+_RULE_FIELDS = {"metric", "unit", "absolute_tolerance", "relative_tolerance"}
+_BUILTIN_METRIC_UNITS = {
+    "peak_wavelength_m": "m",
+    "peak_response_value": "1",
+    "fwhm_m": "m",
+    "quality_factor": "1",
 }
 
 
@@ -383,8 +395,250 @@ def validate_convergence_ladder(value: Any) -> dict[str, Any]:
     return deepcopy(item)
 
 
+def _nonnegative_optional(value: Any, label: str) -> float | None:
+    if value is None:
+        return None
+    result = _finite(value, label)
+    if result < 0.0:
+        raise ValueError(f"{label} must be nonnegative")
+    return result
+
+
+def _metric_value(level: Mapping[str, Any], metric: str) -> tuple[float | None, str | None]:
+    if metric in _BUILTIN_METRIC_UNITS:
+        value = level["measurements"].get(metric)
+        return value, _BUILTIN_METRIC_UNITS[metric]
+    if metric.startswith("field:"):
+        name = metric.split(":", 1)[1]
+        record = level["optional_field_metrics"].get(name)
+        if record is None:
+            return None, None
+        return record["value"], record["unit"]
+    raise ValueError(f"unsupported convergence metric: {metric}")
+
+
+def _normalize_convergence_policy(
+    value: Any, *, ladder: Mapping[str, Any]
+) -> dict[str, Any]:
+    item = _exact_fields(value, _POLICY_FIELDS, "convergence_policy")
+    metrics = item["metrics"]
+    if not isinstance(metrics, list) or not 1 <= len(metrics) <= MAX_OPTIONAL_METRICS:
+        raise ValueError("convergence_policy.metrics must be a bounded nonempty list")
+    normalized_rules = []
+    for index, rule_value in enumerate(metrics):
+        label = f"convergence_policy.metrics[{index}]"
+        rule = _exact_fields(rule_value, _RULE_FIELDS, label)
+        metric = _bounded_text(rule["metric"], f"{label}.metric")
+        if metric.startswith("diagnostic:") or metric.startswith("fixed_reference"):
+            raise ValueError("fixed-reference diagnostics cannot govern convergence")
+        if metric not in _BUILTIN_METRIC_UNITS and not metric.startswith("field:"):
+            raise ValueError(f"unsupported convergence metric: {metric}")
+        if metric.startswith("field:"):
+            field_name = metric.split(":", 1)[1]
+            _identifier(field_name, f"{label}.metric field name")
+        unit = _bounded_text(rule["unit"], f"{label}.unit")
+        absolute = _nonnegative_optional(
+            rule["absolute_tolerance"], f"{label}.absolute_tolerance"
+        )
+        relative = _nonnegative_optional(
+            rule["relative_tolerance"], f"{label}.relative_tolerance"
+        )
+        if absolute is None and relative is None:
+            raise ValueError(f"{label} must declare an absolute and/or relative tolerance")
+        for level in ladder["levels"]:
+            _value, observed_unit = _metric_value(level, metric)
+            if observed_unit is not None and observed_unit != unit:
+                raise ValueError(f"{label}.unit does not match ladder evidence")
+        normalized_rules.append({
+            "metric": metric,
+            "unit": unit,
+            "absolute_tolerance": absolute,
+            "relative_tolerance": relative,
+        })
+    names = [rule["metric"] for rule in normalized_rules]
+    if len(names) != len(set(names)):
+        raise ValueError("convergence policy metrics must be unique")
+    minimum = item["minimum_level_count"]
+    if (
+        isinstance(minimum, bool) or not isinstance(minimum, int)
+        or not 2 <= minimum <= MAX_CONVERGENCE_LEVELS
+    ):
+        raise ValueError("convergence_policy.minimum_level_count is out of bounds")
+    if item["governing_pairs"] not in {"all_adjacent", "final_pair"}:
+        raise ValueError("convergence_policy.governing_pairs is unsupported")
+    if item["relative_denominator"] not in {"previous_abs", "maximum_abs"}:
+        raise ValueError("convergence_policy.relative_denominator is unsupported")
+    if not isinstance(item["declared_cap_reached"], bool):
+        raise ValueError("convergence_policy.declared_cap_reached must be boolean")
+    return {
+        "policy_id": _identifier(item["policy_id"], "convergence_policy.policy_id"),
+        "metrics": normalized_rules,
+        "minimum_level_count": minimum,
+        "governing_pairs": item["governing_pairs"],
+        "relative_denominator": item["relative_denominator"],
+        "declared_cap_reached": item["declared_cap_reached"],
+    }
+
+
+def _relative_change(
+    previous: float, current: float, absolute_change: float, convention: str
+) -> float | None:
+    denominator = (
+        abs(previous) if convention == "previous_abs"
+        else max(abs(previous), abs(current))
+    )
+    if denominator == 0.0:
+        return 0.0 if absolute_change == 0.0 else None
+    return absolute_change / denominator
+
+
+def _pair_comparison(
+    previous: Mapping[str, Any],
+    current: Mapping[str, Any],
+    rule: Mapping[str, Any],
+    relative_denominator: str,
+) -> dict[str, Any]:
+    metric = rule["metric"]
+    previous_value, previous_unit = _metric_value(previous, metric)
+    current_value, current_unit = _metric_value(current, metric)
+    evidence_complete = (
+        previous_value is not None
+        and current_value is not None
+        and previous_unit == current_unit == rule["unit"]
+    )
+    if not evidence_complete:
+        return {
+            "metric": metric,
+            "unit": rule["unit"],
+            "previous_value": previous_value,
+            "current_value": current_value,
+            "absolute_change": None,
+            "relative_change": None,
+            "absolute_passed": None,
+            "relative_passed": None,
+            "passed": False,
+            "evidence_complete": False,
+            "previous_level_sha256": previous["level_sha256"],
+            "current_level_sha256": current["level_sha256"],
+        }
+    absolute_change = abs(float(current_value) - float(previous_value))
+    relative_change = _relative_change(
+        float(previous_value), float(current_value), absolute_change,
+        relative_denominator,
+    )
+    absolute_passed = (
+        None if rule["absolute_tolerance"] is None
+        else absolute_change <= rule["absolute_tolerance"]
+    )
+    relative_passed = (
+        None if rule["relative_tolerance"] is None
+        else relative_change is not None and relative_change <= rule["relative_tolerance"]
+    )
+    declared_checks = [
+        result for result in (absolute_passed, relative_passed) if result is not None
+    ]
+    return {
+        "metric": metric,
+        "unit": rule["unit"],
+        "previous_value": previous_value,
+        "current_value": current_value,
+        "absolute_change": absolute_change,
+        "relative_change": relative_change,
+        "absolute_passed": absolute_passed,
+        "relative_passed": relative_passed,
+        "passed": all(declared_checks),
+        "evidence_complete": True,
+        "previous_level_sha256": previous["level_sha256"],
+        "current_level_sha256": current["level_sha256"],
+    }
+
+
+def evaluate_convergence(
+    ladder: Mapping[str, Any], convergence_policy: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Compare adjacent own-peak evidence under one caller-supplied policy."""
+    normalized_ladder = validate_convergence_ladder(ladder)
+    policy = _normalize_convergence_policy(
+        convergence_policy, ladder=normalized_ladder
+    )
+    levels = normalized_ladder["levels"]
+    pairs = []
+    for index in range(1, len(levels)):
+        previous = levels[index - 1]
+        current = levels[index]
+        comparisons = [
+            _pair_comparison(
+                previous, current, rule, policy["relative_denominator"]
+            )
+            for rule in policy["metrics"]
+        ]
+        pairs.append({
+            "pair_index": index - 1,
+            "previous_level_id": previous["level_id"],
+            "current_level_id": current["level_id"],
+            "declared_adjacent": current["declared_predecessor_level_id"] == previous["level_id"],
+            "comparisons": comparisons,
+            "evidence_complete": all(item["evidence_complete"] for item in comparisons),
+            "passed": all(item["passed"] for item in comparisons),
+        })
+    governing = pairs if policy["governing_pairs"] == "all_adjacent" else pairs[-1:]
+    issues = []
+    if len(levels) < policy["minimum_level_count"]:
+        issues.append("minimum_level_count_not_met")
+    if any(not pair["evidence_complete"] for pair in governing):
+        issues.append("governing_metric_evidence_incomplete")
+    if issues:
+        disposition = "invalid_evidence"
+        reason_code = issues[0]
+    elif all(pair["passed"] for pair in governing):
+        disposition = "accepted"
+        reason_code = "all_governing_metric_checks_passed"
+    elif policy["declared_cap_reached"]:
+        disposition = "unresolved_at_declared_cap"
+        reason_code = "governing_metric_checks_failed_at_declared_cap"
+    else:
+        disposition = "residual"
+        reason_code = "governing_metric_checks_failed"
+    body = {
+        "schema_name": CONVERGENCE_EVALUATION_SCHEMA,
+        "schema_version": CONVERGENCE_SCHEMA_VERSION,
+        "ladder_id": normalized_ladder["ladder_id"],
+        "ladder_sha256": normalized_ladder["ladder_sha256"],
+        "convergence_policy": policy,
+        "convergence_policy_sha256": _sha256(policy),
+        "pair_comparisons": pairs,
+        "governing_pair_indices": [pair["pair_index"] for pair in governing],
+        "evidence_issues": issues,
+        "scientific_disposition": disposition,
+        "reason_code": reason_code,
+        "undeclared_configuration_started": False,
+    }
+    return {**body, "evaluation_sha256": _sha256(body)}
+
+
+def validate_convergence_evaluation(
+    value: Any, *, ladder: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Recompute one convergence evaluation and reject hash tampering."""
+    item = _mapping(value, "convergence_evaluation")
+    expected = {
+        "schema_name", "schema_version", "ladder_id", "ladder_sha256",
+        "convergence_policy", "convergence_policy_sha256", "pair_comparisons",
+        "governing_pair_indices", "evidence_issues", "scientific_disposition",
+        "reason_code", "undeclared_configuration_started", "evaluation_sha256",
+    }
+    if set(item) != expected:
+        raise ValueError("convergence evaluation fields are invalid")
+    rebuilt = evaluate_convergence(ladder, item["convergence_policy"])
+    if item != rebuilt:
+        raise ValueError("convergence evaluation is noncanonical or its hash does not match")
+    return deepcopy(rebuilt)
+
+
 __all__ = [
-    "CONVERGENCE_LADDER_SCHEMA", "CONVERGENCE_SCHEMA_VERSION",
+    "CONVERGENCE_EVALUATION_SCHEMA", "CONVERGENCE_LADDER_SCHEMA",
+    "CONVERGENCE_SCHEMA_VERSION",
     "MAX_CONVERGENCE_LEVELS", "build_convergence_ladder",
+    "evaluate_convergence", "validate_convergence_evaluation",
     "validate_convergence_ladder",
 ]
