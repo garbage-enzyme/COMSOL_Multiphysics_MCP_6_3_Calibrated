@@ -11,7 +11,9 @@ import sys
 import tomllib
 
 from src import __version__
+from src.compatibility import load_runtime_compatibility
 from src.tools.capabilities import get_capabilities
+from src.tools.capabilities import startup_capability_summary
 from src.tools.profiles import ProfileSelection
 
 
@@ -103,3 +105,20 @@ def test_concurrent_fresh_source_processes_report_identical_identity():
     assert all(identity == identities[0] for identity in identities[1:])
     assert identities[0]["source_classification"] == "source_tree"
     assert identities[0]["contains_local_path"] is False
+
+
+def test_capabilities_report_exact_runtime_compatibility_without_future_inference():
+    capabilities = get_capabilities(_selection("core"))
+    compatibility = capabilities["runtime_compatibility"]
+
+    assert compatibility == load_runtime_compatibility()
+    assert capabilities["targets"] == {
+        "comsol": "6.4.0.293",
+        "mph": "1.3.1",
+        "acceptance": "exact_licensed_acceptance",
+    }
+    assert compatibility["dependency_compatibility"]["comsol_builds"] == []
+    assert compatibility["unknown_compatibility"]["status"] == "unknown"
+    assert "6.4+" not in json.dumps(capabilities, sort_keys=True)
+    summary = startup_capability_summary(_selection("core"))
+    assert "COMSOL 6.4.0.293 exact licensed / MPh 1.3.1" in summary

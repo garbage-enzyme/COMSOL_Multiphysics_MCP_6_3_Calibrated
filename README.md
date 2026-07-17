@@ -49,7 +49,7 @@ surface.
 
 ## Highlights
 
-- **ClientAPI compatibility.** Geometry, physics, materials, meshes, studies, results, model cloning, and Unicode-safe `.mph` saving are adapted to COMSOL 6.4+ clientapi behavior.
+- **ClientAPI compatibility.** Geometry, physics, materials, meshes, studies, results, model cloning, and Unicode-safe `.mph` saving have licensed acceptance on COMSOL 6.4.0.293. Other builds remain unknown until independently accepted.
 - **Safe solver ownership.** An ASCII-path lease, process identity checks, external-client detection, status, and preflight checks prevent accidental competing COMSOL clients.
 - **Durable background work.** Staged sweeps run in detached workers with immutable specifications, atomic state, fsync'd CSV journals, checkpoints, validated resume, and verified same-host cancellation.
 - **Wave Optics validation.** A focused profile provides read-only model preflight and a one-wavelength evidence audit for periodic metasurfaces.
@@ -195,7 +195,7 @@ Omit `COMSOL_MCP_PROFILE` for `core`. Client examples are available at
 
 ## How this fork differs from upstream
 
-This is a COMSOL 6.4+ standalone/clientapi compatibility and reliability fork, not a general replacement for upstream. It keeps the upstream project's foundation while making a deliberately narrower, safer execution surface for agent-driven COMSOL work.
+This is a COMSOL 6.4.0.293 standalone/clientapi compatibility and reliability fork, not a general replacement for upstream. Other COMSOL builds remain unknown until independently accepted. The fork keeps the upstream project's foundation while making a deliberately narrower, safer execution surface for agent-driven COMSOL work.
 
 | Area | Upstream orientation | This fork |
 | --- | --- | --- |

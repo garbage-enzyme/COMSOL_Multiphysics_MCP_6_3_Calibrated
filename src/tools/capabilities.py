@@ -10,6 +10,7 @@ import time
 
 from mcp.server.fastmcp import FastMCP
 
+from src.compatibility import load_runtime_compatibility
 from src.evidence.contracts import (
     EVIDENCE_STATES,
     PHYSICAL_EVIDENCE_SCHEMA_NAME,
@@ -137,13 +138,17 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
     status = session_manager.get_status()
     semantic_profile_active = active_selection.name in {"semantic_docs", "full"}
     semantic = semantic_capability_status(profile_active=semantic_profile_active)
+    compatibility = load_runtime_compatibility()
+    accepted_lane = compatibility["licensed_acceptance"][0]
     result = {
         "success": True,
         "profile": active_selection.name,
         "targets": {
-            "comsol": "6.4+",
-            "mph": "1.3.1 standalone clientapi",
+            "comsol": accepted_lane["comsol_build"],
+            "mph": accepted_lane["mph_version"],
+            "acceptance": "exact_licensed_acceptance",
         },
+        "runtime_compatibility": compatibility,
         "deployment_identity": _deployment_identity(),
         "session": {
             "connected": bool(status.get("connected")),
@@ -290,7 +295,7 @@ def startup_capability_summary(selection: ProfileSelection | None = None) -> str
     return (
         f"profile={capabilities['profile']}; "
         f"tools={capabilities['tool_count']}; "
-        f"target=COMSOL {targets['comsol']} / MPh {targets['mph']}; "
+        f"target=COMSOL {targets['comsol']} exact licensed / MPh {targets['mph']}; "
         f"lexical_manual=enabled; semantic_docs={'active' if capabilities['semantic_search']['profile_active'] else 'disabled'}; "
         "durable_jobs=staged_sweep,validation_matrix; "
         "solver_ownership=enforced; durable_job_cancellation=verified"

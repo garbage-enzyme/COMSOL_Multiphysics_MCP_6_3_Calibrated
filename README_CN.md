@@ -41,7 +41,7 @@ client；保持 COMSOL 工具串行。调用 `capabilities` 可在不启动 COMS
 
 ## 主要能力
 
-- **ClientAPI 适配。** 几何、物理场、材料、网格、研究、结果、模型克隆和 Unicode 安全的 `.mph` 保存均已适配 COMSOL 6.4+ clientapi。
+- **ClientAPI 适配。** 几何、物理场、材料、网格、研究、结果、模型克隆和 Unicode 安全的 `.mph` 保存已在 COMSOL 6.4.0.293 上通过 licensed acceptance；其他 build 在独立验收前均为 unknown。
 - **安全的求解器所有权。** ASCII 路径租约、进程身份核验、外部客户端检测、状态和预检可避免意外启动并发 COMSOL 客户端。
 - **持久化后台任务。** 分段扫描在独立 worker 中执行，具有不可变规格、原子状态、`fsync` CSV 日志、检查点、校验后的恢复，以及已验证的同主机取消能力。
 - **Wave Optics 验证。** 专用 profile 支持只读模型预检，以及用于周期性超表面的单波长证据审计。
@@ -183,7 +183,7 @@ MCP 客户端配置示例：
 
 ## 与上游 Fork 的区别
 
-这是面向 COMSOL 6.4+ standalone/clientapi 的兼容性和可靠性 Fork，而非上游项目的通用替代品。它保留上游项目的基础能力，但为 agent 驱动的 COMSOL 工作流提供了更窄、更安全的执行界面。
+这是面向 COMSOL 6.4.0.293 standalone/clientapi 的兼容性和可靠性 Fork，而非上游项目的通用替代品；其他 COMSOL build 在独立验收前均为 unknown。它保留上游项目的基础能力，但为 agent 驱动的 COMSOL 工作流提供了更窄、更安全的执行界面。
 
 | 方面 | 上游定位 | 本 Fork |
 | --- | --- | --- |

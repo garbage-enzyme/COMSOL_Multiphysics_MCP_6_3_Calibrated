@@ -77,6 +77,11 @@ def test_support_matrix_matches_frozen_profile_counts_and_declared_dependencies(
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
     assert matrix["schema_name"] == "comsol_mcp.release_support_matrix"
+    assert matrix["release_identity_sources"] == {
+        "package_version": "src/__init__.py",
+        "runtime_compatibility": "src/compatibility_manifest.json",
+        "dependency_ranges": "pyproject.toml",
+    }
     assert matrix["real_integration"] == {
         "hosted_ci_default": False,
         "licensed_host_required": True,
