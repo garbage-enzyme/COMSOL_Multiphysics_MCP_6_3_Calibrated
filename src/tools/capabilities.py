@@ -178,9 +178,6 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
             "semantic_manual_search": semantic,
         },
         "disabled_by_default": [
-            "pdf_search",
-            "pdf_search_status",
-            "pdf_list_modules",
             *([] if semantic_profile_active else [
                 "semantic_search", "semantic_status", "semantic_worker_reset",
             ]),

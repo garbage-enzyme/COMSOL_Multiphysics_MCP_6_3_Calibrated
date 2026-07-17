@@ -7,7 +7,6 @@ import uuid
 
 from mcp.server.fastmcp import FastMCP
 
-from src.knowledge.embedded import register_knowledge_tools
 import src.server as server_module
 from src.server import create_server, register_all_resources, register_all_tools
 from src.tools.capabilities import get_capabilities, startup_capability_summary
@@ -34,9 +33,6 @@ def test_server_registration_is_idempotent():
     assert "docs_get" not in tool_names
     assert "wave_optics_preflight" not in tool_names
     assert "wave_optics_point_audit" not in tool_names
-    assert "pdf_search" not in tool_names
-    assert "pdf_search_status" not in tool_names
-    assert "pdf_list_modules" not in tool_names
     assert resource_names
 
     register_all_tools(server)
@@ -52,15 +48,6 @@ def test_default_registration_does_not_import_semantic_stack():
     assert "chromadb" not in sys.modules
     assert "sentence_transformers" not in sys.modules
     assert "torch" not in sys.modules
-
-
-def test_semantic_pdf_tools_require_explicit_opt_in():
-    server = FastMCP("pdf-opt-in-test")
-
-    register_knowledge_tools(server, include_pdf_search=True)
-
-    tool_names = set(server._tool_manager._tools)
-    assert {"pdf_search", "pdf_search_status", "pdf_list_modules"} <= tool_names
 
 
 def test_capabilities_report_risky_operations_without_starting_comsol(monkeypatch):
@@ -87,7 +74,7 @@ def test_capabilities_report_risky_operations_without_starting_comsol(monkeypatc
     assert result["long_jobs"]["durable_background_jobs"] is True
     assert "exact-identity owned-process fallback" in result["long_jobs"]["cancellation_strategy"]
     assert result["long_jobs"]["cross_host_cancellation"] is False
-    assert "pdf_search" in result["disabled_by_default"]
+    assert "semantic_search" in result["disabled_by_default"]
     assert result["profile_guidance"]["default_profile"] == "core"
     assert result["profile_guidance"]["wave_optics_recommended_profile"] == "wave_optics"
     assert result["profile_guidance"]["semantic_docs_opt_in_profile"] == "semantic_docs"
