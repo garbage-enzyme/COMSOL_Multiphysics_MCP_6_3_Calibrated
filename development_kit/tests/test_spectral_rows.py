@@ -37,6 +37,9 @@ def _spec(tmp_path) -> dict:
                 "span_shrink_factor": 4.0,
                 "minimum_spacing_m": 1e-10,
                 "peak_shift_abs_tolerance_m": 1e-9,
+                "fit_support_peak_abs_tolerance_m": 1e-9,
+                "fit_support_fwhm_abs_tolerance_m": 1e-9,
+                "fit_support_quality_factor_abs_tolerance": 1.0,
             },
             "expansion_policy": {
                 "maximum_expansions": 1,

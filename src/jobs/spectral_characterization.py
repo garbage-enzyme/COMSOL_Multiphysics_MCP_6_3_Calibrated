@@ -209,6 +209,9 @@ def _normalize_refinement_policy(value: object) -> dict[str, Any]:
         "span_shrink_factor",
         "minimum_spacing_m",
         "peak_shift_abs_tolerance_m",
+        "fit_support_peak_abs_tolerance_m",
+        "fit_support_fwhm_abs_tolerance_m",
+        "fit_support_quality_factor_abs_tolerance",
     }
     raw = _exact_mapping(value, fields, "refinement_policy")
     stages = _integer(
@@ -244,6 +247,21 @@ def _normalize_refinement_policy(value: object) -> dict[str, Any]:
         "peak_shift_abs_tolerance_m": _finite(
             raw["peak_shift_abs_tolerance_m"],
             "refinement_policy.peak_shift_abs_tolerance_m",
+            nonnegative=True,
+        ),
+        "fit_support_peak_abs_tolerance_m": _finite(
+            raw["fit_support_peak_abs_tolerance_m"],
+            "refinement_policy.fit_support_peak_abs_tolerance_m",
+            nonnegative=True,
+        ),
+        "fit_support_fwhm_abs_tolerance_m": _finite(
+            raw["fit_support_fwhm_abs_tolerance_m"],
+            "refinement_policy.fit_support_fwhm_abs_tolerance_m",
+            nonnegative=True,
+        ),
+        "fit_support_quality_factor_abs_tolerance": _finite(
+            raw["fit_support_quality_factor_abs_tolerance"],
+            "refinement_policy.fit_support_quality_factor_abs_tolerance",
             nonnegative=True,
         ),
     }
