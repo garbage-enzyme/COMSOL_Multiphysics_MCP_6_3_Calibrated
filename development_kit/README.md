@@ -61,6 +61,13 @@ python development_kit/scripts/run_real_release_gate.py `
   --output <new-receipt.json>
 ```
 
+Durable spectral, convergence, and branch-continuation runners under
+`tests/integration/` also require explicit JSON specifications, a new receipt
+path, an ASCII-only runtime root, and `--confirm RUN_REAL_COMSOL` for licensed
+execution. Their `--dry-run` path normalizes and hash-binds all sources and
+driver identities without constructing a COMSOL client. Run only one licensed
+runner at a time.
+
 After every disposable build or install gate, retain the required hashes or
 receipt and remove the temporary build root unless archival retention was
 explicitly requested.

@@ -106,6 +106,20 @@ governing-pair 与 declared-cap 规则、总 point/wall-time 上限及任何 ear
 resume 只复用验证完整的 level rows。当前版本不会在 campaign 内应用任意 parameter
 setter；derived model level 必须在提交前完成构建和验证。
 
+持久化 branch-continuation 任务使用
+`job_type: "branch_continuation_campaign"`，并声明 2–16 个严格排序的 exact
+source 或预先构建并验证的 derived model states。每个 state 都绑定一个 coordinate
+值、polarization/material identity、精确 source/configuration hash，以及 periodic
+parent 和两个 ports 的实测 incidence readback。每个 coordinate 独立运行自己的
+自适应光谱；只有完整光谱已写入 hash-chain state row，离线 continuation planner
+才会使用它。调用方 policy 必须限制 guard window、绝对波长域、扩展次数、总 window、
+request grid、总 point、wall time，以及是否在第一个 unresolved transition 停止。
+boundary-high 和 competing-candidate 结果只能保持为 residual 或
+`unresolved_at_declared_cap`；campaign 不会宣称物理 branch disappearance，也不会
+启动未声明的 coordinate。整个 campaign 只使用一个 solver owner 和一个 client，
+resume 只复用验证完整的 state spectra。当前版本仅支持 exact/prebuilt models，
+不会在 campaign 内应用任意 incidence 或 geometry setter。
+
 ### Wave Optics 超表面
 
 使用 `wave_optics` profile，并遵循下面的有界流程：

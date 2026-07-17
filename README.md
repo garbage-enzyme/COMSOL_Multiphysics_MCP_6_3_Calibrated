@@ -123,6 +123,22 @@ the worker never invents an extra level and resumes only verified complete level
 rows. This release does not apply arbitrary parameter setters inside a campaign;
 prepare and verify derived model levels before submission.
 
+A durable branch-continuation campaign uses
+`job_type: "branch_continuation_campaign"` and an immutable sequence of two to
+sixteen exact source or prebuilt derived model states. Each state binds one
+coordinate value, polarization and material identities, the exact source and
+configuration hashes, and measured incidence readback from the periodic parent
+and both ports. Every coordinate runs its own adaptive spectrum and persists a
+hash-chained state row before the offline continuation planner can use it.
+Caller policy bounds the guard window, absolute wavelength domain, expansion
+count, total window, request grid, point count, wall time, and whether to stop at
+the first unresolved transition. Boundary-high and competing-candidate results
+remain residual or `unresolved_at_declared_cap`; the campaign never reports
+physical branch disappearance or starts an undeclared coordinate. One solver
+owner and client serve the campaign, and resume reuses only complete verified
+state spectra. This release supports exact/prebuilt models only and does not
+apply arbitrary incidence or geometry setters inside the campaign.
+
 ### Wave Optics metasurfaces
 
 Use the `wave_optics` profile and follow this bounded sequence:

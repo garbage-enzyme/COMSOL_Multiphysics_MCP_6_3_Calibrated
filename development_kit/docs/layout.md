@@ -88,6 +88,7 @@ models are intentionally absent.
 - `development_kit/tests/integration/clientapi_property_acceptance.py` — This gate checks constrained clientapi property round trips without solving.
 - `development_kit/tests/integration/coordinator_claim_kill.py` — This helper stops only the exact coordinator process after a durable claim.
 - `development_kit/tests/integration/convergence_campaign_acceptance.py` — This runner executes one explicit licensed durable convergence campaign.
+- `development_kit/tests/integration/branch_continuation_campaign_acceptance.py` — This runner executes one explicit licensed durable branch-continuation campaign.
 - `development_kit/tests/integration/derived_geometry_acceptance.py` — This gate checks typed derived-geometry edits on controlled COMSOL input.
 - `development_kit/tests/integration/durable_cancel_acceptance.py` — This gate checks real durable cancellation with an explicit local fixture.
 - `development_kit/tests/integration/incidence_configuration_acceptance.py` — This gate checks typed periodic incidence mutation and readback.
@@ -115,6 +116,11 @@ models are intentionally absent.
 - `development_kit/tests/test_async_solver.py` — This module tests asynchronous solver thread state with fake studies.
 - `development_kit/tests/test_basic.py` — This module tests basic server helpers and registration assumptions.
 - `development_kit/tests/test_branch_continuation.py` — This module tests ordered solver-free branch-continuation state binding and planning.
+- `development_kit/tests/test_branch_continuation_acceptance_runner.py` — This module tests the explicit licensed continuation runner without starting COMSOL.
+- `development_kit/tests/test_branch_continuation_campaign_job.py` — This module tests immutable bounded durable branch-continuation campaign specifications.
+- `development_kit/tests/test_branch_continuation_campaign_rows.py` — This module tests hash-chained continuation state evidence and artifact replay.
+- `development_kit/tests/test_branch_continuation_campaign_runner.py` — This module tests continuation composition, stopping, ambiguity, and exact resume.
+- `development_kit/tests/test_branch_continuation_campaign_worker.py` — This module tests continuation worker ownership, later-state recovery, and cleanup failure.
 - `development_kit/tests/test_cancel_state_machine.py` — This module tests deterministic cancellation state transitions without wall-clock sleeps.
 - `development_kit/tests/test_clientapi_properties.py` — This module tests constrained clientapi property access with mocks.
 - `development_kit/tests/test_control_plane_metrics.py` — This module tests bounded control-plane latency, overload, and fairness evidence.
@@ -258,6 +264,10 @@ models are intentionally absent.
 - `src/jobs/__init__.py` — This file exports durable background-job primitives.
 - `src/jobs/cancel_worker.py` — This module coordinates detached durable cancellation and cleanup.
 - `src/jobs/convergence_campaign.py` — This module normalizes immutable bounded durable convergence campaign specifications.
+- `src/jobs/branch_continuation_campaign.py` — This module normalizes immutable bounded durable branch-continuation campaign specifications.
+- `src/jobs/branch_continuation_campaign_rows.py` — This module persists hash-chained continuation state evidence bound to completed spectral artifacts.
+- `src/jobs/branch_continuation_campaign_runner.py` — This module composes completed spectral states with offline continuation planning and durable summaries.
+- `src/jobs/branch_continuation_campaign_worker.py` — This worker runs exact-model continuation states under one owned COMSOL attempt.
 - `src/jobs/convergence_campaign_rows.py` — This module persists hash-chained convergence level evidence bound to completed spectral artifacts.
 - `src/jobs/convergence_campaign_runner.py` — This module composes completed spectral levels with offline convergence evaluation and durable summaries.
 - `src/jobs/convergence_campaign_worker.py` — This worker runs exact-model convergence ladders under one owned COMSOL attempt.
