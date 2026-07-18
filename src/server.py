@@ -58,7 +58,10 @@ def register_all_resources(server: FastMCP | None = None) -> None:
     logger.info("Registered all resources")
 
 
-def create_server(name: str = "COMSOL MCP", profile: str | None = None) -> FastMCP:
+def create_server(
+    name: str = "COMSOL MCP",
+    profile: str | ProfileSelection | None = None,
+) -> FastMCP:
     """Create a fully registered server without starting its transport."""
     server = FastMCP(name)
     register_all_tools(server, profile)

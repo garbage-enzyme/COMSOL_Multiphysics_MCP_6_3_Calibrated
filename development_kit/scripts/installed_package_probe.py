@@ -31,6 +31,10 @@ def main() -> int:
 
     import src
     from src.server import create_server
+    from src.shared_session.contracts import (
+        SHARED_SERVER_FEATURE_ENV,
+        SHARED_SERVER_PROFILE,
+    )
     from src.tools.catalog import PROFILE_NAMES, snapshot_tool_schemas
     from src.tools.capabilities import get_capabilities
     from src.tools.profiles import resolve_profile
@@ -45,8 +49,20 @@ def main() -> int:
         raise AssertionError("installed profile order differs from the frozen snapshot")
 
     for profile in PROFILE_NAMES:
-        selection = resolve_profile(profile)
-        server = create_server(f"installed-{profile}", profile=selection.name)
+        if profile == SHARED_SERVER_PROFILE:
+            try:
+                resolve_profile(profile, environ={})
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("installed shared profile is not default-off")
+            selection = resolve_profile(
+                profile,
+                environ={SHARED_SERVER_FEATURE_ENV: "true"},
+            )
+        else:
+            selection = resolve_profile(profile, environ={})
+        server = create_server(f"installed-{profile}", profile=selection)
         schemas = asyncio.run(snapshot_tool_schemas(server))
         names = expected_names[profile]
         if sorted(schemas) != names:

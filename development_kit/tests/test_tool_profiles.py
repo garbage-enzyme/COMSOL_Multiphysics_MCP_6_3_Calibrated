@@ -118,6 +118,21 @@ def test_desktop_shared_profile_is_static_default_off_and_minimal(monkeypatch):
     }.isdisjoint(names)
 
 
+def test_validated_shared_startup_selection_is_not_reresolved(monkeypatch):
+    selection = resolve_profile(
+        "desktop_shared",
+        environ={SHARED_SERVER_FEATURE_ENV: "true"},
+    )
+    monkeypatch.delenv(SHARED_SERVER_FEATURE_ENV, raising=False)
+
+    server = create_server("validated-shared-selection", profile=selection)
+
+    assert server._tool_manager._tools["capabilities"].fn()["active_profile"] == selection.name
+    assert set(_tool_names(server)) == {
+        "capabilities", "solver_status", "job_status", "job_tail", "job_cancel",
+    }
+
+
 def test_registered_server_profile_is_immutable():
     server = create_server("immutable-profile", profile="core")
 
