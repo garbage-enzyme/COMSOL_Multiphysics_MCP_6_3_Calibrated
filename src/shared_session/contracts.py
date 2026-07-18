@@ -7,6 +7,8 @@ import ipaddress
 import os
 from typing import Any, Iterable, Mapping
 
+from src.settings import settings_environment
+
 
 SHARED_SERVER_FEATURE_ENV = "COMSOL_MCP_ENABLE_SHARED_SERVER"
 SHARED_SERVER_PROFILE = "desktop_shared"
@@ -67,7 +69,7 @@ def normalize_shared_server_feature_gate(
     if not isinstance(profile, str) or not profile.strip():
         raise ValueError("active profile must be a non-empty string")
     normalized_profile = profile.strip().casefold()
-    environment = os.environ if environ is None else environ
+    environment = settings_environment(environ)
     raw_flag = environment.get(SHARED_SERVER_FEATURE_ENV, _FALSE)
     enabled = _normalize_feature_flag(raw_flag)
     selected = normalized_profile == SHARED_SERVER_PROFILE

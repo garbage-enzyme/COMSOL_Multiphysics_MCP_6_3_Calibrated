@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import os
 from typing import Any, Callable, Mapping
 
+from src.settings import PROFILE_ENV, SETTINGS_PATH_ENV, settings_environment
 from .catalog import PROFILE_NAMES, TOOL_METADATA
 from src.operation_arbiter import guard_tool_call
 from src.shared_session.contracts import (
@@ -14,7 +15,7 @@ from src.shared_session.contracts import (
 )
 
 
-PROFILE_ENV_VAR = "COMSOL_MCP_PROFILE"
+PROFILE_ENV_VAR = PROFILE_ENV
 DEFAULT_PROFILE = "core"
 
 PROFILE_DESCRIPTIONS = {
@@ -54,19 +55,20 @@ def resolve_profile(
     environ: Mapping[str, str] | None = None,
 ) -> ProfileSelection:
     """Resolve one explicit or environment-selected static profile."""
-    environment = os.environ if environ is None else environ
+    environment = settings_environment(environ)
+    original_environment = os.environ if environ is None else environ
     if requested is not None:
         raw_name = requested
         source = "explicit_argument"
         default_used = False
-    elif PROFILE_ENV_VAR in environment:
+    elif PROFILE_ENV_VAR in original_environment:
         raw_name = environment[PROFILE_ENV_VAR]
         source = "environment"
         default_used = False
     else:
-        raw_name = DEFAULT_PROFILE
-        source = "default"
-        default_used = True
+        raw_name = environment[PROFILE_ENV_VAR]
+        source = "settings"
+        default_used = raw_name.strip().casefold() == DEFAULT_PROFILE
 
     name = raw_name.strip().lower()
     if name not in PROFILE_NAMES:
@@ -83,7 +85,7 @@ def resolve_profile(
             )
     return ProfileSelection(
         name=name,
-        environment_variable=PROFILE_ENV_VAR,
+        environment_variable=SETTINGS_PATH_ENV,
         default_used=default_used,
         source=source,
     )

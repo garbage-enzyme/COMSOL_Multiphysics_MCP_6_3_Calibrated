@@ -11,6 +11,7 @@ import re
 from typing import Any, Mapping
 import unicodedata
 
+from src.settings import settings_environment
 from src.utils.runtime_paths import default_runtime_dir
 
 
@@ -117,7 +118,7 @@ class PathPolicy:
         *,
         runtime_root: str | Path | None = None,
     ) -> "PathPolicy":
-        environment = os.environ if environ is None else environ
+        environment = settings_environment(environ)
         configured_roots = environment.get(MODEL_READ_ROOTS_ENV, "")
         root_values = tuple(
             value for value in configured_roots.split(os.pathsep) if value

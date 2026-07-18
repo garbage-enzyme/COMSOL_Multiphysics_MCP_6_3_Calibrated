@@ -6,16 +6,19 @@ import os
 from pathlib import Path
 import tempfile
 
+from src.settings import settings_environment
+
 
 def recipe_output_dir() -> Path:
     """Return an ASCII-safe output directory outside the source tree."""
-    configured = os.environ.get("COMSOL_MCP_RUNTIME_DIR")
+    environment = settings_environment()
+    configured = environment.get("COMSOL_MCP_RUNTIME_DIR")
     if configured:
         root = Path(configured)
     elif os.name == "nt" and Path("D:/").exists():
         root = Path("D:/comsol_runtime")
     elif os.name == "nt":
-        root = Path(os.environ.get("PROGRAMDATA", "C:/ProgramData")) / "comsol_mcp_runtime"
+        root = Path(environment.get("PROGRAMDATA", "C:/ProgramData")) / "comsol_mcp_runtime"
     else:
         root = Path(tempfile.gettempdir()) / "comsol_runtime"
     output = root / "recipes"

@@ -10,6 +10,7 @@ from typing import Any
 from src import __version__
 from src.operation_arbiter import OPERATION_LOCK_SCHEMA, OPERATION_LOCK_VERSION
 from src.path_policy import PATH_POLICY_SCHEMA, PATH_POLICY_VERSION
+from src.settings import SETTINGS_SCHEMA, SETTINGS_VERSION
 from src.shared_session.cleanup import CLEANUP_OUTCOME_SCHEMA, CLEANUP_OUTCOME_VERSION
 from src.shared_session.locking import SHARED_MODEL_LOCK_SCHEMA, SHARED_MODEL_LOCK_VERSION
 from src.shared_session.lifecycle import (
@@ -286,6 +287,7 @@ def _entries() -> list[dict[str, Any]]:
         _entry("comsol_mcp.resource_policy", "1.0.0", "src.jobs.resource_admission"),
         _entry("comsol_mcp.resource_telemetry_sample", "1.0.0", "src.jobs.resource_admission"),
         _entry("comsol_mcp.runtime_compatibility", "1.0.0", "src.compatibility"),
+        _entry(SETTINGS_SCHEMA, SETTINGS_VERSION, "src.settings", artifact_kind="configuration"),
         _entry(_REGISTRY_SCHEMA, _REGISTRY_VERSION, "src.schema_registry"),
         _entry(
             SHARED_MODEL_LOCK_SCHEMA,

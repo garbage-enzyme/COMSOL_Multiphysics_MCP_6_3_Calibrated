@@ -6,6 +6,7 @@ from weakref import WeakKeyDictionary, WeakSet
 
 from mcp.server.fastmcp import FastMCP
 
+from .settings import apply_java_settings
 from .tools.profiles import ProfileSelection, register_profiled, resolve_profile, tool_names_for_profile
 
 logging.basicConfig(level=logging.INFO)
@@ -63,6 +64,7 @@ def create_server(
     profile: str | ProfileSelection | None = None,
 ) -> FastMCP:
     """Create a fully registered server without starting its transport."""
+    apply_java_settings()
     server = FastMCP(name)
     register_all_tools(server, profile)
     register_all_resources(server)
@@ -71,6 +73,7 @@ def create_server(
 
 def main() -> None:
     """Run the MCP server."""
+    apply_java_settings()
     selection = resolve_profile()
     from .tools.capabilities import startup_capability_summary
 

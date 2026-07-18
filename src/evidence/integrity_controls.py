@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 from typing import Any, Mapping
 
+from src.settings import load_settings, settings_fingerprint, settings_status
+
 
 EVIDENCE_SETTINGS_ENV = "COMSOL_MCP_EVIDENCE_SETTINGS_PATH"
 EVIDENCE_SETTINGS_SCHEMA = "comsol_mcp.evidence_integrity_settings"
@@ -111,6 +113,34 @@ def _invalid_status(reason_code: str, error: Exception, *, raw_sha256: str | Non
     }
 
 
+def _valid_status(
+    effective: Mapping[str, Any],
+    reported_checks: Mapping[str, Any],
+    *,
+    source: str,
+    fingerprint: str,
+) -> dict[str, Any]:
+    disabled = [name for name in EVIDENCE_CHECKS if not effective["checks"][name]]
+    warning_codes = [DISABLED_CHECK_WARNING_CODE] if disabled else []
+    warning_messages = [DISABLED_CHECK_WARNING] if disabled else []
+    return {
+        "success": True,
+        "schema_name": EVIDENCE_STATUS_SCHEMA,
+        "schema_version": EVIDENCE_INTEGRITY_VERSION,
+        "configuration_state": "valid",
+        "settings_source": source,
+        "settings_environment_variable": EVIDENCE_SETTINGS_ENV,
+        "settings_fingerprint_sha256": fingerprint,
+        "settings_path_included": False,
+        "default_enabled": True,
+        "strict_verification_active": not disabled,
+        "checks": dict(reported_checks),
+        "disabled_checks": disabled,
+        "warning_codes": warning_codes,
+        "warning_messages": warning_messages,
+    }
+
+
 def _settings_path(value: Any) -> Path:
     if not isinstance(value, str) or not value or len(value) > 4096:
         raise ValueError(f"{EVIDENCE_SETTINGS_ENV} must be a bounded absolute path")
@@ -168,8 +198,37 @@ def _normalize_settings(value: Any) -> tuple[dict[str, Any], dict[str, Any]]:
 def load_evidence_integrity_status(
     environ: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Load one bounded settings file; absent keys stay enabled by default."""
-    environment = os.environ if environ is None else environ
+    """Load project settings, with the old external file as a compatibility override."""
+    if environ is None and EVIDENCE_SETTINGS_ENV in os.environ:
+        environ = os.environ
+    if environ is None:
+        project_status = settings_status()
+        project = load_settings()
+        effective = {
+            "schema_name": EVIDENCE_SETTINGS_SCHEMA,
+            "schema_version": EVIDENCE_INTEGRITY_VERSION,
+            "checks": dict(project["evidence_integrity"]["checks"]),
+        }
+        reported = {
+            name: {
+                "enabled": effective["checks"][name],
+                "source": "project_settings",
+            }
+            for name in EVIDENCE_CHECKS
+        }
+        result = _valid_status(
+            effective,
+            reported,
+            source="project_settings",
+            fingerprint=settings_fingerprint(project),
+        )
+        if project_status.get("settings_errors"):
+            result["configuration_state"] = "degraded"
+            result["reason_code"] = project_status.get("reason_code")
+            result["settings_errors"] = project_status["settings_errors"]
+        return result
+
+    environment = environ
     configured_path = environment.get(EVIDENCE_SETTINGS_ENV)
     if configured_path is None:
         return _default_status()
@@ -199,25 +258,12 @@ def load_evidence_integrity_status(
             "settings_rejected", exc, raw_sha256=_sha256(raw) if raw is not None else None
         )
 
-    disabled = [name for name in EVIDENCE_CHECKS if not effective["checks"][name]]
-    warning_codes = [DISABLED_CHECK_WARNING_CODE] if disabled else []
-    warning_messages = [DISABLED_CHECK_WARNING] if disabled else []
-    return {
-        "success": True,
-        "schema_name": EVIDENCE_STATUS_SCHEMA,
-        "schema_version": EVIDENCE_INTEGRITY_VERSION,
-        "configuration_state": "valid",
-        "settings_source": "explicit_settings",
-        "settings_environment_variable": EVIDENCE_SETTINGS_ENV,
-        "settings_fingerprint_sha256": _sha256(_canonical_bytes(effective)),
-        "settings_path_included": False,
-        "default_enabled": True,
-        "strict_verification_active": not disabled,
-        "checks": checks,
-        "disabled_checks": disabled,
-        "warning_codes": warning_codes,
-        "warning_messages": warning_messages,
-    }
+    return _valid_status(
+        effective,
+        checks,
+        source="explicit_settings",
+        fingerprint=_sha256(_canonical_bytes(effective)),
+    )
 
 
 def warning_fields(status: Mapping[str, Any]) -> dict[str, Any]:

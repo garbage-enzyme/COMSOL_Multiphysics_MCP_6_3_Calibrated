@@ -8,6 +8,7 @@ from pathlib import Path
 import threading
 from typing import Any, Mapping
 
+from src.settings import settings_environment
 from .semantic_contracts import PUBLIC_LIMITS
 from .semantic_process import SemanticWorkerManager
 
@@ -31,7 +32,7 @@ def _ascii_absolute(value: str | Path, label: str) -> Path:
 
 
 def semantic_configuration(environ: Mapping[str, str] | None = None) -> dict[str, Any]:
-    environment = os.environ if environ is None else environ
+    environment = settings_environment(environ)
     root = _ascii_absolute(environment.get(SEMANTIC_ROOT_ENV, str(DEFAULT_SEMANTIC_ROOT)), SEMANTIC_ROOT_ENV)
     lexical = _ascii_absolute(environment.get(SEMANTIC_LEXICAL_ENV, str(DEFAULT_LEXICAL_INDEX)), SEMANTIC_LEXICAL_ENV)
     raw_model = environment.get(SEMANTIC_MODEL_ENV)

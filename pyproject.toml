@@ -41,6 +41,9 @@ path = "src/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"settings.json" = "src/settings.json"
+
 [tool.hatch.build.targets.sdist]
 exclude = ["/development_kit"]
 

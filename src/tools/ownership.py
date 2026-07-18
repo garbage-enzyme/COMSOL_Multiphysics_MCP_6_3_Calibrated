@@ -17,6 +17,7 @@ import mph
 import psutil
 from mcp.server.fastmcp import FastMCP
 
+from src.settings import settings_environment
 from src.utils.runtime_paths import default_runtime_dir as _shared_default_runtime_dir
 from src.utils.control_plane import measured_call
 
@@ -266,7 +267,7 @@ class _BoundedProcessInventory:
 
 
 def _agent_owner_label() -> str:
-    configured = os.environ.get("COMSOL_MCP_OWNER")
+    configured = settings_environment().get("COMSOL_MCP_OWNER")
     if configured:
         return configured
     try:
@@ -620,7 +621,8 @@ class SolverOwnership:
         pointer_bits = 8 * __import__("struct").calcsize("P")
         if pointer_bits != 64:
             blockers.append("COMSOL requires a 64-bit Python architecture")
-        java_home = os.environ.get("JAVA_HOME") or os.environ.get("JDK_HOME")
+        effective_environment = settings_environment()
+        java_home = effective_environment.get("JAVA_HOME") or effective_environment.get("JDK_HOME")
         try:
             backends = mph.discovery.find_backends()
         except Exception as exc:
