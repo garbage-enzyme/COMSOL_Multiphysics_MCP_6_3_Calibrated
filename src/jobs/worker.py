@@ -10,6 +10,7 @@ from pathlib import Path
 import sys
 import threading
 import time
+from dataclasses import replace
 from typing import Any
 
 from .process_control import contain_current_process_tree
@@ -21,6 +22,7 @@ from .attached_runtime import (
     verify_attached_process_preservation,
 )
 from .store import JobStore, atomic_write_json, cancel_request_targets_attempt, process_identity
+from src.shared_session.locking import build_shared_model_revision
 
 
 def _valid_row_count(csv_path: Path, config_id: str) -> int:
@@ -103,7 +105,33 @@ def _source_sha256(path: str) -> str:
     return digest.hexdigest()
 
 
-def _select_attached_model(client: Any, target: AttachedExecutionTarget):
+def _attached_revision_from_client(
+    client: Any,
+    target: AttachedExecutionTarget,
+    *,
+    sequence: int,
+) -> dict[str, Any]:
+    from src.shared_session.lifecycle import (
+        _default_model_inventory_reader,
+        _default_model_revision_reader,
+    )
+
+    inventory = _default_model_inventory_reader(client)
+    verify_attached_model_inventory(target, inventory)
+    structural, state = _default_model_revision_reader(client, target.model.tag)
+    return build_shared_model_revision(
+        target.model,
+        sequence=sequence,
+        structural_readback=structural,
+        state_readback=state,
+    ).to_dict()
+
+
+def _select_attached_model(
+    client: Any,
+    target: AttachedExecutionTarget,
+    expected_revision: dict[str, Any],
+):
     from src.shared_session.lifecycle import (
         _default_model_inventory_reader,
         _default_model_revision_reader,
@@ -113,7 +141,7 @@ def _select_attached_model(client: Any, target: AttachedExecutionTarget):
     verify_attached_model_inventory(target, inventory)
     structural, state = _default_model_revision_reader(client, target.model.tag)
     verify_attached_model_revision(
-        target,
+        replace(target, expected_revision=expected_revision),
         structural_readback=structural,
         state_readback=state,
     )
@@ -125,6 +153,20 @@ def _select_attached_model(client: Any, target: AttachedExecutionTarget):
     if len(matches) != 1:
         raise ValueError("attached server model changed after revision verification")
     return matches[0]
+
+
+def _persisted_attached_revision(
+    state: dict[str, Any], target: AttachedExecutionTarget
+) -> dict[str, Any]:
+    attached_execution = state.get("attached_execution")
+    if not isinstance(attached_execution, dict):
+        return dict(target.expected_revision)
+    revision = attached_execution.get("current_revision")
+    if revision is None:
+        return dict(target.expected_revision)
+    if not isinstance(revision, dict):
+        raise ValueError("persisted attached current revision is not an object")
+    return dict(revision)
 
 
 def _collect_attached_process_preservation(
@@ -322,7 +364,8 @@ def _run(root: str, job_id: str) -> int:
             )
             if not ownership.heartbeat():
                 raise RuntimeError("Attached lease heartbeat failed after connection")
-            model = _select_attached_model(client, attached_target)
+            expected_revision = _persisted_attached_revision(state, attached_target)
+            model = _select_attached_model(client, attached_target, expected_revision)
             attached_execution = {
                 "backend_identity_sha256": attached_target.backend[
                     "backend_identity_sha256"
@@ -332,6 +375,7 @@ def _run(root: str, job_id: str) -> int:
                 "initial_revision_sha256": attached_target.expected_revision[
                     "revision_sha256"
                 ],
+                "current_revision": expected_revision,
                 "lease_acquisition_id": acquisition_id,
                 "resource_ownership": "external_user_owned_server",
                 "initial_revision_verified": True,
@@ -413,6 +457,32 @@ def _run(root: str, job_id: str) -> int:
                 point_id=str(context["point_id"]),
             )
 
+        def before_attached_point_hook(context: dict[str, Any]) -> dict[str, Any]:
+            if attached_target is None:
+                raise RuntimeError("attached revision hook is unavailable")
+            expected = _persisted_attached_revision(
+                store.read_state(job_id), attached_target
+            )
+            current = _attached_revision_from_client(
+                client,
+                attached_target,
+                sequence=int(expected["sequence"]),
+            )
+            if current != expected:
+                raise RuntimeError(
+                    "ExternalModelChangeDetected: attached model revision differs "
+                    "from the last durable revision"
+                )
+            if resource_adapter is not None:
+                return resource_hook(context)
+            return {
+                "action": "start_point",
+                "start_authorized": True,
+                "stage": context.get("stage"),
+                "point_id": context.get("point_id"),
+                "config_id": context.get("config_id"),
+            }
+
         progress = {
             "completed": _valid_row_count(directory / "results.csv", spec["spec_fingerprint"]),
             "total": len(spec["parameter_values"]),
@@ -444,6 +514,29 @@ def _run(root: str, job_id: str) -> int:
                 event="durable_row",
                 event_data={"status": row.get("status"), "parameter_value": row.get("parameter_value")},
             )
+            if attached_target is not None:
+                current_state = store.read_state(job_id)
+                expected = _persisted_attached_revision(
+                    current_state, attached_target
+                )
+                current_revision = _attached_revision_from_client(
+                    client,
+                    attached_target,
+                    sequence=int(expected["sequence"]) + 1,
+                )
+                attached_execution = dict(
+                    current_state.get("attached_execution") or {}
+                )
+                attached_execution["current_revision"] = current_revision
+                store.update_state(
+                    job_id,
+                    patch={"attached_execution": attached_execution},
+                    event="attached_revision_advanced",
+                    event_data={
+                        "revision_sha256": current_revision["revision_sha256"],
+                        "sequence": current_revision["sequence"],
+                    },
+                )
             heartbeat = (
                 ownership.heartbeat()
                 if attached_target is not None
@@ -466,6 +559,12 @@ def _run(root: str, job_id: str) -> int:
         existing = progress["completed"]
         smoke_needed = max(0, int(spec["smoke_points"]) - existing)
         common = _runner_kwargs(spec, directory)
+        before_point_hook = (
+            before_attached_point_hook
+            if attached_target is not None
+            else (resource_hook if resource_adapter is not None else None)
+        )
+        after_point_hook = resource_hook if resource_adapter is not None else None
         smoke = run_staged_parametric_sweep(
             model,
             spec["parameter_name"],
@@ -475,8 +574,8 @@ def _run(root: str, job_id: str) -> int:
             max_new_points=smoke_needed,
             should_stop=should_stop,
             on_durable_row=on_row,
-            before_point_hook=resource_hook if resource_adapter is not None else None,
-            after_durable_row_hook=resource_hook if resource_adapter is not None else None,
+            before_point_hook=before_point_hook,
+            after_durable_row_hook=after_point_hook,
         )
         if should_stop() or smoke.get("stop_reason") == "control_request":
             store.record_cooperative_cancel_observed(
@@ -505,8 +604,8 @@ def _run(root: str, job_id: str) -> int:
                 **common,
                 should_stop=should_stop,
                 on_durable_row=on_row,
-                before_point_hook=resource_hook if resource_adapter is not None else None,
-                after_durable_row_hook=resource_hook if resource_adapter is not None else None,
+                before_point_hook=before_point_hook,
+                after_durable_row_hook=after_point_hook,
             )
             if should_stop() or broad.get("stop_reason") == "control_request":
                 store.record_cooperative_cancel_observed(

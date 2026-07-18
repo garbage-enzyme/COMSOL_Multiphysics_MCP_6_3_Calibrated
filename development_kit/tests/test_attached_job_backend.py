@@ -391,6 +391,20 @@ def test_attached_production_worker_uses_existing_model_and_never_clears_server(
             token = str(value)
             if token in completed or (limit is not None and added >= limit):
                 continue
+            before_point_hook = kwargs.get("before_point_hook")
+            if before_point_hook is not None:
+                decision = before_point_hook(
+                    {
+                        "stage": "pre_solve",
+                        "point_id": f"point:{token}",
+                        "config_id": spec["spec_fingerprint"],
+                    }
+                )
+                if decision.get("action") != "start_point":
+                    return {
+                        "success": True,
+                        "stop_reason": "before_point_checkpoint_no_start",
+                    }
             row = {
                 "config_id": spec["spec_fingerprint"],
                 "parameter_value": token,
@@ -435,6 +449,7 @@ def test_attached_production_worker_uses_existing_model_and_never_clears_server(
     assert state["attached_cleanup"]["model_identity_preserved"] is True
     assert state["attached_cleanup"]["model_clear_attempted"] is False
     assert state["attached_cleanup"]["external_server_termination_attempted"] is False
+    assert state["attached_execution"]["current_revision"]["sequence"] == 2
     assert runner_save_copy == [True, True]
     assert events[0][0] == "acquire_attached"
     assert ("client", {"host": "127.0.0.1", "port": 2036}) in events
@@ -494,6 +509,55 @@ def test_attached_process_preservation_requires_same_server_listener_and_desktop
     assert preserved["desktop_ready"] is True
     assert changed["success"] is False
     assert changed["state"] == "attached_server_identity_changed_after_detach"
+
+
+def test_attached_model_selection_accepts_last_durable_revision_on_resume():
+    target = normalize_attached_execution_target(_backend())
+    expected = build_shared_model_revision(
+        target.model,
+        sequence=1,
+        structural_readback={
+            "components": ["comp1"],
+            "studies": ["std1"],
+            "datasets": [],
+        },
+        state_readback={"parameters": {"gap": "11[nm]"}},
+    ).to_dict()
+
+    class Java:
+        def tag(self):
+            return "Model1"
+
+        def label(self):
+            return "working.mph"
+
+        def getFilePath(self):
+            return "D:/models/working.mph"
+
+    class Model:
+        java = Java()
+
+        def components(self):
+            return ["comp1"]
+
+        def studies(self):
+            return ["std1"]
+
+        def datasets(self):
+            return []
+
+        def parameters(self):
+            return {"gap": "11[nm]"}
+
+    class Client:
+        def models(self):
+            return [Model()]
+
+    selected = production_worker._select_attached_model(
+        Client(), target, expected
+    )
+
+    assert selected.java.tag() == "Model1"
 
 
 def test_attached_manager_preflight_is_process_only_and_binds_server_identity(
