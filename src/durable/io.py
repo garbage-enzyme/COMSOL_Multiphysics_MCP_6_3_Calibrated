@@ -9,7 +9,7 @@ import json
 import os
 from pathlib import Path
 import time
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Sequence
 import uuid
 
 from .canonical import validate_finite_json
@@ -25,7 +25,8 @@ def _notify(hook: WriteStageHook | None, stage: str, path: Path) -> None:
         hook(stage, path)
 
 
-def _fsync_directory(path: Path) -> None:
+def fsync_directory(path: str | Path) -> None:
+    path = Path(path)
     if os.name == "nt":
         return
     descriptor = os.open(path, os.O_RDONLY)
@@ -69,6 +70,7 @@ def atomic_write_bytes(
     *,
     retry_seconds: float = DEFAULT_REPLACE_RETRY_SECONDS,
     stage_hook: WriteStageHook | None = None,
+    replace_fn: Callable[[str | bytes | os.PathLike[str] | os.PathLike[bytes], str | bytes | os.PathLike[str] | os.PathLike[bytes]], None] | None = None,
 ) -> None:
     """Durably replace one file with complete same-directory temporary bytes."""
     target = Path(path)
@@ -81,6 +83,7 @@ def atomic_write_bytes(
         f".{target.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
     )
     replaced = False
+    replace = replace_fn or os.replace
     try:
         _notify(stage_hook, "before_temporary_write", target)
         with temporary.open("xb") as handle:
@@ -92,7 +95,7 @@ def atomic_write_bytes(
         deadline = time.monotonic() + retry_seconds
         while True:
             try:
-                os.replace(temporary, target)
+                replace(temporary, target)
                 replaced = True
                 break
             except PermissionError:
@@ -100,22 +103,17 @@ def atomic_write_bytes(
                     raise
                 time.sleep(0.02)
         _notify(stage_hook, "after_replace", target)
-        _fsync_directory(target.parent)
+        fsync_directory(target.parent)
         _notify(stage_hook, "after_directory_fsync", target)
     finally:
         if not replaced:
             temporary.unlink(missing_ok=True)
 
 
-def atomic_write_json(
-    path: str | Path,
-    value: Any,
-    *,
-    stage_hook: WriteStageHook | None = None,
-) -> None:
-    """Write one finite pretty JSON document through atomic replacement."""
+def json_document_bytes(value: Any) -> bytes:
+    """Return the legacy pretty JSON document bytes used by durable state."""
     validate_finite_json(value)
-    payload = (
+    return (
         json.dumps(
             value,
             ensure_ascii=False,
@@ -125,7 +123,22 @@ def atomic_write_json(
         )
         + "\n"
     ).encode("utf-8")
-    atomic_write_bytes(path, payload, stage_hook=stage_hook)
+
+
+def atomic_write_json(
+    path: str | Path,
+    value: Any,
+    *,
+    stage_hook: WriteStageHook | None = None,
+    replace_fn: Callable[[str | bytes | os.PathLike[str] | os.PathLike[bytes], str | bytes | os.PathLike[str] | os.PathLike[bytes]], None] | None = None,
+) -> None:
+    """Write one finite pretty JSON document through atomic replacement."""
+    atomic_write_bytes(
+        path,
+        json_document_bytes(value),
+        stage_hook=stage_hook,
+        replace_fn=replace_fn,
+    )
 
 
 def _append_complete_bytes(path: Path, payload: bytes) -> None:
@@ -134,7 +147,7 @@ def _append_complete_bytes(path: Path, payload: bytes) -> None:
         handle.write(payload)
         handle.flush()
         os.fsync(handle.fileno())
-    _fsync_directory(path.parent)
+    fsync_directory(path.parent)
 
 
 def append_jsonl_record(path: str | Path, value: Any) -> None:
@@ -206,6 +219,8 @@ __all__ = [
     "append_jsonl_record",
     "atomic_write_bytes",
     "atomic_write_json",
+    "fsync_directory",
+    "json_document_bytes",
     "read_complete_jsonl",
     "sha256_file_bounded",
 ]

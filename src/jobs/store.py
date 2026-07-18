@@ -14,6 +14,11 @@ import uuid
 
 import psutil
 
+from src.durable import (
+    atomic_write_json as _durable_atomic_write_json,
+    fsync_directory as _fsync_directory,
+    json_document_bytes as _json_bytes,
+)
 from src.utils.runtime_paths import default_jobs_root as _shared_default_jobs_root
 
 
@@ -55,43 +60,8 @@ def _require_ascii_path(path: Path) -> None:
         raise ValueError("Durable job runtime paths must contain ASCII characters only") from exc
 
 
-def _json_bytes(value: dict[str, Any]) -> bytes:
-    return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
-
-
-def _fsync_directory(path: Path) -> None:
-    if os.name == "nt":
-        return
-    descriptor = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
 def atomic_write_json(path: Path, value: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
-    try:
-        with temporary.open("wb") as handle:
-            handle.write(_json_bytes(value))
-            handle.flush()
-            os.fsync(handle.fileno())
-        deadline = time.monotonic() + 1.0
-        while True:
-            try:
-                os.replace(temporary, path)
-                break
-            except PermissionError:
-                # Windows file scanners can briefly hold a just-flushed JSON
-                # file open.  Keep the same complete temp file and retry the
-                # atomic replacement; never fall back to in-place truncation.
-                if time.monotonic() >= deadline:
-                    raise
-                time.sleep(0.02)
-        _fsync_directory(path.parent)
-    finally:
-        temporary.unlink(missing_ok=True)
+    _durable_atomic_write_json(path, value, replace_fn=os.replace)
 
 
 def read_json(path: Path) -> dict[str, Any]:
