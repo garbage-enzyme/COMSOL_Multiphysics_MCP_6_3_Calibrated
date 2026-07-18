@@ -122,6 +122,13 @@ def _load_state_artifacts(
         raise ValueError("one continuation state must use one observed mesh")
     element_count, vertex_count = mesh_counts.pop()
     requested_wavelengths = [row["requested_wavelength_m"] for row in bundle["rows"]]
+    expansion_count = len(
+        {
+            row["stage_index"]
+            for row in rows
+            if row["stage_kind"] == "window_expansion"
+        }
+    )
     return {
         "summary": summary,
         "bundle": bundle,
@@ -131,6 +138,7 @@ def _load_state_artifacts(
             "lower_m": min(requested_wavelengths),
             "upper_m": max(requested_wavelengths),
         },
+        "expansion_count": expansion_count,
         "mesh_counts": {"element_count": element_count, "vertex_count": vertex_count},
         "artifacts": {name: _descriptor(path, campaign_root) for name, path in paths.items()},
     }
@@ -152,7 +160,7 @@ def _validate_row(
         "ordinal", "state_id", "child_spec_fingerprint", "source_model_sha256",
         "configuration_sha256", "coordinate_identity_sha256", "polarization",
         "material_identity_sha256", "incidence_readback_sha256", "execution_state",
-        "scientific_disposition", "reason_code", "search_window_m", "mesh_counts",
+        "scientific_disposition", "reason_code", "search_window_m", "expansion_count", "mesh_counts",
         "artifacts", "previous_row_sha256", "row_sha256",
     }
     if set(row) != expected_fields:
@@ -198,6 +206,12 @@ def _validate_row(
     ):
         raise ValueError("branch-continuation campaign state search window is invalid")
     if (
+        isinstance(row["expansion_count"], bool)
+        or not isinstance(row["expansion_count"], int)
+        or not 0 <= row["expansion_count"] <= state["spectral_job"]["expansion_policy"]["maximum_expansions"]
+    ):
+        raise ValueError("branch-continuation campaign state expansion count is invalid")
+    if (
         not isinstance(row["mesh_counts"], Mapping)
         or set(row["mesh_counts"]) != {"element_count", "vertex_count"}
         or any(
@@ -216,6 +230,7 @@ def _validate_row(
     loaded = _load_state_artifacts(artifact_root, state_dir, state)
     if (
         loaded["search_window_m"] != dict(row["search_window_m"])
+        or loaded["expansion_count"] != row["expansion_count"]
         or loaded["mesh_counts"] != dict(row["mesh_counts"])
         or loaded["summary"]["scientific_disposition"] != row["scientific_disposition"]
         or loaded["summary"]["reason_code"] != row["reason_code"]
@@ -295,6 +310,7 @@ def append_branch_continuation_campaign_state(
         "scientific_disposition": summary["scientific_disposition"],
         "reason_code": summary["reason_code"],
         "search_window_m": loaded["search_window_m"],
+        "expansion_count": loaded["expansion_count"],
         "mesh_counts": loaded["mesh_counts"],
         "artifacts": loaded["artifacts"],
         "previous_row_sha256": existing[-1]["row_sha256"] if existing else None,

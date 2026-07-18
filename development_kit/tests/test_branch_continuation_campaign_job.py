@@ -104,7 +104,7 @@ def _raw_campaign(tmp_path) -> dict:
             "policy_id": "bounded-angle-following",
             "guard_window_m": 0.5e-6,
             "absolute_bounds_m": {"lower_m": 3e-6, "upper_m": 7e-6},
-            "max_expansions": 1,
+            "max_expansions": 3,
             "max_total_window_m": 4e-6,
             "request_grid": {"point_count": 7, "spacing_rule": "uniform_inclusive"},
             "stop_policy": "continue_all_declared",

@@ -91,9 +91,15 @@ def _planner_policy(
     spec: Mapping[str, Any],
     *,
     declared_cap_reached: bool,
+    observed_expansion_count: int,
 ) -> dict[str, Any]:
     return {
         **spec["continuation_policy"],
+        "max_expansions": max(
+            0,
+            spec["continuation_policy"]["max_expansions"]
+            - observed_expansion_count,
+        ),
         "point_budget": spec["maximum_total_points"],
         "continuity_evidence": [],
         "declared_cap_reached": declared_cap_reached,
@@ -148,12 +154,17 @@ def build_branch_continuation_campaign_progress(
         states=[_state_input(root, spec, row) for row in rows],
     )
     last = rows[-1]
+    observed_expansion_count = sum(row["expansion_count"] for row in rows)
     declared_cap_reached = completed == total or last["scientific_disposition"] in {
         "unresolved_at_declared_cap", "invalid_evidence"
     }
     plan = plan_branch_continuation(
         states,
-        _planner_policy(spec, declared_cap_reached=declared_cap_reached),
+        _planner_policy(
+            spec,
+            declared_cap_reached=declared_cap_reached,
+            observed_expansion_count=observed_expansion_count,
+        ),
     )
     stop_on_unresolved = (
         spec["continuation_policy"]["stop_policy"] == "stop_at_first_unresolved"
@@ -170,6 +181,13 @@ def build_branch_continuation_campaign_progress(
             "declared_cap_reached": declared_cap_reached,
             "completed_state_count": completed,
             "declared_state_count": total,
+            "declared_expansion_count": spec["continuation_policy"]["max_expansions"],
+            "observed_expansion_count": observed_expansion_count,
+            "remaining_expansion_count": max(
+                0,
+                spec["continuation_policy"]["max_expansions"]
+                - observed_expansion_count,
+            ),
             "continuation_states": states,
             "continuation_plan": plan,
         }
@@ -178,6 +196,13 @@ def build_branch_continuation_campaign_progress(
         "next_state": spec["states"][completed],
         "completed_state_count": completed,
         "declared_state_count": total,
+        "declared_expansion_count": spec["continuation_policy"]["max_expansions"],
+        "observed_expansion_count": observed_expansion_count,
+        "remaining_expansion_count": max(
+            0,
+            spec["continuation_policy"]["max_expansions"]
+            - observed_expansion_count,
+        ),
         "continuation_states": states,
         "continuation_plan": plan,
     }
@@ -216,6 +241,9 @@ def write_branch_continuation_campaign_summary(
         "declared_cap_reached": progress["declared_cap_reached"],
         "declared_state_count": progress["declared_state_count"],
         "completed_state_count": progress["completed_state_count"],
+        "declared_expansion_count": progress.get("declared_expansion_count", 0),
+        "observed_expansion_count": progress.get("observed_expansion_count", 0),
+        "remaining_expansion_count": progress.get("remaining_expansion_count", 0),
         "completed_state_ids": [row["state_id"] for row in rows],
         "last_state_row_sha256": rows[-1]["row_sha256"],
         "branch_disappearance_claimed": False,

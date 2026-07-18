@@ -19,10 +19,22 @@ from src.jobs.branch_continuation_campaign_runner import (
 from src.jobs.spectral_runner import run_spectral_characterization
 
 
-def _spec(tmp_path, *, stop_policy="continue_all_declared", guard=0.25e-6):
+def _spec(
+    tmp_path,
+    *,
+    stop_policy="continue_all_declared",
+    guard=0.25e-6,
+    single_boundary_expansion=False,
+):
     raw = _raw_campaign(tmp_path / "sources")
     raw["continuation_policy"]["stop_policy"] = stop_policy
     raw["continuation_policy"]["guard_window_m"] = guard
+    if single_boundary_expansion:
+        raw["continuation_policy"]["max_expansions"] = 1
+        for index, state in enumerate(raw["states"]):
+            state["spectral_job"]["expansion_policy"]["maximum_expansions"] = (
+                1 if index == 1 else 0
+            )
     for state in raw["states"]:
         state["spectral_job"]["measurement_configuration"]["peak_method"] = (
             "quadratic_interpolation"
@@ -98,7 +110,7 @@ def test_guard_crossing_stops_before_later_declared_state_when_policy_requires(t
 
 
 def test_boundary_state_completes_as_unresolved_at_declared_cap(tmp_path):
-    spec = _spec(tmp_path)
+    spec = _spec(tmp_path, single_boundary_expansion=True)
     result = run_branch_continuation_campaign(
         spec,
         tmp_path / "campaign",
@@ -111,6 +123,11 @@ def test_boundary_state_completes_as_unresolved_at_declared_cap(tmp_path):
     assert result["summary"]["completed_state_count"] == 2
     transition = result["progress"]["continuation_plan"]["coordinate_transitions"][0]
     assert transition["expansion_required"] is True
+    assert result["summary"]["observed_expansion_count"] == 1
+    assert result["summary"]["remaining_expansion_count"] == 0
+    assert result["summary"]["reason_code"] == (
+        "expansion_count_exceeded_at_declared_cap"
+    )
     assert result["summary"]["branch_disappearance_claimed"] is False
 
 

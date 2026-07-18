@@ -389,10 +389,12 @@ def normalize_branch_continuation_campaign_spec(value: object) -> dict[str, Any]
             raise ValueError(
                 f"states[{index}] spectral absolute bounds exceed the continuation policy"
             )
-        if expansion["maximum_expansions"] > policy["max_expansions"]:
-            raise ValueError(
-                f"states[{index}] spectral expansions exceed the continuation policy"
-            )
+    declared_child_expansions = sum(
+        item["spectral_job"]["expansion_policy"]["maximum_expansions"]
+        for item in normalized_states
+    )
+    if declared_child_expansions > policy["max_expansions"]:
+        raise ValueError("declared spectral expansions exceed the continuation policy")
 
     declared_points = sum(item["spectral_job"]["maximum_points"] for item in normalized_states)
     maximum_total_points = _integer(

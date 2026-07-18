@@ -51,6 +51,7 @@ def test_completed_states_append_in_order_and_replay_exact_artifacts(tmp_path):
     assert second["previous_row_sha256"] == first["row_sha256"]
     assert first["mesh_counts"] == {"element_count": 12, "vertex_count": 8}
     assert first["search_window_m"] == {"lower_m": 4e-6, "upper_m": 6e-6}
+    assert first["expansion_count"] == 0
     assert first["incidence_readback_sha256"] == spec["states"][0]["incidence_readback"]["evidence_sha256"]
 
 
