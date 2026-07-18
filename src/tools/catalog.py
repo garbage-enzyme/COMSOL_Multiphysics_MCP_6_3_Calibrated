@@ -138,6 +138,10 @@ _TOOLS_BY_REGISTRAR = {
     "src.tools.branch_continuation.register_branch_continuation_tools": (
         "branch_continuation_plan",
     ),
+    "src.tools.shared_session.register_shared_session_tools": (
+        "shared_server_preflight", "shared_server_attach",
+        "shared_server_detach", "shared_server_status",
+    ),
     "src.knowledge.embedded.register_knowledge_tools": (
         "docs_get", "docs_list", "physics_get_guide", "troubleshoot",
         "modeling_best_practices",
@@ -174,6 +178,7 @@ _GROUP_BY_REGISTRAR = {
     "register_spectral_characterization_tools": "spectral_evidence",
     "register_convergence_evaluation_tools": "convergence_evidence",
     "register_branch_continuation_tools": "branch_continuation_evidence",
+    "register_shared_session_tools": "shared_session",
     "register_knowledge_tools": "embedded_docs",
     "register_lexical_manual_tools": "manuals",
 }
@@ -211,6 +216,8 @@ _EXPERIMENTAL_TOOLS = frozenset({
     "wave_optics_field_datasets",
     "wave_optics_field_extract",
     "semantic_search", "semantic_status", "semantic_worker_reset",
+    "shared_server_preflight", "shared_server_attach",
+    "shared_server_detach", "shared_server_status",
 })
 
 _SIDE_EFFECTS = {
@@ -287,6 +294,8 @@ _SIDE_EFFECTS = {
     "semantic_search": "read_only_subprocess",
     "semantic_status": "read_only_process_status",
     "semantic_worker_reset": "process_control",
+    "shared_server_attach": "process_lifecycle",
+    "shared_server_detach": "process_lifecycle",
 }
 
 _STARTS_SOLVER = frozenset({
@@ -300,6 +309,7 @@ _CONTROL_PLANE_TOOLS = frozenset({
     "solver_recover_stale_lease", "job_status", "job_tail", "job_cancel",
     "comsol_status", "study_get_progress", "study_cancel", "study_wait",
     "semantic_status", "semantic_worker_reset",
+    "shared_server_preflight", "shared_server_status",
 })
 
 _SOLVER_FREE_TOOLS = frozenset({
@@ -412,6 +422,8 @@ _SEMANTIC_DOCS_ADDITIONS = frozenset({
 
 _DESKTOP_SHARED_FOUNDATION = frozenset({
     "capabilities", "solver_status", "job_status", "job_tail", "job_cancel",
+    "shared_server_preflight", "shared_server_attach",
+    "shared_server_detach", "shared_server_status",
 })
 
 

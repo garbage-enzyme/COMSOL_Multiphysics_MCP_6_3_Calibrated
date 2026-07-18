@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import time
+import os
 
 from mcp.server.fastmcp import FastMCP
 
@@ -54,6 +55,11 @@ from .session import session_manager
 from src.knowledge.semantic_runtime import semantic_capability_status
 from src.utils.control_plane import attach_control_plane_evidence
 from src.path_policy import PathPolicy
+from src.shared_session.contracts import (
+    SHARED_SERVER_FEATURE_ENV,
+    SHARED_SERVER_PROFILE,
+    normalize_shared_server_feature_gate,
+)
 
 
 _DEPLOYMENT_MANIFEST = Path(__file__).resolve().parents[1] / "deployment_manifest.json"
@@ -157,6 +163,14 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
     semantic_profile_active = active_selection.name in {"semantic_docs", "full"}
     semantic = semantic_capability_status(profile_active=semantic_profile_active)
     compatibility = load_runtime_compatibility()
+    shared_gate = normalize_shared_server_feature_gate(
+        active_selection.name,
+        environ={
+            SHARED_SERVER_FEATURE_ENV: os.environ.get(
+                SHARED_SERVER_FEATURE_ENV, "false"
+            )
+        },
+    )
     accepted_lane = compatibility["licensed_acceptance"][0]
     result = {
         "success": True,
@@ -381,6 +395,19 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
             },
             "compatibility_profile": "full",
             "compatibility_profile_weaker_guarantees": True,
+        },
+        "shared_session": {
+            "profile": SHARED_SERVER_PROFILE,
+            "profile_active": active_selection.name == SHARED_SERVER_PROFILE,
+            "feature_flag": SHARED_SERVER_FEATURE_ENV,
+            "feature_enabled": shared_gate.feature_enabled,
+            "gate_open": shared_gate.gate_open,
+            "maturity": "experimental",
+            "endpoint_scope": "local_loopback_only",
+            "server_ownership": "external_user_owned",
+            "can_start_comsol": False,
+            "model_scope": "one_exact_server_model",
+            "restart_required_after_change": True,
         },
     }
     result.update(_profile_inventory(active_selection))

@@ -4115,6 +4115,98 @@
     "title": "session_resetArguments",
     "type": "object"
   },
+  "shared_server_attach": {
+    "properties": {
+      "expected_file_path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected File Path"
+      },
+      "expected_label": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Label"
+      },
+      "expected_unsaved": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expected Unsaved"
+      },
+      "host": {
+        "title": "Host",
+        "type": "string"
+      },
+      "model_tag": {
+        "title": "Model Tag",
+        "type": "string"
+      },
+      "port": {
+        "title": "Port",
+        "type": "integer"
+      },
+      "user_confirmed": {
+        "title": "User Confirmed",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "host",
+      "port",
+      "model_tag",
+      "user_confirmed"
+    ],
+    "title": "shared_server_attachArguments",
+    "type": "object"
+  },
+  "shared_server_detach": {
+    "properties": {},
+    "title": "shared_server_detachArguments",
+    "type": "object"
+  },
+  "shared_server_preflight": {
+    "properties": {
+      "host": {
+        "title": "Host",
+        "type": "string"
+      },
+      "port": {
+        "title": "Port",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "host",
+      "port"
+    ],
+    "title": "shared_server_preflightArguments",
+    "type": "object"
+  },
+  "shared_server_status": {
+    "properties": {},
+    "title": "shared_server_statusArguments",
+    "type": "object"
+  },
   "solutions_list": {
     "properties": {
       "model_name": {

@@ -197,6 +197,7 @@ models are intentionally absent.
 - `development_kit/tests/test_shared_session_contracts.py` — This module tests default-off feature and loopback endpoint contracts.
 - `development_kit/tests/test_shared_session_identity.py` — This module tests attached-server and exact model-selector identities.
 - `development_kit/tests/test_shared_session_lifecycle.py` — This module tests fake-client attach, failure cleanup, and external-resource-preserving detach.
+- `development_kit/tests/test_shared_session_tools.py` — This module tests the public default-off shared lifecycle tools and capability surface.
 - `development_kit/tests/test_shared_server_preflight.py` — This module tests two-probe Desktop, listener, collision, and COMSOL release-line classification.
 - `development_kit/tests/test_spectral_characterization.py` — This module tests provenance-bound offline spectral validation and measurements.
 - `development_kit/tests/test_spectral_audit.py` — This module tests strict projection of point-audit artifacts into durable spectral rows.
@@ -363,6 +364,7 @@ models are intentionally absent.
 - `src/tools/semantic_docs.py` — This module exposes bounded opt-in semantic documentation tools.
 - `src/tools/spectral_characterization.py` — This module exposes bounded solver-free spectral characterization.
 - `src/tools/session.py` — This module manages COMSOL client startup, status, models, and shutdown.
+- `src/tools/shared_session.py` — This module exposes default-off local attached-server lifecycle tools.
 - `src/tools/study.py` — This module exposes COMSOL study and solving tools.
 - `src/tools/visual_review.py` — This module exposes solver-free visual-review contract adapters.
 - `src/tools/wave_optics_audit.py` — This module exposes one-point policy-separated Wave Optics evidence audits.

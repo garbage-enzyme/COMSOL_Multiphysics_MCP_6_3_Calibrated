@@ -34,6 +34,7 @@ _REGISTRAR_PATHS = (
     "src.tools.spectral_characterization.register_spectral_characterization_tools",
     "src.tools.convergence_evaluation.register_convergence_evaluation_tools",
     "src.tools.branch_continuation.register_branch_continuation_tools",
+    "src.tools.shared_session.register_shared_session_tools",
 )
 
 
