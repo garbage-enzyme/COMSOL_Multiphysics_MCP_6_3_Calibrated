@@ -8,6 +8,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+MAX_CORE_DISCOVERY_BYTES = 64 * 1024
+MAX_CORE_TOOL_SCHEMA_BYTES = 16 * 1024
+MAX_CAPABILITIES_RESPONSE_BYTES = 64 * 1024
+
 _CHILD_PROBE = r"""
 import json
 import os
@@ -25,6 +29,29 @@ import_rss = process.memory_info().rss
 create_started = time.perf_counter()
 server = create_server("cold-control-plane", profile="core")
 create_finished = time.perf_counter()
+tools = sorted(server._tool_manager._tools.values(), key=lambda item: item.name)
+tool_records = [
+    {
+        "name": tool.name,
+        "description": tool.description,
+        "inputSchema": tool.parameters,
+    }
+    for tool in tools
+]
+tool_record_bytes = [
+    len(json.dumps(item, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+    for item in tool_records
+]
+core_discovery_bytes = len(
+    json.dumps(tool_records, sort_keys=True, separators=(",", ":")).encode("utf-8")
+)
+capabilities_response_bytes = len(
+    json.dumps(
+        server._tool_manager._tools["capabilities"].fn(),
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+)
 after_pids = {item.pid for item in psutil.process_iter()}
 heavy_roots = ("mph", "jpype", "numpy", "scipy", "matplotlib")
 heavy_modules = sorted(
@@ -49,6 +76,9 @@ print(json.dumps({
     "heavy_modules": heavy_modules,
     "new_external_processes": new_external_processes,
     "tool_count": len(server._tool_manager._tools),
+    "core_discovery_bytes": core_discovery_bytes,
+    "largest_tool_schema_bytes": max(tool_record_bytes),
+    "capabilities_response_bytes": capabilities_response_bytes,
 }))
 """
 
@@ -74,6 +104,9 @@ def test_fresh_core_discovery_is_solver_free():
     assert sample["new_external_processes"] == []
     assert sample["tool_count"] == 43
     assert sample["create_seconds"] <= 0.75
+    assert sample["core_discovery_bytes"] <= MAX_CORE_DISCOVERY_BYTES
+    assert sample["largest_tool_schema_bytes"] <= MAX_CORE_TOOL_SCHEMA_BYTES
+    assert sample["capabilities_response_bytes"] <= MAX_CAPABILITIES_RESPONSE_BYTES
 
 
 def test_cold_core_discovery_budget_has_seven_raw_samples(capsys):
@@ -88,6 +121,15 @@ def test_cold_core_discovery_budget_has_seven_raw_samples(capsys):
                 "samples": samples,
                 "median_create_seconds": statistics.median(create_times),
                 "median_registration_rss_mib": statistics.median(registration_rss),
+                "maximum_core_discovery_bytes": max(
+                    sample["core_discovery_bytes"] for sample in samples
+                ),
+                "maximum_largest_tool_schema_bytes": max(
+                    sample["largest_tool_schema_bytes"] for sample in samples
+                ),
+                "maximum_capabilities_response_bytes": max(
+                    sample["capabilities_response_bytes"] for sample in samples
+                ),
             }
         )
     )
@@ -95,3 +137,9 @@ def test_cold_core_discovery_budget_has_seven_raw_samples(capsys):
     assert "median_create_seconds" in captured.out
     assert statistics.median(create_times) <= 0.75
     assert statistics.median(registration_rss) <= 50.0
+    assert all(
+        sample["core_discovery_bytes"] <= MAX_CORE_DISCOVERY_BYTES
+        and sample["largest_tool_schema_bytes"] <= MAX_CORE_TOOL_SCHEMA_BYTES
+        and sample["capabilities_response_bytes"] <= MAX_CAPABILITIES_RESPONSE_BYTES
+        for sample in samples
+    )
