@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,12 @@ import time
 from typing import Any
 
 from .process_control import contain_current_process_tree
+from .attached_runtime import (
+    AttachedExecutionTarget,
+    normalize_attached_execution_target,
+    verify_attached_model_inventory,
+    verify_attached_model_revision,
+)
 from .store import JobStore, atomic_write_json, cancel_request_targets_attempt, process_identity
 
 
@@ -77,6 +84,7 @@ def _runner_kwargs(spec: dict[str, Any], directory: Path) -> dict[str, Any]:
         "continue_on_error": bool(spec.get("continue_on_error", False)),
         "checkpoint_model_path": str(directory / "checkpoint.mph"),
         "checkpoint_every": int(spec.get("checkpoint_every", 1)),
+        "save_model_copy": spec.get("execution_backend") is not None,
         "manifest_path": str(directory / "results.csv.manifest.json"),
         "source_model_path": spec["source_model_path"],
         "config_id": spec["spec_fingerprint"],
@@ -84,6 +92,38 @@ def _runner_kwargs(spec: dict[str, Any], directory: Path) -> dict[str, Any]:
         "physical_bounds": spec.get("physical_bounds"),
         "response_tail": 2,
     }
+
+
+def _source_sha256(path: str) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _select_attached_model(client: Any, target: AttachedExecutionTarget):
+    from src.shared_session.lifecycle import (
+        _default_model_inventory_reader,
+        _default_model_revision_reader,
+    )
+
+    inventory = _default_model_inventory_reader(client)
+    verify_attached_model_inventory(target, inventory)
+    structural, state = _default_model_revision_reader(client, target.model.tag)
+    verify_attached_model_revision(
+        target,
+        structural_readback=structural,
+        state_readback=state,
+    )
+    matches = [
+        model
+        for model in list(client.models())
+        if str(model.java.tag()) == target.model.tag
+    ]
+    if len(matches) != 1:
+        raise ValueError("attached server model changed after revision verification")
+    return matches[0]
 
 
 def _record_native_cancel(store: JobStore, job_id: str, attempt: int, result: dict[str, Any]) -> bool:
@@ -145,6 +185,7 @@ def _run(root: str, job_id: str) -> int:
     client = None
     ownership = None
     lease_acquired = False
+    attached_target: AttachedExecutionTarget | None = None
     native_monitor_stop = threading.Event()
     native_monitor: threading.Thread | None = None
     try:
@@ -154,14 +195,26 @@ def _run(root: str, job_id: str) -> int:
             store.root.parent,
             owner=f"job:{job_id}",
         )
-        preflight = ownership.preflight(
-            model_path=spec["source_model_path"],
-            output_path=str(directory / "results.csv"),
-            requested_version=spec.get("version"),
-        )
-        if not preflight["ready"]:
-            raise RuntimeError(f"Worker preflight failed: {preflight['blockers']}")
-        claim = ownership.acquire(mode="durable-job", model_path=spec["source_model_path"])
+        if spec.get("execution_backend") is not None:
+            attached_target = normalize_attached_execution_target(
+                spec["execution_backend"]
+            )
+            if _source_sha256(spec["source_model_path"]) != spec["source_model_sha256"]:
+                raise RuntimeError(
+                    "Immutable source SHA-256 changed before attached worker startup"
+                )
+            claim = ownership.acquire_attached(attached_target.server)
+        else:
+            preflight = ownership.preflight(
+                model_path=spec["source_model_path"],
+                output_path=str(directory / "results.csv"),
+                requested_version=spec.get("version"),
+            )
+            if not preflight["ready"]:
+                raise RuntimeError(f"Worker preflight failed: {preflight['blockers']}")
+            claim = ownership.acquire(
+                mode="durable-job", model_path=spec["source_model_path"]
+            )
         if not claim["success"]:
             raise RuntimeError(claim["error"])
         lease_acquired = True
@@ -171,10 +224,49 @@ def _run(root: str, job_id: str) -> int:
         from src.tools.mesh import get_mesh_info
         from src.tools.workflow import _sweep_point_id, run_staged_parametric_sweep
 
-        client_kwargs = {"cores": spec.get("cores"), "version": spec.get("version")}
-        client = mph.Client(**{key: value for key, value in client_kwargs.items() if value is not None})
-        ownership.heartbeat(model_path=spec["source_model_path"], refresh_server_processes=True)
-        model = client.load(spec["source_model_path"])
+        if attached_target is not None:
+            acquisition_id = claim.get("lease", {}).get("acquisition_id")
+            if not isinstance(acquisition_id, str) or len(acquisition_id) != 32:
+                raise RuntimeError("Attached lease acquisition identity is unavailable")
+            client = mph.Client(
+                host=attached_target.server.endpoint.host,
+                port=attached_target.server.endpoint.port,
+            )
+            if not ownership.heartbeat():
+                raise RuntimeError("Attached lease heartbeat failed after connection")
+            model = _select_attached_model(client, attached_target)
+            attached_execution = {
+                "backend_identity_sha256": attached_target.backend[
+                    "backend_identity_sha256"
+                ],
+                "server_identity_sha256": attached_target.server.identity_sha256,
+                "model_identity_sha256": attached_target.model.identity_sha256,
+                "initial_revision_sha256": attached_target.expected_revision[
+                    "revision_sha256"
+                ],
+                "lease_acquisition_id": acquisition_id,
+                "resource_ownership": "external_user_owned_server",
+                "initial_revision_verified": True,
+            }
+            store.update_state(
+                job_id,
+                patch={"attached_execution": attached_execution},
+                event="attached_target_verified",
+                event_data=attached_execution,
+            )
+        else:
+            client_kwargs = {
+                "cores": spec.get("cores"),
+                "version": spec.get("version"),
+            }
+            client = mph.Client(
+                **{key: value for key, value in client_kwargs.items() if value is not None}
+            )
+            ownership.heartbeat(
+                model_path=spec["source_model_path"],
+                refresh_server_processes=True,
+            )
+            model = client.load(spec["source_model_path"])
 
         resource_adapter = None
         if spec.get("resource_policy") is not None:
@@ -264,7 +356,16 @@ def _run(root: str, job_id: str) -> int:
                 event="durable_row",
                 event_data={"status": row.get("status"), "parameter_value": row.get("parameter_value")},
             )
-            ownership.heartbeat(model_path=spec["source_model_path"], refresh_server_processes=True)
+            heartbeat = (
+                ownership.heartbeat()
+                if attached_target is not None
+                else ownership.heartbeat(
+                    model_path=spec["source_model_path"],
+                    refresh_server_processes=True,
+                )
+            )
+            if not heartbeat:
+                raise RuntimeError("Solver lease heartbeat failed after durable row")
 
         if should_stop():
             store.record_cooperative_cancel_observed(
@@ -367,15 +468,21 @@ def _run(root: str, job_id: str) -> int:
         if native_monitor is not None:
             native_monitor.join(timeout=1.0)
         if client is not None:
-            try:
-                client.clear()
-            except Exception as exc:
-                print(f"Client clear warning: {exc}", file=sys.stderr, flush=True)
-            if getattr(client, "port", None):
+            if attached_target is not None:
                 try:
                     client.disconnect()
                 except Exception as exc:
                     print(f"Client disconnect warning: {exc}", file=sys.stderr, flush=True)
+            else:
+                try:
+                    client.clear()
+                except Exception as exc:
+                    print(f"Client clear warning: {exc}", file=sys.stderr, flush=True)
+                if getattr(client, "port", None):
+                    try:
+                        client.disconnect()
+                    except Exception as exc:
+                        print(f"Client disconnect warning: {exc}", file=sys.stderr, flush=True)
         if ownership is not None and lease_acquired:
             release = ownership.release()
             if not release.get("success"):
