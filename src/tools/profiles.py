@@ -7,6 +7,7 @@ import os
 from typing import Any, Callable, Mapping
 
 from src.settings import PROFILE_ENV, SETTINGS_PATH_ENV, settings_environment
+from src.contracts import bounded_public_schema, structurally_guarded
 from .catalog import PROFILE_NAMES, TOOL_METADATA
 from src.operation_arbiter import guard_tool_call
 from src.shared_session.contracts import (
@@ -127,7 +128,7 @@ class ProfiledRegistrar:
             if name in self._enabled_names:
                 metadata = TOOL_METADATA[name]
                 guarded = guard_tool_call(
-                    function,
+                    structurally_guarded(function),
                     tool_name=name,
                     side_effect_class=metadata.side_effect_class,
                     concurrency_class=metadata.concurrency_class,
@@ -135,7 +136,13 @@ class ProfiledRegistrar:
                     requires_model_revision=metadata.requires_model_revision,
                     advances_model_revision=metadata.advances_model_revision,
                 )
-                return real_decorator(guarded)
+                registered = real_decorator(guarded)
+                tool = self._server._tool_manager._tools[name]
+                tool.parameters = bounded_public_schema(tool.parameters)
+                argument_model = tool.fn_metadata.arg_model
+                argument_model.model_config["extra"] = "forbid"
+                argument_model.model_rebuild(force=True)
+                return registered
             return function
 
         return decorator

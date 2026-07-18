@@ -186,6 +186,7 @@ models are intentionally absent.
 - `development_kit/tests/test_process_control.py` — This module tests exact-identity process inspection and termination policy.
 - `development_kit/tests/test_process_inventory_stress.py` — This module stress-tests host inventory under PID churn without COMSOL.
 - `development_kit/tests/test_property_transport.py` — This module tests bounded JSON transport for clientapi properties.
+- `development_kit/tests/test_public_input_contracts.py` — This module tests bounded discovery schemas and matching pre-side-effect runtime limits.
 - `development_kit/tests/test_real_fixture_contract.py` — This module tests portable contracts for controlled licensed fixtures.
 - `development_kit/tests/test_recipe_paths.py` — This module tests standalone recipe output path policy.
 - `development_kit/tests/test_reference_power_acceptance.py` — This module tests reference-power acceptance contracts and preflight.
@@ -248,6 +249,9 @@ models are intentionally absent.
 - `src/artifact_chain.py` — This module verifies bounded JSON artifact dependency chains without a solver.
 - `src/build_identity.py` — This module derives package build identity from shipped paths and bytes.
 - `src/compatibility.py` — This module loads and validates the packaged runtime compatibility declaration.
+- `src/contracts/__init__.py` — This module exports lightweight public input contracts without solver imports.
+- `src/contracts/job_submission.py` — This module defines bounded discriminated durable-job submission inputs.
+- `src/contracts/structural.py` — This module applies shared public schema and runtime structural limits.
 - `src/compatibility_manifest.json` — This file declares exact licensed, dependency-only, and unknown runtime compatibility.
 - `src/deployment_manifest.json` — This file binds deployment identity to frozen tool and profile snapshots.
 - `src/environment_identity.py` — This module reports redacted Python, platform, dependency, and optional-feature identity.

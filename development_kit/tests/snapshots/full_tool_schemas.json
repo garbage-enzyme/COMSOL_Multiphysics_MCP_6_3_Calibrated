@@ -1,8 +1,11 @@
 {
   "branch_continuation_plan": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "continuation_policy": {
         "additionalProperties": true,
+        "maxProperties": 256,
         "title": "Continuation Policy",
         "type": "object"
       },
@@ -10,6 +13,7 @@
         "anyOf": [
           {
             "additionalProperties": true,
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -23,6 +27,7 @@
         "anyOf": [
           {
             "additionalProperties": true,
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -40,13 +45,18 @@
     "type": "object"
   },
   "capabilities": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "capabilitiesArguments",
     "type": "object"
   },
   "clientapi_property_get": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
@@ -58,18 +68,22 @@
           "study_step",
           "result_feature"
         ],
+        "maxLength": 16384,
         "title": "Container",
         "type": "string"
       },
       "feature_tag": {
+        "maxLength": 16384,
         "title": "Feature Tag",
         "type": "string"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       },
       "property_name": {
+        "maxLength": 16384,
         "title": "Property Name",
         "type": "string"
       }
@@ -85,8 +99,11 @@
     "type": "object"
   },
   "clientapi_property_set": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
@@ -98,12 +115,14 @@
           "study_step",
           "result_feature"
         ],
+        "maxLength": 16384,
         "title": "Container",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -114,26 +133,34 @@
         "title": "Expected Model Revision"
       },
       "feature_tag": {
+        "maxLength": 16384,
         "title": "Feature Tag",
         "type": "string"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       },
       "property_name": {
+        "maxLength": 16384,
         "title": "Property Name",
         "type": "string"
       },
       "value": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "type": "integer"
           },
           {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "type": "number"
           },
           {
@@ -143,12 +170,17 @@
             "items": {
               "anyOf": [
                 {
+                  "maxLength": 16384,
                   "type": "string"
                 },
                 {
+                  "maximum": 1e+308,
+                  "minimum": -1e+308,
                   "type": "integer"
                 },
                 {
+                  "maximum": 1e+308,
+                  "minimum": -1e+308,
                   "type": "number"
                 },
                 {
@@ -159,6 +191,7 @@
                 }
               ]
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -166,12 +199,17 @@
               "items": {
                 "anyOf": [
                   {
+                    "maxLength": 16384,
                     "type": "string"
                   },
                   {
+                    "maximum": 1e+308,
+                    "minimum": -1e+308,
                     "type": "integer"
                   },
                   {
+                    "maximum": 1e+308,
+                    "minimum": -1e+308,
                     "type": "number"
                   },
                   {
@@ -182,8 +220,10 @@
                   }
                 ]
               },
+              "maxItems": 2048,
               "type": "array"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -205,13 +245,18 @@
     "type": "object"
   },
   "comsol_connect": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "host": {
         "default": "localhost",
+        "maxLength": 16384,
         "title": "Host",
         "type": "string"
       },
       "port": {
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Port",
         "type": "integer"
       }
@@ -223,15 +268,21 @@
     "type": "object"
   },
   "comsol_disconnect": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "comsol_disconnectArguments",
     "type": "object"
   },
   "comsol_start": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "cores": {
         "anyOf": [
           {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "type": "integer"
           },
           {
@@ -245,8 +296,10 @@
         "anyOf": [
           {
             "items": {
+              "maxLength": 16384,
               "type": "string"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -259,6 +312,7 @@
       "version": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -273,16 +327,21 @@
     "type": "object"
   },
   "comsol_status": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "comsol_statusArguments",
     "type": "object"
   },
   "convergence_evaluate": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "convergence_ladder": {
         "anyOf": [
           {
             "additionalProperties": true,
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -294,6 +353,7 @@
       },
       "convergence_policy": {
         "additionalProperties": true,
+        "maxProperties": 256,
         "title": "Convergence Policy",
         "type": "object"
       },
@@ -301,6 +361,7 @@
         "anyOf": [
           {
             "additionalProperties": true,
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -318,10 +379,13 @@
     "type": "object"
   },
   "datasets_list": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -336,8 +400,11 @@
     "type": "object"
   },
   "docs_get": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "topic": {
+        "maxLength": 16384,
         "title": "Topic",
         "type": "string"
       }
@@ -349,26 +416,35 @@
     "type": "object"
   },
   "docs_list": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "docs_listArguments",
     "type": "object"
   },
   "evidence_integrity_status": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "evidence_integrity_statusArguments",
     "type": "object"
   },
   "evidence_integrity_verify": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "artifact_roots": {
         "additionalProperties": {
+          "maxLength": 16384,
           "type": "string"
         },
+        "maxProperties": 256,
         "title": "Artifact Roots",
         "type": "object"
       },
       "portfolio_request": {
         "additionalProperties": true,
+        "maxProperties": 256,
         "title": "Portfolio Request",
         "type": "object"
       },
@@ -376,6 +452,7 @@
         "anyOf": [
           {
             "additionalProperties": true,
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -399,15 +476,19 @@
     "type": "object"
   },
   "geometry_add_block": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -420,6 +501,7 @@
       "feature_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -432,6 +514,7 @@
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -444,6 +527,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -460,8 +544,11 @@
           0
         ],
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "number"
         },
+        "maxItems": 2048,
         "title": "Position",
         "type": "array"
       },
@@ -472,8 +559,11 @@
           1
         ],
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "number"
         },
+        "maxItems": 2048,
         "title": "Size",
         "type": "array"
       }
@@ -482,15 +572,19 @@
     "type": "object"
   },
   "geometry_add_circle": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -503,6 +597,7 @@
       "feature_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -515,6 +610,7 @@
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -527,6 +623,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -542,13 +639,18 @@
           0
         ],
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "number"
         },
+        "maxItems": 2048,
         "title": "Position",
         "type": "array"
       },
       "radius": {
         "default": 0.5,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Radius",
         "type": "number"
       }
@@ -557,15 +659,19 @@
     "type": "object"
   },
   "geometry_add_cylinder": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -578,6 +684,7 @@
       "feature_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -590,6 +697,7 @@
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -601,12 +709,15 @@
       },
       "height": {
         "default": 1.0,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Height",
         "type": "number"
       },
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -623,13 +734,18 @@
           0
         ],
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "number"
         },
+        "maxItems": 2048,
         "title": "Position",
         "type": "array"
       },
       "radius": {
         "default": 0.5,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Radius",
         "type": "number"
       }
@@ -638,15 +754,19 @@
     "type": "object"
   },
   "geometry_add_feature": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -659,6 +779,7 @@
       "feature_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -669,12 +790,14 @@
         "title": "Feature Name"
       },
       "feature_type": {
+        "maxLength": 16384,
         "title": "Feature Type",
         "type": "string"
       },
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -687,6 +810,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -702,12 +826,17 @@
             "additionalProperties": {
               "anyOf": [
                 {
+                  "maxLength": 16384,
                   "type": "string"
                 },
                 {
+                  "maximum": 1e+308,
+                  "minimum": -1e+308,
                   "type": "integer"
                 },
                 {
+                  "maximum": 1e+308,
+                  "minimum": -1e+308,
                   "type": "number"
                 },
                 {
@@ -717,12 +846,17 @@
                   "items": {
                     "anyOf": [
                       {
+                        "maxLength": 16384,
                         "type": "string"
                       },
                       {
+                        "maximum": 1e+308,
+                        "minimum": -1e+308,
                         "type": "integer"
                       },
                       {
+                        "maximum": 1e+308,
+                        "minimum": -1e+308,
                         "type": "number"
                       },
                       {
@@ -733,6 +867,7 @@
                       }
                     ]
                   },
+                  "maxItems": 2048,
                   "type": "array"
                 },
                 {
@@ -740,12 +875,17 @@
                     "items": {
                       "anyOf": [
                         {
+                          "maxLength": 16384,
                           "type": "string"
                         },
                         {
+                          "maximum": 1e+308,
+                          "minimum": -1e+308,
                           "type": "integer"
                         },
                         {
+                          "maximum": 1e+308,
+                          "minimum": -1e+308,
                           "type": "number"
                         },
                         {
@@ -756,8 +896,10 @@
                         }
                       ]
                     },
+                    "maxItems": 2048,
                     "type": "array"
                   },
+                  "maxItems": 2048,
                   "type": "array"
                 },
                 {
@@ -765,6 +907,7 @@
                 }
               ]
             },
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -782,15 +925,19 @@
     "type": "object"
   },
   "geometry_add_rectangle": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -803,6 +950,7 @@
       "feature_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -815,6 +963,7 @@
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -827,6 +976,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -842,8 +992,11 @@
           0
         ],
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "number"
         },
+        "maxItems": 2048,
         "title": "Position",
         "type": "array"
       },
@@ -853,8 +1006,11 @@
           1
         ],
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "number"
         },
+        "maxItems": 2048,
         "title": "Size",
         "type": "array"
       }
@@ -863,15 +1019,19 @@
     "type": "object"
   },
   "geometry_add_sphere": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -884,6 +1044,7 @@
       "feature_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -896,6 +1057,7 @@
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -908,6 +1070,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -924,13 +1087,18 @@
           0
         ],
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "number"
         },
+        "maxItems": 2048,
         "title": "Position",
         "type": "array"
       },
       "radius": {
         "default": 0.5,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Radius",
         "type": "number"
       }
@@ -939,27 +1107,34 @@
     "type": "object"
   },
   "geometry_blocks_apply": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "block_edits": {
         "items": {
           "additionalProperties": true,
+          "maxProperties": 256,
           "type": "object"
         },
+        "maxItems": 2048,
         "title": "Block Edits",
         "type": "array"
       },
       "component_tag": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Tag",
         "type": "string"
       },
       "derived_model_id": {
+        "maxLength": 16384,
         "title": "Derived Model Id",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -970,15 +1145,18 @@
         "title": "Expected Model Revision"
       },
       "expected_state_sha256": {
+        "maxLength": 16384,
         "title": "Expected State Sha256",
         "type": "string"
       },
       "geometry_tag": {
         "default": "geom1",
+        "maxLength": 16384,
         "title": "Geometry Tag",
         "type": "string"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       }
@@ -993,34 +1171,43 @@
     "type": "object"
   },
   "geometry_blocks_preview": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "block_edits": {
         "items": {
           "additionalProperties": true,
+          "maxProperties": 256,
           "type": "object"
         },
+        "maxItems": 2048,
         "title": "Block Edits",
         "type": "array"
       },
       "component_tag": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Tag",
         "type": "string"
       },
       "derived_model_id": {
+        "maxLength": 16384,
         "title": "Derived Model Id",
         "type": "string"
       },
       "expected_state_sha256": {
+        "maxLength": 16384,
         "title": "Expected State Sha256",
         "type": "string"
       },
       "geometry_tag": {
         "default": "geom1",
+        "maxLength": 16384,
         "title": "Geometry Tag",
         "type": "string"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       }
@@ -1035,15 +1222,19 @@
     "type": "object"
   },
   "geometry_boolean_difference": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1056,6 +1247,7 @@
       "feature_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1068,6 +1260,7 @@
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1078,12 +1271,14 @@
         "title": "Geometry Name"
       },
       "input_object": {
+        "maxLength": 16384,
         "title": "Input Object",
         "type": "string"
       },
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1095,8 +1290,10 @@
       },
       "objects_to_subtract": {
         "items": {
+          "maxLength": 16384,
           "type": "string"
         },
+        "maxItems": 2048,
         "title": "Objects To Subtract",
         "type": "array"
       }
@@ -1109,15 +1306,19 @@
     "type": "object"
   },
   "geometry_boolean_union": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1130,6 +1331,7 @@
       "feature_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1142,6 +1344,7 @@
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1153,14 +1356,17 @@
       },
       "input_objects": {
         "items": {
+          "maxLength": 16384,
           "type": "string"
         },
+        "maxItems": 2048,
         "title": "Input Objects",
         "type": "array"
       },
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1178,15 +1384,19 @@
     "type": "object"
   },
   "geometry_build": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1199,6 +1409,7 @@
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1211,6 +1422,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1225,15 +1437,19 @@
     "type": "object"
   },
   "geometry_create": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1246,6 +1462,7 @@
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1258,6 +1475,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1269,6 +1487,8 @@
       },
       "space_dimension": {
         "default": 3,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Space Dimension",
         "type": "integer"
       }
@@ -1277,10 +1497,13 @@
     "type": "object"
   },
   "geometry_derived_clone": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1291,10 +1514,12 @@
         "title": "Expected Model Revision"
       },
       "new_name": {
+        "maxLength": 16384,
         "title": "New Name",
         "type": "string"
       },
       "source_model_name": {
+        "maxLength": 16384,
         "title": "Source Model Name",
         "type": "string"
       }
@@ -1307,17 +1532,21 @@
     "type": "object"
   },
   "geometry_fin_apply": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "action": {
         "enum": [
           "union",
           "assembly"
         ],
+        "maxLength": 16384,
         "title": "Action",
         "type": "string"
       },
       "component_tag": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Tag",
         "type": "string"
       },
@@ -1326,12 +1555,14 @@
         "type": "boolean"
       },
       "derived_model_id": {
+        "maxLength": 16384,
         "title": "Derived Model Id",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1342,11 +1573,13 @@
         "title": "Expected Model Revision"
       },
       "expected_state_sha256": {
+        "maxLength": 16384,
         "title": "Expected State Sha256",
         "type": "string"
       },
       "geometry_tag": {
         "default": "geom1",
+        "maxLength": 16384,
         "title": "Geometry Tag",
         "type": "string"
       },
@@ -1355,6 +1588,7 @@
         "type": "boolean"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       }
@@ -1371,17 +1605,21 @@
     "type": "object"
   },
   "geometry_fin_preview": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "action": {
         "enum": [
           "union",
           "assembly"
         ],
+        "maxLength": 16384,
         "title": "Action",
         "type": "string"
       },
       "component_tag": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Tag",
         "type": "string"
       },
@@ -1390,15 +1628,18 @@
         "type": "boolean"
       },
       "derived_model_id": {
+        "maxLength": 16384,
         "title": "Derived Model Id",
         "type": "string"
       },
       "expected_state_sha256": {
+        "maxLength": 16384,
         "title": "Expected State Sha256",
         "type": "string"
       },
       "geometry_tag": {
         "default": "geom1",
+        "maxLength": 16384,
         "title": "Geometry Tag",
         "type": "string"
       },
@@ -1407,6 +1648,7 @@
         "type": "boolean"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       }
@@ -1423,15 +1665,19 @@
     "type": "object"
   },
   "geometry_get_boundaries": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1444,6 +1690,7 @@
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1456,6 +1703,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1470,15 +1718,19 @@
     "type": "object"
   },
   "geometry_import": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "feature_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1489,12 +1741,14 @@
         "title": "Feature Name"
       },
       "file_path": {
+        "maxLength": 16384,
         "title": "File Path",
         "type": "string"
       },
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1506,12 +1760,14 @@
       },
       "import_type": {
         "default": "CAD",
+        "maxLength": 16384,
         "title": "Import Type",
         "type": "string"
       },
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1529,10 +1785,13 @@
     "type": "object"
   },
   "geometry_list": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1547,15 +1806,19 @@
     "type": "object"
   },
   "geometry_list_features": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1568,6 +1831,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1582,15 +1846,19 @@
     "type": "object"
   },
   "geometry_probe_domains": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1603,6 +1871,7 @@
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1615,6 +1884,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1629,8 +1899,11 @@
     "type": "object"
   },
   "job_cancel": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "job_id": {
+        "maxLength": 16384,
         "title": "Job Id",
         "type": "string"
       }
@@ -1642,8 +1915,11 @@
     "type": "object"
   },
   "job_resume": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "job_id": {
+        "maxLength": 16384,
         "title": "Job Id",
         "type": "string"
       }
@@ -1655,8 +1931,11 @@
     "type": "object"
   },
   "job_status": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "job_id": {
+        "maxLength": 16384,
         "title": "Job Id",
         "type": "string"
       }
@@ -1668,11 +1947,701 @@
     "type": "object"
   },
   "job_submit": {
+    "$defs": {
+      "BranchContinuationCampaignInput": {
+        "additionalProperties": false,
+        "maxProperties": 256,
+        "properties": {
+          "campaign_id": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "continuation_policy": {
+            "additionalProperties": true,
+            "maxProperties": 256,
+            "title": "Continuation Policy",
+            "type": "object"
+          },
+          "job_type": {
+            "const": "branch_continuation_campaign",
+            "maxLength": 16384,
+            "title": "Job Type",
+            "type": "string"
+          },
+          "maximum_total_points": {
+            "maximum": 2048,
+            "minimum": 1,
+            "title": "Maximum Total Points",
+            "type": "integer"
+          },
+          "states": {
+            "items": {
+              "additionalProperties": true,
+              "maxProperties": 256,
+              "type": "object"
+            },
+            "maxItems": 2048,
+            "minItems": 1,
+            "title": "States",
+            "type": "array"
+          },
+          "wall_time_budget_seconds": {
+            "maximum": 31536000,
+            "minimum": 1,
+            "title": "Wall Time Budget Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "job_type",
+          "campaign_id",
+          "states",
+          "continuation_policy",
+          "maximum_total_points",
+          "wall_time_budget_seconds"
+        ],
+        "title": "BranchContinuationCampaignInput",
+        "type": "object"
+      },
+      "ConvergenceCampaignInput": {
+        "additionalProperties": false,
+        "maxProperties": 256,
+        "properties": {
+          "campaign_id": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "convergence_policy": {
+            "additionalProperties": true,
+            "maxProperties": 256,
+            "title": "Convergence Policy",
+            "type": "object"
+          },
+          "job_type": {
+            "const": "convergence_campaign",
+            "maxLength": 16384,
+            "title": "Job Type",
+            "type": "string"
+          },
+          "levels": {
+            "items": {
+              "additionalProperties": true,
+              "maxProperties": 256,
+              "type": "object"
+            },
+            "maxItems": 2048,
+            "minItems": 1,
+            "title": "Levels",
+            "type": "array"
+          },
+          "maximum_total_points": {
+            "maximum": 2048,
+            "minimum": 1,
+            "title": "Maximum Total Points",
+            "type": "integer"
+          },
+          "stop_policy": {
+            "additionalProperties": true,
+            "maxProperties": 256,
+            "title": "Stop Policy",
+            "type": "object"
+          },
+          "wall_time_budget_seconds": {
+            "maximum": 31536000,
+            "minimum": 1,
+            "title": "Wall Time Budget Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "job_type",
+          "campaign_id",
+          "levels",
+          "convergence_policy",
+          "stop_policy",
+          "maximum_total_points",
+          "wall_time_budget_seconds"
+        ],
+        "title": "ConvergenceCampaignInput",
+        "type": "object"
+      },
+      "SpectralCharacterizationInput": {
+        "additionalProperties": false,
+        "maxProperties": 256,
+        "properties": {
+          "analysis_policy": {
+            "additionalProperties": true,
+            "maxProperties": 256,
+            "title": "Analysis Policy",
+            "type": "object"
+          },
+          "collector": {
+            "additionalProperties": true,
+            "maxProperties": 256,
+            "title": "Collector",
+            "type": "object"
+          },
+          "configuration_sha256": {
+            "maxLength": 16384,
+            "pattern": "^[0-9a-fA-F]{64}$",
+            "title": "Configuration Sha256",
+            "type": "string"
+          },
+          "continue_on_error": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Continue On Error"
+          },
+          "cores": {
+            "maximum": 1024,
+            "minimum": 1,
+            "title": "Cores",
+            "type": "integer"
+          },
+          "expansion_policy": {
+            "additionalProperties": true,
+            "maxProperties": 256,
+            "title": "Expansion Policy",
+            "type": "object"
+          },
+          "initial_grid": {
+            "additionalProperties": true,
+            "maxProperties": 256,
+            "title": "Initial Grid",
+            "type": "object"
+          },
+          "job_type": {
+            "const": "spectral_characterization",
+            "maxLength": 16384,
+            "title": "Job Type",
+            "type": "string"
+          },
+          "max_retries": {
+            "anyOf": [
+              {
+                "maximum": 3,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Retries"
+          },
+          "maximum_points": {
+            "maximum": 2048,
+            "minimum": 3,
+            "title": "Maximum Points",
+            "type": "integer"
+          },
+          "measurement_configuration": {
+            "additionalProperties": true,
+            "maxProperties": 256,
+            "title": "Measurement Configuration",
+            "type": "object"
+          },
+          "parameter_state": {
+            "additionalProperties": true,
+            "maxProperties": 256,
+            "title": "Parameter State",
+            "type": "object"
+          },
+          "refinement_policy": {
+            "additionalProperties": true,
+            "maxProperties": 256,
+            "title": "Refinement Policy",
+            "type": "object"
+          },
+          "resource_policy": {
+            "additionalProperties": true,
+            "maxProperties": 256,
+            "title": "Resource Policy",
+            "type": "object"
+          },
+          "source_model_path": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Source Model Path",
+            "type": "string"
+          },
+          "source_model_relative_identity": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Source Model Relative Identity",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Version"
+          },
+          "wavelength_parameter": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Wavelength Parameter",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_type",
+          "source_model_path",
+          "source_model_relative_identity",
+          "configuration_sha256",
+          "parameter_state",
+          "wavelength_parameter",
+          "initial_grid",
+          "refinement_policy",
+          "expansion_policy",
+          "maximum_points",
+          "collector",
+          "analysis_policy",
+          "measurement_configuration",
+          "resource_policy",
+          "cores"
+        ],
+        "title": "SpectralCharacterizationInput",
+        "type": "object"
+      },
+      "StagedSweepInput": {
+        "additionalProperties": false,
+        "maxProperties": 256,
+        "properties": {
+          "checkpoint_every": {
+            "anyOf": [
+              {
+                "maximum": 2048,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Checkpoint Every"
+          },
+          "continue_on_error": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Continue On Error"
+          },
+          "cores": {
+            "anyOf": [
+              {
+                "maximum": 1024,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cores"
+          },
+          "execution_backend": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "maxProperties": 256,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Execution Backend"
+          },
+          "expressions": {
+            "items": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 2048,
+            "minItems": 1,
+            "title": "Expressions",
+            "type": "array"
+          },
+          "job_type": {
+            "const": "staged_sweep",
+            "maxLength": 16384,
+            "title": "Job Type",
+            "type": "string"
+          },
+          "max_retries": {
+            "anyOf": [
+              {
+                "maximum": 100,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Retries"
+          },
+          "parameter_name": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Parameter Name",
+            "type": "string"
+          },
+          "parameter_unit": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parameter Unit"
+          },
+          "parameter_values": {
+            "items": {
+              "anyOf": [
+                {
+                  "maximum": 1e+308,
+                  "minimum": -1e+308,
+                  "type": "integer"
+                },
+                {
+                  "maximum": 1e+308,
+                  "minimum": -1e+308,
+                  "type": "number"
+                }
+              ]
+            },
+            "maxItems": 2048,
+            "minItems": 1,
+            "title": "Parameter Values",
+            "type": "array"
+          },
+          "physical_bounds": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "maxProperties": 256,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Physical Bounds"
+          },
+          "record_wavelength_controls": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Record Wavelength Controls"
+          },
+          "resource_policy": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "maxProperties": 256,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resource Policy"
+          },
+          "smoke_points": {
+            "anyOf": [
+              {
+                "enum": [
+                  1,
+                  2
+                ],
+                "maximum": 1e+308,
+                "minimum": -1e+308,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Smoke Points"
+          },
+          "source_model_path": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Source Model Path",
+            "type": "string"
+          },
+          "study_name": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Study Name"
+          },
+          "study_step_property": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Study Step Property"
+          },
+          "study_step_tag": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Study Step Tag"
+          },
+          "study_step_unit": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Study Step Unit"
+          },
+          "study_step_unit_property": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Study Step Unit Property"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Version"
+          }
+        },
+        "required": [
+          "job_type",
+          "source_model_path",
+          "parameter_name",
+          "parameter_values",
+          "expressions"
+        ],
+        "title": "StagedSweepInput",
+        "type": "object"
+      },
+      "ValidationMatrixInput": {
+        "additionalProperties": false,
+        "maxProperties": 256,
+        "properties": {
+          "continue_on_error": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Continue On Error"
+          },
+          "cores": {
+            "maximum": 1024,
+            "minimum": 1,
+            "title": "Cores",
+            "type": "integer"
+          },
+          "job_type": {
+            "const": "validation_matrix",
+            "maxLength": 16384,
+            "title": "Job Type",
+            "type": "string"
+          },
+          "max_retries": {
+            "anyOf": [
+              {
+                "maximum": 3,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Retries"
+          },
+          "point_limit": {
+            "maximum": 2048,
+            "minimum": 1,
+            "title": "Point Limit",
+            "type": "integer"
+          },
+          "points": {
+            "items": {
+              "additionalProperties": true,
+              "maxProperties": 256,
+              "type": "object"
+            },
+            "maxItems": 2048,
+            "minItems": 1,
+            "title": "Points",
+            "type": "array"
+          },
+          "resource_policy": {
+            "additionalProperties": true,
+            "maxProperties": 256,
+            "title": "Resource Policy",
+            "type": "object"
+          },
+          "source_model_path": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Source Model Path",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Version"
+          }
+        },
+        "required": [
+          "job_type",
+          "source_model_path",
+          "points",
+          "point_limit",
+          "resource_policy",
+          "cores"
+        ],
+        "title": "ValidationMatrixInput",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "spec": {
-        "additionalProperties": true,
-        "title": "Spec",
-        "type": "object"
+        "discriminator": {
+          "mapping": {
+            "branch_continuation_campaign": "#/$defs/BranchContinuationCampaignInput",
+            "convergence_campaign": "#/$defs/ConvergenceCampaignInput",
+            "spectral_characterization": "#/$defs/SpectralCharacterizationInput",
+            "staged_sweep": "#/$defs/StagedSweepInput",
+            "validation_matrix": "#/$defs/ValidationMatrixInput"
+          },
+          "propertyName": "job_type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/StagedSweepInput"
+          },
+          {
+            "$ref": "#/$defs/ValidationMatrixInput"
+          },
+          {
+            "$ref": "#/$defs/SpectralCharacterizationInput"
+          },
+          {
+            "$ref": "#/$defs/ConvergenceCampaignInput"
+          },
+          {
+            "$ref": "#/$defs/BranchContinuationCampaignInput"
+          }
+        ],
+        "title": "Spec"
       }
     },
     "required": [
@@ -1682,13 +2651,18 @@
     "type": "object"
   },
   "job_tail": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "job_id": {
+        "maxLength": 16384,
         "title": "Job Id",
         "type": "string"
       },
       "n": {
         "default": 20,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "N",
         "type": "integer"
       }
@@ -1700,15 +2674,21 @@
     "type": "object"
   },
   "manual_read_pages": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "pages": {
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "integer"
         },
+        "maxItems": 2048,
         "title": "Pages",
         "type": "array"
       },
       "source": {
+        "maxLength": 16384,
         "title": "Source",
         "type": "string"
       }
@@ -1721,20 +2701,26 @@
     "type": "object"
   },
   "manual_search": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "limit": {
         "default": 5,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Limit",
         "type": "integer"
       },
       "mode": {
         "default": "auto",
+        "maxLength": 16384,
         "title": "Mode",
         "type": "string"
       },
       "module": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1747,6 +2733,8 @@
       "page_end": {
         "anyOf": [
           {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "type": "integer"
           },
           {
@@ -1759,6 +2747,8 @@
       "page_start": {
         "anyOf": [
           {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "type": "integer"
           },
           {
@@ -1769,12 +2759,14 @@
         "title": "Page Start"
       },
       "query": {
+        "maxLength": 16384,
         "title": "Query",
         "type": "string"
       },
       "source": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1792,6 +2784,8 @@
     "type": "object"
   },
   "mesh_convergence_study": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "append_csv": {
         "default": false,
@@ -1800,12 +2794,15 @@
       },
       "checkpoint_every": {
         "default": 1,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Checkpoint Every",
         "type": "integer"
       },
       "checkpoint_model_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1817,6 +2814,7 @@
       },
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
@@ -1828,6 +2826,7 @@
       "csv_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1840,6 +2839,7 @@
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1851,32 +2851,40 @@
       },
       "expressions": {
         "items": {
+          "maxLength": 16384,
           "type": "string"
         },
+        "maxItems": 2048,
         "title": "Expressions",
         "type": "array"
       },
       "levels": {
         "items": {
           "additionalProperties": true,
+          "maxProperties": 256,
           "type": "object"
         },
+        "maxItems": 2048,
         "title": "Levels",
         "type": "array"
       },
       "max_retries": {
         "default": 0,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Max Retries",
         "type": "integer"
       },
       "mesh_name": {
         "default": "mesh1",
+        "maxLength": 16384,
         "title": "Mesh Name",
         "type": "string"
       },
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1889,6 +2897,7 @@
       "parameter_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1901,6 +2910,7 @@
       "parameter_unit": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1928,6 +2938,7 @@
       "save_model_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1939,12 +2950,14 @@
       },
       "size_feature_tag": {
         "default": "sz1",
+        "maxLength": 16384,
         "title": "Size Feature Tag",
         "type": "string"
       },
       "study_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1956,12 +2969,14 @@
       },
       "study_step_property": {
         "default": "plist",
+        "maxLength": 16384,
         "title": "Study Step Property",
         "type": "string"
       },
       "study_step_tag": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1974,6 +2989,7 @@
       "study_step_unit": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -1985,6 +3001,7 @@
       },
       "study_step_unit_property": {
         "default": "punit",
+        "maxLength": 16384,
         "title": "Study Step Unit Property",
         "type": "string"
       }
@@ -1997,10 +3014,13 @@
     "type": "object"
   },
   "mesh_create": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2013,6 +3033,7 @@
       "mesh_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2025,6 +3046,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2039,10 +3061,13 @@
     "type": "object"
   },
   "mesh_info": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2055,6 +3080,7 @@
       "mesh_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2067,6 +3093,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2081,10 +3108,13 @@
     "type": "object"
   },
   "mesh_list": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2099,6 +3129,8 @@
     "type": "object"
   },
   "mesh_sequence_create": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "build": {
         "default": true,
@@ -2108,6 +3140,7 @@
       "component_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2119,12 +3152,14 @@
       },
       "element_type": {
         "default": "FreeTet",
+        "maxLength": 16384,
         "title": "Element Type",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2136,12 +3171,14 @@
       },
       "mesh_name": {
         "default": "mesh1",
+        "maxLength": 16384,
         "title": "Mesh Name",
         "type": "string"
       },
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2156,13 +3193,17 @@
     "type": "object"
   },
   "mim_evaluate_spectral": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expressions": {
         "anyOf": [
           {
             "items": {
+              "maxLength": 16384,
               "type": "string"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -2175,6 +3216,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2186,6 +3228,7 @@
       },
       "wl_parameter": {
         "default": "wl",
+        "maxLength": 16384,
         "title": "Wl Parameter",
         "type": "string"
       }
@@ -2194,10 +3237,13 @@
     "type": "object"
   },
   "mim_patch_build": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "air_block_tag": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2209,27 +3255,32 @@
       },
       "air_material_tag": {
         "default": "mat_air",
+        "maxLength": 16384,
         "title": "Air Material Tag",
         "type": "string"
       },
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "diff_tag": {
         "default": "dif1",
+        "maxLength": 16384,
         "title": "Diff Tag",
         "type": "string"
       },
       "ewfd_tag": {
         "default": "ewfd",
+        "maxLength": 16384,
         "title": "Ewfd Tag",
         "type": "string"
       },
       "geometry_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2241,17 +3292,20 @@
       },
       "layered_impedance_tag": {
         "default": "lib1",
+        "maxLength": 16384,
         "title": "Layered Impedance Tag",
         "type": "string"
       },
       "layered_transition_tag": {
         "default": "ltr1",
+        "maxLength": 16384,
         "title": "Layered Transition Tag",
         "type": "string"
       },
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2263,20 +3317,27 @@
       },
       "patch_pos": {
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "number"
         },
+        "maxItems": 2048,
         "title": "Patch Pos",
         "type": "array"
       },
       "patch_size": {
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "number"
         },
+        "maxItems": 2048,
         "title": "Patch Size",
         "type": "array"
       },
       "patch_tag": {
         "default": "b_pat",
+        "maxLength": 16384,
         "title": "Patch Tag",
         "type": "string"
       }
@@ -2289,10 +3350,13 @@
     "type": "object"
   },
   "model_clone": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2305,6 +3369,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2317,6 +3382,7 @@
       "new_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2336,10 +3402,13 @@
     "type": "object"
   },
   "model_create": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2359,15 +3428,19 @@
     "type": "object"
   },
   "model_create_component": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Name",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2380,6 +3453,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2391,6 +3465,8 @@
       },
       "space_dimension": {
         "default": 3,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Space Dimension",
         "type": "integer"
       }
@@ -2399,10 +3475,13 @@
     "type": "object"
   },
   "model_inspect": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2417,15 +3496,20 @@
     "type": "object"
   },
   "model_list": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "model_listArguments",
     "type": "object"
   },
   "model_list_components": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2440,8 +3524,11 @@
     "type": "object"
   },
   "model_load": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "file_path": {
+        "maxLength": 16384,
         "title": "File Path",
         "type": "string"
       },
@@ -2458,10 +3545,13 @@
     "type": "object"
   },
   "model_remove": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2472,6 +3562,7 @@
         "title": "Expected Model Revision"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       }
@@ -2483,10 +3574,13 @@
     "type": "object"
   },
   "model_save": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2499,6 +3593,7 @@
       "file_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2511,6 +3606,7 @@
       "format": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2523,6 +3619,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2537,10 +3634,13 @@
     "type": "object"
   },
   "model_save_version": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "base_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2553,6 +3653,7 @@
       "description": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2565,6 +3666,7 @@
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2577,6 +3679,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2591,8 +3694,11 @@
     "type": "object"
   },
   "model_set_current": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       }
@@ -2604,8 +3710,11 @@
     "type": "object"
   },
   "modeling_best_practices": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "category": {
+        "maxLength": 16384,
         "title": "Category",
         "type": "string"
       }
@@ -2617,14 +3726,18 @@
     "type": "object"
   },
   "multiphysics_add": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "coupling_type": {
+        "maxLength": 16384,
         "title": "Coupling Type",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2637,6 +3750,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2648,8 +3762,10 @@
       },
       "physics_list": {
         "items": {
+          "maxLength": 16384,
           "type": "string"
         },
+        "maxItems": 2048,
         "title": "Physics List",
         "type": "array"
       }
@@ -2662,10 +3778,13 @@
     "type": "object"
   },
   "param_description": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2678,6 +3797,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2688,12 +3808,14 @@
         "title": "Model Name"
       },
       "name": {
+        "maxLength": 16384,
         "title": "Name",
         "type": "string"
       },
       "text": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2711,6 +3833,8 @@
     "type": "object"
   },
   "param_get": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "evaluate": {
         "default": false,
@@ -2720,6 +3844,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2730,6 +3855,7 @@
         "title": "Model Name"
       },
       "name": {
+        "maxLength": 16384,
         "title": "Name",
         "type": "string"
       }
@@ -2741,6 +3867,8 @@
     "type": "object"
   },
   "param_list": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "evaluate": {
         "default": false,
@@ -2750,6 +3878,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2764,10 +3893,13 @@
     "type": "object"
   },
   "param_set": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "description": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2780,6 +3912,7 @@
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2792,6 +3925,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2802,10 +3936,12 @@
         "title": "Model Name"
       },
       "name": {
+        "maxLength": 16384,
         "title": "Name",
         "type": "string"
       },
       "value": {
+        "maxLength": 16384,
         "title": "Value",
         "type": "string"
       }
@@ -2818,10 +3954,13 @@
     "type": "object"
   },
   "param_sweep_setup": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2834,6 +3973,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2844,12 +3984,14 @@
         "title": "Model Name"
       },
       "parameter_name": {
+        "maxLength": 16384,
         "title": "Parameter Name",
         "type": "string"
       },
       "parameter_unit": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2862,6 +4004,7 @@
       "study_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2875,13 +4018,17 @@
         "items": {
           "anyOf": [
             {
+              "maxLength": 16384,
               "type": "string"
             },
             {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "number"
             }
           ]
         },
+        "maxItems": 2048,
         "title": "Values",
         "type": "array"
       }
@@ -2894,10 +4041,13 @@
     "type": "object"
   },
   "physics_add": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "component_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2910,6 +4060,7 @@
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2922,6 +4073,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2932,6 +4084,7 @@
         "title": "Model Name"
       },
       "physics_type": {
+        "maxLength": 16384,
         "title": "Physics Type",
         "type": "string"
       }
@@ -2943,17 +4096,23 @@
     "type": "object"
   },
   "physics_add_domain_feature": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "domain_selection": {
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "integer"
         },
+        "maxItems": 2048,
         "title": "Domain Selection",
         "type": "array"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2966,6 +4125,7 @@
       "feature_tag": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2976,12 +4136,14 @@
         "title": "Feature Tag"
       },
       "feature_type": {
+        "maxLength": 16384,
         "title": "Feature Type",
         "type": "string"
       },
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -2992,6 +4154,7 @@
         "title": "Model Name"
       },
       "physics_name": {
+        "maxLength": 16384,
         "title": "Physics Name",
         "type": "string"
       },
@@ -2999,6 +4162,7 @@
         "anyOf": [
           {
             "additionalProperties": true,
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -3018,13 +4182,18 @@
     "type": "object"
   },
   "physics_add_electrostatics": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "domain_numbers": {
         "anyOf": [
           {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "integer"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -3037,6 +4206,7 @@
       "domain_selection": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3049,6 +4219,7 @@
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3061,6 +4232,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3073,6 +4245,8 @@
       "relpermittivity": {
         "anyOf": [
           {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "type": "number"
           },
           {
@@ -3087,10 +4261,13 @@
     "type": "object"
   },
   "physics_add_heat_transfer": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "domain_selection": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3103,6 +4280,7 @@
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3115,6 +4293,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3129,10 +4308,13 @@
     "type": "object"
   },
   "physics_add_laminar_flow": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "domain_selection": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3145,6 +4327,7 @@
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3157,6 +4340,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3171,10 +4355,13 @@
     "type": "object"
   },
   "physics_add_solid_mechanics": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "domain_selection": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3187,6 +4374,7 @@
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3199,6 +4387,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3213,21 +4402,28 @@
     "type": "object"
   },
   "physics_boundary_selection": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "boundary_condition_type": {
+        "maxLength": 16384,
         "title": "Boundary Condition Type",
         "type": "string"
       },
       "boundary_numbers": {
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "integer"
         },
+        "maxItems": 2048,
         "title": "Boundary Numbers",
         "type": "array"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3240,6 +4436,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3250,6 +4447,7 @@
         "title": "Model Name"
       },
       "physics_name": {
+        "maxLength": 16384,
         "title": "Physics Name",
         "type": "string"
       },
@@ -3257,6 +4455,7 @@
         "anyOf": [
           {
             "additionalProperties": true,
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -3276,21 +4475,28 @@
     "type": "object"
   },
   "physics_configure_boundary": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "boundary_condition": {
+        "maxLength": 16384,
         "title": "Boundary Condition",
         "type": "string"
       },
       "boundary_selection": {
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "integer"
         },
+        "maxItems": 2048,
         "title": "Boundary Selection",
         "type": "array"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3303,6 +4509,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3313,6 +4520,7 @@
         "title": "Model Name"
       },
       "physics_name": {
+        "maxLength": 16384,
         "title": "Physics Name",
         "type": "string"
       },
@@ -3320,6 +4528,7 @@
         "anyOf": [
           {
             "additionalProperties": true,
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -3339,13 +4548,18 @@
     "type": "object"
   },
   "physics_get_available": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "physics_get_availableArguments",
     "type": "object"
   },
   "physics_get_guide": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "physics_type": {
+        "maxLength": 16384,
         "title": "Physics Type",
         "type": "string"
       }
@@ -3357,10 +4571,13 @@
     "type": "object"
   },
   "physics_interactive_setup_flow": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3373,6 +4590,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3384,6 +4602,7 @@
       },
       "physics_name": {
         "default": "Laminar Flow",
+        "maxLength": 16384,
         "title": "Physics Name",
         "type": "string"
       }
@@ -3392,10 +4611,13 @@
     "type": "object"
   },
   "physics_interactive_setup_heat": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3408,6 +4630,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3419,6 +4642,7 @@
       },
       "physics_name": {
         "default": "Heat Transfer in Solids",
+        "maxLength": 16384,
         "title": "Physics Name",
         "type": "string"
       }
@@ -3427,10 +4651,13 @@
     "type": "object"
   },
   "physics_list": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3445,10 +4672,13 @@
     "type": "object"
   },
   "physics_list_features": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3459,6 +4689,7 @@
         "title": "Model Name"
       },
       "physics_name": {
+        "maxLength": 16384,
         "title": "Physics Name",
         "type": "string"
       }
@@ -3470,10 +4701,13 @@
     "type": "object"
   },
   "physics_remove": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3486,6 +4720,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3496,6 +4731,7 @@
         "title": "Model Name"
       },
       "physics_name": {
+        "maxLength": 16384,
         "title": "Physics Name",
         "type": "string"
       }
@@ -3507,13 +4743,18 @@
     "type": "object"
   },
   "physics_set_material": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "domain_selection": {
         "anyOf": [
           {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "integer"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -3526,6 +4767,7 @@
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3536,12 +4778,14 @@
         "title": "Expected Model Revision"
       },
       "material_name": {
+        "maxLength": 16384,
         "title": "Material Name",
         "type": "string"
       },
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3552,6 +4796,7 @@
         "title": "Model Name"
       },
       "physics_name": {
+        "maxLength": 16384,
         "title": "Physics Name",
         "type": "string"
       },
@@ -3559,6 +4804,7 @@
         "anyOf": [
           {
             "additionalProperties": true,
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -3577,10 +4823,13 @@
     "type": "object"
   },
   "physics_setup_flow_boundaries": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3592,19 +4841,24 @@
       },
       "inlet_boundaries": {
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "integer"
         },
+        "maxItems": 2048,
         "title": "Inlet Boundaries",
         "type": "array"
       },
       "inlet_velocity": {
         "default": "1[mm/s]",
+        "maxLength": 16384,
         "title": "Inlet Velocity",
         "type": "string"
       },
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3616,17 +4870,22 @@
       },
       "outlet_boundaries": {
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "integer"
         },
+        "maxItems": 2048,
         "title": "Outlet Boundaries",
         "type": "array"
       },
       "outlet_pressure": {
         "default": "0",
+        "maxLength": 16384,
         "title": "Outlet Pressure",
         "type": "string"
       },
       "physics_name": {
+        "maxLength": 16384,
         "title": "Physics Name",
         "type": "string"
       }
@@ -3640,9 +4899,12 @@
     "type": "object"
   },
   "physics_setup_heat_boundaries": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "ambient_temp": {
         "default": "293.15[K]",
+        "maxLength": 16384,
         "title": "Ambient Temp",
         "type": "string"
       },
@@ -3650,8 +4912,11 @@
         "anyOf": [
           {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "integer"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -3663,12 +4928,14 @@
       },
       "convection_coeff": {
         "default": "10[W/(m^2*K)]",
+        "maxLength": 16384,
         "title": "Convection Coeff",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3682,8 +4949,11 @@
         "anyOf": [
           {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "integer"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -3695,12 +4965,14 @@
       },
       "heat_flux_value": {
         "default": "1e6[W/m^2]",
+        "maxLength": 16384,
         "title": "Heat Flux Value",
         "type": "string"
       },
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3711,6 +4983,7 @@
         "title": "Model Name"
       },
       "physics_name": {
+        "maxLength": 16384,
         "title": "Physics Name",
         "type": "string"
       },
@@ -3718,8 +4991,11 @@
         "anyOf": [
           {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "integer"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -3731,6 +5007,7 @@
       },
       "temperature_value": {
         "default": "293.15[K]",
+        "maxLength": 16384,
         "title": "Temperature Value",
         "type": "string"
       }
@@ -3742,10 +5019,13 @@
     "type": "object"
   },
   "results_evaluate": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "dataset": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3758,12 +5038,15 @@
       "expression": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
             "items": {
+              "maxLength": 16384,
               "type": "string"
             },
+            "maxItems": 2048,
             "type": "array"
           }
         ],
@@ -3772,15 +5055,21 @@
       "inner": {
         "anyOf": [
           {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "type": "integer"
           },
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "integer"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -3793,6 +5082,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3805,12 +5095,17 @@
       "outer": {
         "anyOf": [
           {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "type": "integer"
           },
           {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "integer"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -3823,6 +5118,7 @@
       "unit": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3840,10 +5136,13 @@
     "type": "object"
   },
   "results_export_data": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "file_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3856,6 +5155,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3868,6 +5168,7 @@
       "node_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3882,10 +5183,13 @@
     "type": "object"
   },
   "results_export_image": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "file_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3898,6 +5202,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3910,6 +5215,7 @@
       "node_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3924,10 +5230,13 @@
     "type": "object"
   },
   "results_exports_list": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3942,10 +5251,13 @@
     "type": "object"
   },
   "results_global_evaluate": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "dataset": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3956,12 +5268,14 @@
         "title": "Dataset"
       },
       "expression": {
+        "maxLength": 16384,
         "title": "Expression",
         "type": "string"
       },
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3974,6 +5288,7 @@
       "unit": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -3991,10 +5306,13 @@
     "type": "object"
   },
   "results_inner_values": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "dataset": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4007,6 +5325,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4021,10 +5340,13 @@
     "type": "object"
   },
   "results_outer_values": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "dataset": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4037,6 +5359,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4051,10 +5374,13 @@
     "type": "object"
   },
   "results_plots_list": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4069,15 +5395,20 @@
     "type": "object"
   },
   "semantic_search": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "limit": {
         "default": 5,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Limit",
         "type": "integer"
       },
       "module": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4090,6 +5421,8 @@
       "page_end": {
         "anyOf": [
           {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "type": "integer"
           },
           {
@@ -4102,6 +5435,8 @@
       "page_start": {
         "anyOf": [
           {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "type": "integer"
           },
           {
@@ -4112,12 +5447,14 @@
         "title": "Page Start"
       },
       "query": {
+        "maxLength": 16384,
         "title": "Query",
         "type": "string"
       },
       "source": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4135,6 +5472,8 @@
     "type": "object"
   },
   "semantic_status": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "warm": {
         "default": false,
@@ -4146,25 +5485,34 @@
     "type": "object"
   },
   "semantic_worker_reset": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "semantic_worker_resetArguments",
     "type": "object"
   },
   "session_clear_models": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "session_clear_modelsArguments",
     "type": "object"
   },
   "session_reset": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "session_resetArguments",
     "type": "object"
   },
   "shared_model_adopt": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_file_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4177,6 +5525,7 @@
       "expected_label": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4199,6 +5548,7 @@
         "title": "Expected Unsaved"
       },
       "model_tag": {
+        "maxLength": 16384,
         "title": "Model Tag",
         "type": "string"
       }
@@ -4210,14 +5560,18 @@
     "type": "object"
   },
   "shared_model_lock": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "collaboration_mode": {
+        "maxLength": 16384,
         "title": "Collaboration Mode",
         "type": "string"
       },
       "immutable_source_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4230,6 +5584,7 @@
       "immutable_source_sha256": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4247,16 +5602,22 @@
     "type": "object"
   },
   "shared_model_snapshot": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_lock_sha256": {
+        "maxLength": 16384,
         "title": "Expected Lock Sha256",
         "type": "string"
       },
       "expected_revision_sha256": {
+        "maxLength": 16384,
         "title": "Expected Revision Sha256",
         "type": "string"
       },
       "max_snapshot_bytes": {
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Max Snapshot Bytes",
         "type": "integer"
       }
@@ -4270,12 +5631,16 @@
     "type": "object"
   },
   "shared_model_unlock": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_lock_sha256": {
+        "maxLength": 16384,
         "title": "Expected Lock Sha256",
         "type": "string"
       },
       "reason": {
+        "maxLength": 16384,
         "title": "Reason",
         "type": "string"
       }
@@ -4288,12 +5653,16 @@
     "type": "object"
   },
   "shared_model_verify": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_lock_sha256": {
+        "maxLength": 16384,
         "title": "Expected Lock Sha256",
         "type": "string"
       },
       "expected_revision_sha256": {
+        "maxLength": 16384,
         "title": "Expected Revision Sha256",
         "type": "string"
       }
@@ -4306,12 +5675,17 @@
     "type": "object"
   },
   "shared_server_attach": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "host": {
+        "maxLength": 16384,
         "title": "Host",
         "type": "string"
       },
       "port": {
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Port",
         "type": "integer"
       },
@@ -4329,22 +5703,31 @@
     "type": "object"
   },
   "shared_server_detach": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "shared_server_detachArguments",
     "type": "object"
   },
   "shared_server_models": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "shared_server_modelsArguments",
     "type": "object"
   },
   "shared_server_preflight": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "host": {
+        "maxLength": 16384,
         "title": "Host",
         "type": "string"
       },
       "port": {
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Port",
         "type": "integer"
       }
@@ -4357,15 +5740,20 @@
     "type": "object"
   },
   "shared_server_status": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "shared_server_statusArguments",
     "type": "object"
   },
   "solutions_list": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4380,15 +5768,20 @@
     "type": "object"
   },
   "solver_preflight": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "minimum_free_gb": {
         "default": 2.0,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Minimum Free Gb",
         "type": "number"
       },
       "model_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4401,6 +5794,7 @@
       "output_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4413,6 +5807,7 @@
       "requested_version": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4427,19 +5822,26 @@
     "type": "object"
   },
   "solver_recover_stale_lease": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "solver_recover_stale_leaseArguments",
     "type": "object"
   },
   "solver_status": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "solver_statusArguments",
     "type": "object"
   },
   "spectral_characterize": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "analysis_policy": {
         "additionalProperties": true,
+        "maxProperties": 256,
         "title": "Analysis Policy",
         "type": "object"
       },
@@ -4447,6 +5849,7 @@
         "anyOf": [
           {
             "additionalProperties": true,
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -4458,6 +5861,7 @@
       },
       "measurement_configuration": {
         "additionalProperties": true,
+        "maxProperties": 256,
         "title": "Measurement Configuration",
         "type": "object"
       },
@@ -4465,6 +5869,7 @@
         "anyOf": [
           {
             "additionalProperties": true,
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -4483,15 +5888,20 @@
     "type": "object"
   },
   "study_cancel": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "study_cancelArguments",
     "type": "object"
   },
   "study_create": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4504,6 +5914,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4516,6 +5927,7 @@
       "study_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4527,6 +5939,7 @@
       },
       "study_type": {
         "default": "Stationary",
+        "maxLength": 16384,
         "title": "Study Type",
         "type": "string"
       },
@@ -4534,6 +5947,7 @@
         "anyOf": [
           {
             "items": {},
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -4545,6 +5959,7 @@
       },
       "time_unit": {
         "default": "s",
+        "maxLength": 16384,
         "title": "Time Unit",
         "type": "string"
       }
@@ -4553,15 +5968,20 @@
     "type": "object"
   },
   "study_get_progress": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {},
     "title": "study_get_progressArguments",
     "type": "object"
   },
   "study_list": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4576,10 +5996,13 @@
     "type": "object"
   },
   "study_solve": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4592,6 +6015,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4604,6 +6028,7 @@
       "study_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4616,6 +6041,8 @@
       "timeout": {
         "anyOf": [
           {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "type": "number"
           },
           {
@@ -4635,10 +6062,13 @@
     "type": "object"
   },
   "study_solve_async": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4651,6 +6081,7 @@
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4663,6 +6094,7 @@
       "study_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4677,6 +6109,8 @@
     "type": "object"
   },
   "study_staged_parametric_sweep": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "allow_legacy_resume": {
         "default": false,
@@ -4690,12 +6124,15 @@
       },
       "checkpoint_every": {
         "default": 1,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Checkpoint Every",
         "type": "integer"
       },
       "checkpoint_model_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4708,6 +6145,7 @@
       "config_id": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4725,6 +6163,7 @@
       "csv_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4737,6 +6176,7 @@
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4748,14 +6188,17 @@
       },
       "expressions": {
         "items": {
+          "maxLength": 16384,
           "type": "string"
         },
+        "maxItems": 2048,
         "title": "Expressions",
         "type": "array"
       },
       "manifest_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4767,12 +6210,15 @@
       },
       "max_retries": {
         "default": 0,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Max Retries",
         "type": "integer"
       },
       "model_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4783,12 +6229,14 @@
         "title": "Model Name"
       },
       "parameter_name": {
+        "maxLength": 16384,
         "title": "Parameter Name",
         "type": "string"
       },
       "parameter_unit": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4800,6 +6248,7 @@
       },
       "parameter_values": {
         "items": {},
+        "maxItems": 2048,
         "title": "Parameter Values",
         "type": "array"
       },
@@ -4808,10 +6257,14 @@
           {
             "additionalProperties": {
               "items": {
+                "maximum": 1e+308,
+                "minimum": -1e+308,
                 "type": "number"
               },
+              "maxItems": 2048,
               "type": "array"
             },
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -4835,6 +6288,8 @@
       },
       "response_tail": {
         "default": 5,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Response Tail",
         "type": "integer"
       },
@@ -4846,6 +6301,7 @@
       "save_model_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4858,6 +6314,7 @@
       "source_model_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4870,6 +6327,7 @@
       "study_name": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4881,12 +6339,14 @@
       },
       "study_step_property": {
         "default": "plist",
+        "maxLength": 16384,
         "title": "Study Step Property",
         "type": "string"
       },
       "study_step_tag": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4899,6 +6359,7 @@
       "study_step_unit": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4910,6 +6371,7 @@
       },
       "study_step_unit_property": {
         "default": "punit",
+        "maxLength": 16384,
         "title": "Study Step Unit Property",
         "type": "string"
       }
@@ -4923,10 +6385,14 @@
     "type": "object"
   },
   "study_wait": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "timeout": {
         "anyOf": [
           {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "type": "number"
           },
           {
@@ -4941,10 +6407,13 @@
     "type": "object"
   },
   "troubleshoot": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "context": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -4955,6 +6424,7 @@
         "title": "Context"
       },
       "error_type": {
+        "maxLength": 16384,
         "title": "Error Type",
         "type": "string"
       }
@@ -4966,12 +6436,15 @@
     "type": "object"
   },
   "visual_review_capability_normalize": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "adapter": {
         "enum": [
           "codex",
           "opencode"
         ],
+        "maxLength": 16384,
         "title": "Adapter",
         "type": "string"
       },
@@ -4984,6 +6457,7 @@
         "anyOf": [
           {
             "additionalProperties": true,
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -5003,8 +6477,10 @@
           {
             "items": {
               "additionalProperties": true,
+              "maxProperties": 256,
               "type": "object"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -5016,17 +6492,22 @@
       },
       "max_images": {
         "default": 16,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Max Images",
         "type": "integer"
       },
       "max_total_bytes": {
         "default": 268435456,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Max Total Bytes",
         "type": "integer"
       },
       "model": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -5044,6 +6525,7 @@
       "provider": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -5057,6 +6539,7 @@
         "anyOf": [
           {
             "additionalProperties": true,
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -5088,8 +6571,10 @@
           {
             "items": {
               "additionalProperties": true,
+              "maxProperties": 256,
               "type": "object"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -5107,6 +6592,8 @@
     "type": "object"
   },
   "visual_review_dual_evaluate": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "comparison": {
         "enum": [
@@ -5114,21 +6601,25 @@
           "disagreement",
           "not_compared"
         ],
+        "maxLength": 16384,
         "title": "Comparison",
         "type": "string"
       },
       "first_receipt": {
         "additionalProperties": true,
+        "maxProperties": 256,
         "title": "First Receipt",
         "type": "object"
       },
       "request": {
         "additionalProperties": true,
+        "maxProperties": 256,
         "title": "Request",
         "type": "object"
       },
       "second_receipt": {
         "additionalProperties": true,
+        "maxProperties": 256,
         "title": "Second Receipt",
         "type": "object"
       }
@@ -5143,17 +6634,22 @@
     "type": "object"
   },
   "visual_review_receipt_create": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "capability": {
         "additionalProperties": true,
+        "maxProperties": 256,
         "title": "Capability",
         "type": "object"
       },
       "findings": {
         "items": {
           "additionalProperties": true,
+          "maxProperties": 256,
           "type": "object"
         },
+        "maxItems": 2048,
         "title": "Findings",
         "type": "array"
       },
@@ -5164,39 +6660,49 @@
       "received_artifacts": {
         "items": {
           "additionalProperties": true,
+          "maxProperties": 256,
           "type": "object"
         },
+        "maxItems": 2048,
         "title": "Received Artifacts",
         "type": "array"
       },
       "rejected_claims": {
         "items": {
+          "maxLength": 16384,
           "type": "string"
         },
+        "maxItems": 2048,
         "title": "Rejected Claims",
         "type": "array"
       },
       "request": {
         "additionalProperties": true,
+        "maxProperties": 256,
         "title": "Request",
         "type": "object"
       },
       "review_id": {
+        "maxLength": 16384,
         "title": "Review Id",
         "type": "string"
       },
       "session_id": {
+        "maxLength": 16384,
         "title": "Session Id",
         "type": "string"
       },
       "timestamp": {
+        "maxLength": 16384,
         "title": "Timestamp",
         "type": "string"
       },
       "uncertainties": {
         "items": {
+          "maxLength": 16384,
           "type": "string"
         },
+        "maxItems": 2048,
         "title": "Uncertainties",
         "type": "array"
       },
@@ -5222,32 +6728,41 @@
     "type": "object"
   },
   "visual_review_request_create": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "artifacts": {
         "items": {
           "additionalProperties": true,
+          "maxProperties": 256,
           "type": "object"
         },
+        "maxItems": 2048,
         "title": "Artifacts",
         "type": "array"
       },
       "configuration_sha256": {
+        "maxLength": 16384,
         "title": "Configuration Sha256",
         "type": "string"
       },
       "numerical_summary": {
         "additionalProperties": true,
+        "maxProperties": 256,
         "title": "Numerical Summary",
         "type": "object"
       },
       "questions": {
         "items": {
+          "maxLength": 16384,
           "type": "string"
         },
+        "maxItems": 2048,
         "title": "Questions",
         "type": "array"
       },
       "request_id": {
+        "maxLength": 16384,
         "title": "Request Id",
         "type": "string"
       },
@@ -5257,14 +6772,17 @@
           "single",
           "dual_blind"
         ],
+        "maxLength": 16384,
         "title": "Review Mode",
         "type": "string"
       },
       "views": {
         "items": {
           "additionalProperties": true,
+          "maxProperties": 256,
           "type": "object"
         },
+        "maxItems": 2048,
         "title": "Views",
         "type": "array"
       }
@@ -5281,18 +6799,25 @@
     "type": "object"
   },
   "wave_optics_field_datasets": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "max_components": {
         "default": 32,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Max Components",
         "type": "integer"
       },
       "max_datasets": {
         "default": 64,
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Max Datasets",
         "type": "integer"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       }
@@ -5304,17 +6829,22 @@
     "type": "object"
   },
   "wave_optics_field_extract": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       },
       "request": {
         "additionalProperties": true,
+        "maxProperties": 256,
         "title": "Request",
         "type": "object"
       },
       "view_id": {
+        "maxLength": 16384,
         "title": "View Id",
         "type": "string"
       }
@@ -5328,8 +6858,11 @@
     "type": "object"
   },
   "wave_optics_incidence_apply": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "alpha1_inc": {
+        "maxLength": 16384,
         "title": "Alpha1 Inc",
         "type": "string"
       },
@@ -5339,10 +6872,12 @@
           "deg",
           "rad"
         ],
+        "maxLength": 16384,
         "title": "Alpha1 Unit",
         "type": "string"
       },
       "alpha2_inc": {
+        "maxLength": 16384,
         "title": "Alpha2 Inc",
         "type": "string"
       },
@@ -5352,21 +6887,25 @@
           "deg",
           "rad"
         ],
+        "maxLength": 16384,
         "title": "Alpha2 Unit",
         "type": "string"
       },
       "component_tag": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Tag",
         "type": "string"
       },
       "derived_model_id": {
+        "maxLength": 16384,
         "title": "Derived Model Id",
         "type": "string"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -5377,19 +6916,23 @@
         "title": "Expected Model Revision"
       },
       "expected_state_sha256": {
+        "maxLength": 16384,
         "title": "Expected State Sha256",
         "type": "string"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       },
       "physical_polarization_target": {
+        "maxLength": 16384,
         "title": "Physical Polarization Target",
         "type": "string"
       },
       "physics_tag": {
         "default": "ewfd",
+        "maxLength": 16384,
         "title": "Physics Tag",
         "type": "string"
       },
@@ -5400,6 +6943,7 @@
           "rhcp",
           "lhcp"
         ],
+        "maxLength": 16384,
         "title": "Polarization",
         "type": "string"
       }
@@ -5417,8 +6961,11 @@
     "type": "object"
   },
   "wave_optics_incidence_preview": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "alpha1_inc": {
+        "maxLength": 16384,
         "title": "Alpha1 Inc",
         "type": "string"
       },
@@ -5428,10 +6975,12 @@
           "deg",
           "rad"
         ],
+        "maxLength": 16384,
         "title": "Alpha1 Unit",
         "type": "string"
       },
       "alpha2_inc": {
+        "maxLength": 16384,
         "title": "Alpha2 Inc",
         "type": "string"
       },
@@ -5441,28 +6990,34 @@
           "deg",
           "rad"
         ],
+        "maxLength": 16384,
         "title": "Alpha2 Unit",
         "type": "string"
       },
       "component_tag": {
         "default": "comp1",
+        "maxLength": 16384,
         "title": "Component Tag",
         "type": "string"
       },
       "derived_model_id": {
+        "maxLength": 16384,
         "title": "Derived Model Id",
         "type": "string"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       },
       "physical_polarization_target": {
+        "maxLength": 16384,
         "title": "Physical Polarization Target",
         "type": "string"
       },
       "physics_tag": {
         "default": "ewfd",
+        "maxLength": 16384,
         "title": "Physics Tag",
         "type": "string"
       },
@@ -5473,6 +7028,7 @@
           "rhcp",
           "lhcp"
         ],
+        "maxLength": 16384,
         "title": "Polarization",
         "type": "string"
       }
@@ -5489,10 +7045,14 @@
     "type": "object"
   },
   "wave_optics_material_expression_preview": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "fixed_angular_frequency": {
         "anyOf": [
           {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "type": "number"
           },
           {
@@ -5505,6 +7065,7 @@
       "fixed_angular_frequency_unit": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -5519,6 +7080,7 @@
           "volumetric_material",
           "layered_boundary_documented"
         ],
+        "maxLength": 16384,
         "title": "Formulation",
         "type": "string"
       },
@@ -5529,6 +7091,7 @@
           "physics_frequency",
           "fixed_angular_frequency"
         ],
+        "maxLength": 16384,
         "title": "Frequency Source",
         "type": "string"
       },
@@ -5537,6 +7100,7 @@
           "exp(+i*omega*t)",
           "exp(-i*omega*t)"
         ],
+        "maxLength": 16384,
         "title": "Harmonic Convention",
         "type": "string"
       },
@@ -5545,6 +7109,7 @@
           "positive",
           "negative"
         ],
+        "maxLength": 16384,
         "title": "Imaginary Sign",
         "type": "string"
       },
@@ -5555,6 +7120,7 @@
           "lorentz",
           "n_k"
         ],
+        "maxLength": 16384,
         "title": "Model Kind",
         "type": "string"
       },
@@ -5562,8 +7128,10 @@
         "anyOf": [
           {
             "additionalProperties": {
+              "maxLength": 16384,
               "type": "string"
             },
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -5577,8 +7145,10 @@
         "anyOf": [
           {
             "additionalProperties": {
+              "maxLength": 16384,
               "type": "string"
             },
+            "maxProperties": 256,
             "type": "object"
           },
           {
@@ -5590,29 +7160,38 @@
       },
       "parameters": {
         "additionalProperties": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "number"
         },
+        "maxProperties": 256,
         "title": "Parameters",
         "type": "object"
       },
       "physics_frequency_expression": {
         "default": "ewfd.freq",
+        "maxLength": 16384,
         "title": "Physics Frequency Expression",
         "type": "string"
       },
       "test_wavelengths": {
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "number"
         },
+        "maxItems": 2048,
         "title": "Test Wavelengths",
         "type": "array"
       },
       "wavelength_parameter": {
         "default": "wl",
+        "maxLength": 16384,
         "title": "Wavelength Parameter",
         "type": "string"
       },
       "wavelength_unit": {
+        "maxLength": 16384,
         "title": "Wavelength Unit",
         "type": "string"
       }
@@ -5630,10 +7209,13 @@
     "type": "object"
   },
   "wave_optics_periodic_mesh_audit": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_component_tag": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -5646,6 +7228,7 @@
       "expected_mesh_tag": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -5658,6 +7241,7 @@
       "expected_physics_tag": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -5670,6 +7254,7 @@
       "expected_source_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -5682,6 +7267,7 @@
       "expected_source_sha256": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -5694,6 +7280,7 @@
       "expected_study_tag": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -5704,6 +7291,7 @@
         "title": "Expected Study Tag"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       }
@@ -5715,10 +7303,13 @@
     "type": "object"
   },
   "wave_optics_periodic_mesh_smoke": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_component_tag": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -5731,6 +7322,7 @@
       "expected_mesh_tag": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -5743,6 +7335,7 @@
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -5753,10 +7346,12 @@
         "title": "Expected Model Revision"
       },
       "expected_source_sha256": {
+        "maxLength": 16384,
         "title": "Expected Source Sha256",
         "type": "string"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       }
@@ -5771,25 +7366,36 @@
   "wave_optics_point_audit": {
     "$defs": {
       "CoordinateLimits": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "x": {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "number"
             },
+            "maxItems": 2048,
             "title": "X",
             "type": "array"
           },
           "y": {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "number"
             },
+            "maxItems": 2048,
             "title": "Y",
             "type": "array"
           },
           "z": {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "number"
             },
+            "maxItems": 2048,
             "title": "Z",
             "type": "array"
           }
@@ -5803,34 +7409,48 @@
         "type": "object"
       },
       "DeclaredFluxPlane": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "expression": {
+            "maxLength": 16384,
             "title": "Expression",
             "type": "string"
           },
           "medium_id": {
+            "maxLength": 16384,
             "title": "Medium Id",
             "type": "string"
           },
           "normal": {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "number"
             },
+            "maxItems": 2048,
             "title": "Normal",
             "type": "array"
           },
           "plane_coordinate_m": {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "title": "Plane Coordinate M",
             "type": "number"
           },
           "positive_power_sign": {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "title": "Positive Power Sign",
             "type": "integer"
           },
           "selection_ids": {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "integer"
             },
+            "maxItems": 2048,
             "title": "Selection Ids",
             "type": "array"
           }
@@ -5847,6 +7467,8 @@
         "type": "object"
       },
       "DeclaredPlaneFlux": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "incident": {
             "$ref": "#/$defs/DeclaredFluxPlane"
@@ -5867,43 +7489,57 @@
         "type": "object"
       },
       "InternalAbsorption": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "cross_section_expression": {
+            "maxLength": 16384,
             "title": "Cross Section Expression",
             "type": "string"
           },
           "cross_section_unit": {
+            "maxLength": 16384,
             "title": "Cross Section Unit",
             "type": "string"
           },
           "incident_power_expression": {
+            "maxLength": 16384,
             "title": "Incident Power Expression",
             "type": "string"
           },
           "incident_power_sign": {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "title": "Incident Power Sign",
             "type": "integer"
           },
           "source_feature": {
+            "maxLength": 16384,
             "title": "Source Feature",
             "type": "string"
           },
           "unit_cell_area_expression": {
+            "maxLength": 16384,
             "title": "Unit Cell Area Expression",
             "type": "string"
           },
           "volume_loss_expression": {
+            "maxLength": 16384,
             "title": "Volume Loss Expression",
             "type": "string"
           },
           "volume_loss_selection_ids": {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "integer"
             },
+            "maxItems": 2048,
             "title": "Volume Loss Selection Ids",
             "type": "array"
           },
           "volume_loss_unit": {
+            "maxLength": 16384,
             "title": "Volume Loss Unit",
             "type": "string"
           }
@@ -5923,27 +7559,36 @@
         "type": "object"
       },
       "LossSpecification": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "domains": {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "integer"
             },
+            "maxItems": 2048,
             "title": "Domains",
             "type": "array"
           },
           "expression": {
+            "maxLength": 16384,
             "title": "Expression",
             "type": "string"
           },
           "label": {
+            "maxLength": 16384,
             "title": "Label",
             "type": "string"
           },
           "normalization_expression": {
+            "maxLength": 16384,
             "title": "Normalization Expression",
             "type": "string"
           },
           "unit": {
+            "maxLength": 16384,
             "title": "Unit",
             "type": "string"
           }
@@ -5952,12 +7597,17 @@
         "type": "object"
       },
       "MeshPolicy": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "convergence_artifact": {
+            "maxLength": 16384,
             "title": "Convergence Artifact",
             "type": "string"
           },
           "minimum_elements": {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "title": "Minimum Elements",
             "type": "integer"
           },
@@ -5970,27 +7620,38 @@
         "type": "object"
       },
       "PolarizationPolicy": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "basis": {
+            "maxLength": 16384,
             "title": "Basis",
             "type": "string"
           },
           "max_cross_power_fraction": {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "title": "Max Cross Power Fraction",
             "type": "number"
           },
           "max_ellipticity": {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "title": "Max Ellipticity",
             "type": "number"
           },
           "reference_config_id": {
+            "maxLength": 16384,
             "title": "Reference Config Id",
             "type": "string"
           },
           "target_vector": {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "number"
             },
+            "maxItems": 2048,
             "title": "Target Vector",
             "type": "array"
           }
@@ -5999,6 +7660,8 @@
         "type": "object"
       },
       "PolicyAssumptions": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "linear": {
             "title": "Linear",
@@ -6017,6 +7680,7 @@
             "type": "boolean"
           },
           "target_basis": {
+            "maxLength": 16384,
             "title": "Target Basis",
             "type": "string"
           }
@@ -6025,28 +7689,42 @@
         "type": "object"
       },
       "PolicyTolerances": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "closure_abs": {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "title": "Closure Abs",
             "type": "number"
           },
           "loss_match_abs": {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "title": "Loss Match Abs",
             "type": "number"
           },
           "loss_match_rel": {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "title": "Loss Match Rel",
             "type": "number"
           },
           "quantity_bounds_margin": {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "title": "Quantity Bounds Margin",
             "type": "number"
           },
           "wavelength_abs_m": {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "title": "Wavelength Abs M",
             "type": "number"
           },
           "wavelength_rel": {
+            "maximum": 1e+308,
+            "minimum": -1e+308,
             "title": "Wavelength Rel",
             "type": "number"
           }
@@ -6055,20 +7733,26 @@
         "type": "object"
       },
       "PowerProvenance": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "A_definition": {
+            "maxLength": 16384,
             "title": "A Definition",
             "type": "string"
           },
           "R_direction": {
+            "maxLength": 16384,
             "title": "R Direction",
             "type": "string"
           },
           "T_direction": {
+            "maxLength": 16384,
             "title": "T Direction",
             "type": "string"
           },
           "normalization": {
+            "maxLength": 16384,
             "title": "Normalization",
             "type": "string"
           }
@@ -6077,33 +7761,43 @@
         "type": "object"
       },
       "StrictPolicyRule": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "assumptions": {
             "additionalProperties": {
               "type": "boolean"
             },
+            "maxProperties": 256,
             "title": "Assumptions",
             "type": "object"
           },
           "required_measurements": {
             "items": {
+              "maxLength": 16384,
               "type": "string"
             },
+            "maxItems": 2048,
             "title": "Required Measurements",
             "type": "array"
           },
           "rule_id": {
+            "maxLength": 16384,
             "title": "Rule Id",
             "type": "string"
           },
           "rule_type": {
+            "maxLength": 16384,
             "title": "Rule Type",
             "type": "string"
           },
           "tolerances": {
             "additionalProperties": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "number"
             },
+            "maxProperties": 256,
             "title": "Tolerances",
             "type": "object"
           }
@@ -6119,12 +7813,16 @@
         "type": "object"
       },
       "StrictValidationPolicy": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "policy_id": {
+            "maxLength": 16384,
             "title": "Policy Id",
             "type": "string"
           },
           "policy_sha256": {
+            "maxLength": 16384,
             "title": "Policy Sha256",
             "type": "string"
           },
@@ -6132,14 +7830,17 @@
             "items": {
               "$ref": "#/$defs/StrictPolicyRule"
             },
+            "maxItems": 2048,
             "title": "Rules",
             "type": "array"
           },
           "schema_name": {
+            "maxLength": 16384,
             "title": "Schema Name",
             "type": "string"
           },
           "schema_version": {
+            "maxLength": 16384,
             "title": "Schema Version",
             "type": "string"
           }
@@ -6155,6 +7856,8 @@
         "type": "object"
       },
       "ValidationPolicy": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "assumptions": {
             "$ref": "#/$defs/PolicyAssumptions"
@@ -6167,8 +7870,10 @@
           },
           "required_evidence": {
             "items": {
+              "maxLength": 16384,
               "type": "string"
             },
+            "maxItems": 2048,
             "title": "Required Evidence",
             "type": "array"
           },
@@ -6176,6 +7881,7 @@
             "$ref": "#/$defs/PolicyTolerances"
           },
           "version": {
+            "maxLength": 16384,
             "title": "Version",
             "type": "string"
           }
@@ -6184,10 +7890,13 @@
         "type": "object"
       }
     },
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "a_expression": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6200,6 +7909,7 @@
       "air_reference_artifact_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6212,6 +7922,7 @@
       "air_reference_config_id": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6224,6 +7935,7 @@
       "artifact_dir": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6234,10 +7946,12 @@
         "title": "Artifact Dir"
       },
       "component_tag": {
+        "maxLength": 16384,
         "title": "Component Tag",
         "type": "string"
       },
       "config_id": {
+        "maxLength": 16384,
         "title": "Config Id",
         "type": "string"
       },
@@ -6255,6 +7969,7 @@
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6265,6 +7980,7 @@
         "title": "Expected Model Revision"
       },
       "expected_source_sha256": {
+        "maxLength": 16384,
         "title": "Expected Source Sha256",
         "type": "string"
       },
@@ -6285,6 +8001,7 @@
             "items": {
               "$ref": "#/$defs/LossSpecification"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -6295,10 +8012,12 @@
         "title": "Loss Map"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       },
       "physics_tag": {
+        "maxLength": 16384,
         "title": "Physics Tag",
         "type": "string"
       },
@@ -6316,6 +8035,7 @@
       "r_expression": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6327,20 +8047,24 @@
       },
       "study_step_property": {
         "default": "plist",
+        "maxLength": 16384,
         "title": "Study Step Property",
         "type": "string"
       },
       "study_step_tag": {
+        "maxLength": 16384,
         "title": "Study Step Tag",
         "type": "string"
       },
       "study_tag": {
+        "maxLength": 16384,
         "title": "Study Tag",
         "type": "string"
       },
       "t_expression": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6357,8 +8081,11 @@
         "anyOf": [
           {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "integer"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -6371,6 +8098,7 @@
       "top_air_selection": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6398,6 +8126,7 @@
       "validation_policy_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6408,14 +8137,18 @@
         "title": "Validation Policy Path"
       },
       "wavelength_parameter": {
+        "maxLength": 16384,
         "title": "Wavelength Parameter",
         "type": "string"
       },
       "wavelength_unit": {
+        "maxLength": 16384,
         "title": "Wavelength Unit",
         "type": "string"
       },
       "wavelength_value": {
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Wavelength Value",
         "type": "number"
       }
@@ -6437,10 +8170,13 @@
     "type": "object"
   },
   "wave_optics_preflight": {
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "expected_component_tag": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6454,8 +8190,10 @@
         "anyOf": [
           {
             "items": {
+              "maxLength": 16384,
               "type": "string"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -6468,6 +8206,7 @@
       "expected_physics_tag": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6480,6 +8219,7 @@
       "expected_source_path": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6492,6 +8232,7 @@
       "expected_source_sha256": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6504,6 +8245,7 @@
       "expected_study_tag": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6514,6 +8256,7 @@
         "title": "Expected Study Tag"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       },
@@ -6521,8 +8264,11 @@
         "anyOf": [
           {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "number"
             },
+            "maxItems": 2048,
             "type": "array"
           },
           {
@@ -6535,6 +8281,7 @@
       "target_wavelength_parameter": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6554,25 +8301,36 @@
   "wave_optics_reference_audit": {
     "$defs": {
       "CoordinateLimits": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "x": {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "number"
             },
+            "maxItems": 2048,
             "title": "X",
             "type": "array"
           },
           "y": {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "number"
             },
+            "maxItems": 2048,
             "title": "Y",
             "type": "array"
           },
           "z": {
             "items": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "number"
             },
+            "maxItems": 2048,
             "title": "Z",
             "type": "array"
           }
@@ -6586,33 +8344,43 @@
         "type": "object"
       },
       "StrictPolicyRule": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "assumptions": {
             "additionalProperties": {
               "type": "boolean"
             },
+            "maxProperties": 256,
             "title": "Assumptions",
             "type": "object"
           },
           "required_measurements": {
             "items": {
+              "maxLength": 16384,
               "type": "string"
             },
+            "maxItems": 2048,
             "title": "Required Measurements",
             "type": "array"
           },
           "rule_id": {
+            "maxLength": 16384,
             "title": "Rule Id",
             "type": "string"
           },
           "rule_type": {
+            "maxLength": 16384,
             "title": "Rule Type",
             "type": "string"
           },
           "tolerances": {
             "additionalProperties": {
+              "maximum": 1e+308,
+              "minimum": -1e+308,
               "type": "number"
             },
+            "maxProperties": 256,
             "title": "Tolerances",
             "type": "object"
           }
@@ -6628,12 +8396,16 @@
         "type": "object"
       },
       "StrictValidationPolicy": {
+        "additionalProperties": false,
+        "maxProperties": 256,
         "properties": {
           "policy_id": {
+            "maxLength": 16384,
             "title": "Policy Id",
             "type": "string"
           },
           "policy_sha256": {
+            "maxLength": 16384,
             "title": "Policy Sha256",
             "type": "string"
           },
@@ -6641,14 +8413,17 @@
             "items": {
               "$ref": "#/$defs/StrictPolicyRule"
             },
+            "maxItems": 2048,
             "title": "Rules",
             "type": "array"
           },
           "schema_name": {
+            "maxLength": 16384,
             "title": "Schema Name",
             "type": "string"
           },
           "schema_version": {
+            "maxLength": 16384,
             "title": "Schema Version",
             "type": "string"
           }
@@ -6664,25 +8439,32 @@
         "type": "object"
       }
     },
+    "additionalProperties": false,
+    "maxProperties": 256,
     "properties": {
       "aggregation": {
         "enum": [
           "rms_abs",
           "median_abs"
         ],
+        "maxLength": 16384,
         "title": "Aggregation",
         "type": "string"
       },
       "all_domain_ids": {
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "integer"
         },
+        "maxItems": 2048,
         "title": "All Domain Ids",
         "type": "array"
       },
       "artifact_dir": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6693,23 +8475,28 @@
         "title": "Artifact Dir"
       },
       "component_tag": {
+        "maxLength": 16384,
         "title": "Component Tag",
         "type": "string"
       },
       "config_id": {
+        "maxLength": 16384,
         "title": "Config Id",
         "type": "string"
       },
       "expected_material_tags": {
         "items": {
+          "maxLength": 16384,
           "type": "string"
         },
+        "maxItems": 2048,
         "title": "Expected Material Tags",
         "type": "array"
       },
       "expected_model_revision": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6720,20 +8507,24 @@
         "title": "Expected Model Revision"
       },
       "expected_source_sha256": {
+        "maxLength": 16384,
         "title": "Expected Source Sha256",
         "type": "string"
       },
       "model_name": {
+        "maxLength": 16384,
         "title": "Model Name",
         "type": "string"
       },
       "physics_tag": {
+        "maxLength": 16384,
         "title": "Physics Tag",
         "type": "string"
       },
       "r_expression": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6746,25 +8537,30 @@
       "reference_method": {
         "const": "all_air_clone",
         "default": "all_air_clone",
+        "maxLength": 16384,
         "title": "Reference Method",
         "type": "string"
       },
       "study_step_property": {
         "default": "plist",
+        "maxLength": 16384,
         "title": "Study Step Property",
         "type": "string"
       },
       "study_step_tag": {
+        "maxLength": 16384,
         "title": "Study Step Tag",
         "type": "string"
       },
       "study_tag": {
+        "maxLength": 16384,
         "title": "Study Tag",
         "type": "string"
       },
       "t_expression": {
         "anyOf": [
           {
+            "maxLength": 16384,
             "type": "string"
           },
           {
@@ -6780,6 +8576,7 @@
           "y",
           "z"
         ],
+        "maxLength": 16384,
         "title": "Target Axis",
         "type": "string"
       },
@@ -6788,8 +8585,11 @@
       },
       "top_air_domain_ids": {
         "items": {
+          "maximum": 1e+308,
+          "minimum": -1e+308,
           "type": "integer"
         },
+        "maxItems": 2048,
         "title": "Top Air Domain Ids",
         "type": "array"
       },
@@ -6805,14 +8605,18 @@
         "default": null
       },
       "wavelength_parameter": {
+        "maxLength": 16384,
         "title": "Wavelength Parameter",
         "type": "string"
       },
       "wavelength_unit": {
+        "maxLength": 16384,
         "title": "Wavelength Unit",
         "type": "string"
       },
       "wavelength_value": {
+        "maximum": 1e+308,
+        "minimum": -1e+308,
         "title": "Wavelength Value",
         "type": "number"
       }

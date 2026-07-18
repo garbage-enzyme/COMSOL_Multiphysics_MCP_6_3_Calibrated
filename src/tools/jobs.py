@@ -6,6 +6,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from src.contracts import JobSubmissionSpec, job_submission_dict
 from src.jobs.attached_backend import normalize_attached_execution_request
 from src.jobs.manager import JobManager, validate_staged_sweep_spec
 from src.tools.shared_session import shared_session_manager
@@ -35,13 +36,12 @@ def _attached_handoff_summary(value: dict[str, Any]) -> dict[str, Any]:
 
 
 def _submit_job(
-    spec: dict[str, Any],
+    spec: JobSubmissionSpec | dict[str, Any],
     *,
     manager: JobManager = job_manager,
     session_manager=shared_session_manager,
 ) -> dict[str, Any]:
-    if not isinstance(spec, dict):
-        raise ValueError("Job specification must be an object")
+    spec = job_submission_dict(spec)
     execution_request = spec.get("execution_backend")
     if execution_request is None:
         return manager.submit(spec)
@@ -104,7 +104,7 @@ def register_job_tools(mcp: FastMCP) -> None:
     """Register durable submit/status/tail/cooperative-cancel/resume tools."""
 
     @mcp.tool()
-    def job_submit(spec: dict[str, Any]) -> dict[str, Any]:
+    def job_submit(spec: JobSubmissionSpec) -> dict[str, Any]:
         """Validate and detach one bounded standalone or attached durable job."""
         return _job_call("job_submit", lambda: _submit_job(spec))
 
