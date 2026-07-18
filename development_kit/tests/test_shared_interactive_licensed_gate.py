@@ -20,6 +20,14 @@ def _ascii_receipt() -> str:
     )
 
 
+def _ascii_source() -> str:
+    return (
+        "D:/shared_interactive_gate_test_source.mph"
+        if os.name == "nt"
+        else "/tmp/shared_interactive_gate_test_source.mph"
+    )
+
+
 def test_shared_interactive_gate_dry_run_is_solver_free(tmp_path):
     receipt = Path(_ascii_receipt())
     completed = subprocess.run(
@@ -80,3 +88,42 @@ def test_shared_interactive_readback_requires_declared_desktop_value(tmp_path):
 
     assert completed.returncode == 2
     assert "requires --expected-desktop-value" in completed.stderr
+
+
+def test_shared_interactive_saved_mode_binds_exact_source_path():
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--mode",
+            "saved",
+            "--model-tag",
+            "Model1",
+            "--expected-label",
+            "existing_model_source.mph",
+            "--expected-desktop-value",
+            "29[mm]",
+            "--expected-file-path",
+            _ascii_source(),
+            "--receipt",
+            _ascii_receipt(),
+            "--dry-run",
+        ],
+        cwd=Path(__file__).parents[2],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+    assert result["spec"]["selector"] == {
+        "tag": "Model1",
+        "expected_label": "existing_model_source.mph",
+        "expected_file_path": str(Path(_ascii_source())),
+    }
+    assert result["spec"]["saved_model_parameter"] == {
+        "name": "saved_model_agent_value",
+        "value": "31[mm]",
+    }

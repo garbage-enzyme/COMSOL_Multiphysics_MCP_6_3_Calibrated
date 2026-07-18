@@ -28,6 +28,8 @@ MCP_PARAMETER = "mcp_shared_value"
 DESKTOP_PARAMETER = "desktop_shared_value"
 MCP_PARAMETER_VALUE = "17[mm]"
 DESKTOP_INITIAL_VALUE = "23[mm]"
+SAVED_MODEL_PARAMETER = "saved_model_agent_value"
+SAVED_MODEL_PARAMETER_VALUE = "31[mm]"
 CAPACITANCE_EXPRESSION = "2*es.intWe/(1[V])^2"
 CAPACITANCE_UNIT = "pF"
 MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024
@@ -37,12 +39,15 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run one bounded non-owning shared-session acceptance phase."
     )
-    parser.add_argument("--mode", choices=("prepare", "readback"), required=True)
+    parser.add_argument(
+        "--mode", choices=("prepare", "readback", "saved"), required=True
+    )
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=2036)
     parser.add_argument("--model-tag", required=True)
     parser.add_argument("--expected-label", required=True)
     parser.add_argument("--expected-desktop-value")
+    parser.add_argument("--expected-file-path", type=Path)
     parser.add_argument("--receipt", type=Path, required=True)
     parser.add_argument("--dry-run", action="store_true")
     return parser
@@ -69,25 +74,53 @@ def _git_head() -> str | None:
 
 
 def _spec(args: argparse.Namespace) -> dict[str, Any]:
-    if args.mode == "readback" and not args.expected_desktop_value:
-        raise ValueError("readback mode requires --expected-desktop-value")
-    if args.mode == "prepare" and args.expected_desktop_value is not None:
-        raise ValueError("prepare mode does not accept --expected-desktop-value")
+    if args.mode in {"readback", "saved"} and not args.expected_desktop_value:
+        raise ValueError(f"{args.mode} mode requires --expected-desktop-value")
+    if args.mode == "prepare" and (
+        args.expected_desktop_value is not None
+        or args.expected_file_path is not None
+    ):
+        raise ValueError(
+            "prepare mode does not accept saved-model confirmation inputs"
+        )
+    if args.mode == "readback" and args.expected_file_path is not None:
+        raise ValueError("readback mode does not accept --expected-file-path")
+    if args.mode == "saved":
+        if args.expected_file_path is None:
+            raise ValueError("saved mode requires --expected-file-path")
+        if (
+            not args.expected_file_path.is_absolute()
+            or not str(args.expected_file_path).isascii()
+        ):
+            raise ValueError("saved model path must be absolute and ASCII")
     if not args.receipt.is_absolute() or not str(args.receipt).isascii():
         raise ValueError("receipt must be an absolute ASCII path")
+    selector = {
+        "tag": args.model_tag,
+        "expected_label": args.expected_label,
+    }
+    if args.mode == "saved":
+        selector["expected_file_path"] = str(args.expected_file_path)
+    else:
+        selector["expected_unsaved"] = True
     return {
         "mode": args.mode,
         "endpoint": {"host": args.host, "port": args.port},
-        "selector": {
-            "tag": args.model_tag,
-            "expected_label": args.expected_label,
-            "expected_unsaved": True,
-        },
+        "selector": selector,
         "expected_desktop_value": args.expected_desktop_value,
+        "expected_file_path": (
+            None
+            if args.expected_file_path is None
+            else str(args.expected_file_path)
+        ),
         "mcp_parameter": {"name": MCP_PARAMETER, "value": MCP_PARAMETER_VALUE},
         "desktop_parameter": {
             "name": DESKTOP_PARAMETER,
             "initial_value": DESKTOP_INITIAL_VALUE,
+        },
+        "saved_model_parameter": {
+            "name": SAVED_MODEL_PARAMETER,
+            "value": SAVED_MODEL_PARAMETER_VALUE,
         },
         "solver_gate": {
             "kind": "controlled_parallel_plate_capacitor",
@@ -234,6 +267,31 @@ def _readback(model: Any, expected_desktop_value: str) -> dict[str, Any]:
     }
 
 
+def _saved_model_edit(model: Any, expected_desktop_value: str) -> dict[str, Any]:
+    before = _parameter_expressions(model)
+    if before.get(MCP_PARAMETER) != MCP_PARAMETER_VALUE:
+        raise RuntimeError("saved model does not preserve the MCP-written parameter")
+    if before.get(DESKTOP_PARAMETER) != expected_desktop_value:
+        raise RuntimeError("saved model does not preserve the Desktop-edited parameter")
+    model.java.param().set(SAVED_MODEL_PARAMETER, SAVED_MODEL_PARAMETER_VALUE)
+    after = _parameter_expressions(model)
+    if after.get(SAVED_MODEL_PARAMETER) != SAVED_MODEL_PARAMETER_VALUE:
+        raise RuntimeError("saved-model in-memory parameter readback failed")
+    return {
+        "parameters_before": {
+            MCP_PARAMETER: before[MCP_PARAMETER],
+            DESKTOP_PARAMETER: before[DESKTOP_PARAMETER],
+        },
+        "parameters_after": {
+            MCP_PARAMETER: after[MCP_PARAMETER],
+            DESKTOP_PARAMETER: after[DESKTOP_PARAMETER],
+            SAVED_MODEL_PARAMETER: after[SAVED_MODEL_PARAMETER],
+        },
+        "source_write_attempted": False,
+        "solve_requested": False,
+    }
+
+
 def _run(args: argparse.Namespace) -> dict[str, Any]:
     spec = _spec(args)
     result: dict[str, Any] = {
@@ -248,7 +306,17 @@ def _run(args: argparse.Namespace) -> dict[str, Any]:
     operation_claim = None
     active_lock_sha256 = None
     attached = False
+    immutable_source = None
     try:
+        if args.mode == "saved":
+            source_path = Path(spec["expected_file_path"])
+            if not source_path.is_file():
+                raise RuntimeError("declared saved model source does not exist")
+            immutable_source = {
+                "path": str(source_path),
+                "sha256": _sha256(source_path),
+            }
+            result["immutable_source_before"] = dict(immutable_source)
         attach = manager.attach(
             {
                 "endpoint": spec["endpoint"],
@@ -268,7 +336,10 @@ def _run(args: argparse.Namespace) -> dict[str, Any]:
         result["adoption"] = adoption
         if not adoption.get("success"):
             raise RuntimeError("exact shared model adoption was rejected")
-        locked = manager.lock_model(collaboration_mode="interactive_inspection")
+        locked = manager.lock_model(
+            collaboration_mode="interactive_inspection",
+            immutable_source=immutable_source,
+        )
         result["initial_lock"] = locked
         if not locked.get("success"):
             raise RuntimeError("shared model lock was rejected")
@@ -285,9 +356,11 @@ def _run(args: argparse.Namespace) -> dict[str, Any]:
         arbiter = get_operation_arbiter()
         operation_claim, acquisition = arbiter.try_acquire(
             tool_name=f"shared_interactive_gate_{args.mode}",
-            side_effect_class=(
-                "solver_execution" if args.mode == "prepare" else "read_only"
-            ),
+            side_effect_class={
+                "prepare": "solver_execution",
+                "readback": "read_only",
+                "saved": "model_mutation",
+            }[args.mode],
         )
         result["operation_acquisition"] = acquisition
         if operation_claim is None:
@@ -296,24 +369,42 @@ def _run(args: argparse.Namespace) -> dict[str, Any]:
         model = _exact_model(manager, args.model_tag)
         if args.mode == "prepare":
             result["phase"] = _prepare_capacitor(model)
+        elif args.mode == "saved":
+            result["phase"] = _saved_model_edit(
+                model, args.expected_desktop_value
+            )
+        else:
+            result["phase"] = _readback(model, args.expected_desktop_value)
+
+        if args.mode in {"prepare", "saved"}:
             unlocked = manager.unlock_model(
                 expected_lock_sha256=active_lock_sha256,
-                reason="Advance revision after controlled licensed solver gate",
+                reason=(
+                    "Advance revision after controlled licensed solver gate"
+                    if args.mode == "prepare"
+                    else "Advance revision after saved-model in-memory edit"
+                ),
             )
             result["revision_unlock"] = unlocked
             if not unlocked.get("success"):
                 raise RuntimeError("could not advance the shared model revision")
             active_lock_sha256 = None
             relocked = manager.lock_model(
-                collaboration_mode="interactive_inspection"
+                collaboration_mode="interactive_inspection",
+                immutable_source=immutable_source,
             )
             result["post_solve_lock"] = relocked
             if not relocked.get("success"):
                 raise RuntimeError("post-solve shared model lock was rejected")
             active_lock_sha256 = relocked["model_lock"]["lock_sha256"]
         else:
-            result["phase"] = _readback(model, args.expected_desktop_value)
             relocked = locked
+
+        if immutable_source is not None:
+            source_sha256_after_edit = _sha256(Path(immutable_source["path"]))
+            result["immutable_source_after_edit_sha256"] = source_sha256_after_edit
+            if source_sha256_after_edit != immutable_source["sha256"]:
+                raise RuntimeError("saved source bytes changed during in-memory edit")
 
         current_revision = relocked["model_lock"]["revision"]["revision_sha256"]
         snapshot = manager.snapshot_model(
@@ -324,6 +415,13 @@ def _run(args: argparse.Namespace) -> dict[str, Any]:
         result["snapshot"] = snapshot
         if not snapshot.get("success"):
             raise RuntimeError("identity-preserving Save Copy failed")
+        if immutable_source is not None:
+            source_sha256_after_snapshot = _sha256(Path(immutable_source["path"]))
+            result["immutable_source_after_snapshot_sha256"] = (
+                source_sha256_after_snapshot
+            )
+            if source_sha256_after_snapshot != immutable_source["sha256"]:
+                raise RuntimeError("saved source bytes changed during Save Copy")
         unlocked = manager.unlock_model(
             expected_lock_sha256=active_lock_sha256,
             reason=f"Complete licensed shared {args.mode} phase",
@@ -343,6 +441,13 @@ def _run(args: argparse.Namespace) -> dict[str, Any]:
         if not detach.get("success"):
             raise RuntimeError("attached resource preservation failed")
         attached = False
+        if immutable_source is not None:
+            source_sha256_after_detach = _sha256(Path(immutable_source["path"]))
+            result["immutable_source_after_detach_sha256"] = (
+                source_sha256_after_detach
+            )
+            if source_sha256_after_detach != immutable_source["sha256"]:
+                raise RuntimeError("saved source bytes changed during detach")
         result["success"] = True
     except Exception as exc:
         result["error"] = f"{type(exc).__name__}: {exc}"
