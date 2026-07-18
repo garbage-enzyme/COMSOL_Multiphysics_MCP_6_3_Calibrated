@@ -20,6 +20,7 @@ def _record(pid, parent, name, command, executable=None):
 
 
 def test_collector_redacts_paths_and_ignores_declared_process_children():
+    mph_module_before = sys.modules.get("mph")
     records = [
         _record(10, 0, "comsol.exe", ["comsol.exe"]),
         _record(11, 10, "comsolhelper.exe", ["comsolhelper.exe"]),
@@ -41,7 +42,7 @@ def test_collector_redacts_paths_and_ignores_declared_process_children():
     assert all("command_line" not in item for item in snapshot["processes"])
     serialized = str(snapshot)
     assert "Program Files" not in serialized
-    assert "mph" not in sys.modules
+    assert sys.modules.get("mph") is mph_module_before
 
 
 def test_collector_exposes_external_mph_as_a_collision_without_version_requirement():
