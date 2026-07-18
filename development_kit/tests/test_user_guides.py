@@ -14,6 +14,7 @@ from src.evidence.integrity_controls import (
 
 ROOT = Path(__file__).parents[2]
 EVIDENCE_DOCS = ROOT / "docs" / "evidence_integrity"
+CHINESE_DISABLED_WARNING = "严格证据检查已关闭；这些结果未经过完整验证，可能包含 AI 生成或幻觉内容。"
 
 
 def test_documented_default_and_exploration_settings_are_executable():
@@ -42,3 +43,18 @@ def test_english_evidence_guide_matches_the_public_contract():
     assert "strictly_verified: false" in guide
     assert all(name in guide for name in EVIDENCE_CHECKS)
     assert "do not validate physics" in guide
+
+
+def test_chinese_evidence_guide_is_complete_and_contract_equivalent():
+    guide = (EVIDENCE_DOCS / "README_CN.md").read_text(encoding="utf-8")
+
+    assert CHINESE_DISABLED_WARNING in guide
+    assert DISABLED_CHECK_WARNING in guide
+    assert EVIDENCE_SETTINGS_ENV in guide
+    assert "evidence_integrity_status" in guide
+    assert "evidence_integrity_verify" in guide
+    assert "strict_evidence_checks_disabled" in guide
+    assert "strictly_verified: true" in guide
+    assert "strictly_verified: false" in guide
+    assert all(name in guide for name in EVIDENCE_CHECKS)
+    assert "不能验证物理" in guide
