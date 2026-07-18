@@ -378,6 +378,9 @@ def test_hosted_ci_is_dependency_only_and_real_gate_is_explicit():
     assert "constraints/release_locked_py314.txt --no-deps --format json" in workflow
     assert "vulnerability_allowlist.json" in workflow
     assert "security_gate.py" in workflow
+    assert "dependency_license_gate.py" in workflow
+    assert "dependency_license_review.json" in workflow
+    assert "quality_gate.py" in workflow
     assert "release_locked_py314.txt" in workflow
     assert "-m integration" not in workflow
     assert "RUN_REAL_COMSOL" in real_gate
