@@ -176,7 +176,7 @@ print(json.dumps({'count': len(names), 'configured': status['configured']}))
     )
 
     assert completed.returncode == 0, completed.stderr
-    assert json.loads(completed.stdout)["count"] == 44
+    assert json.loads(completed.stdout)["count"] == 46
 
 
 def test_default_and_other_research_profiles_remain_unchanged():
@@ -186,9 +186,9 @@ def test_default_and_other_research_profiles_remain_unchanged():
         counts[profile] = len(asyncio.run(server.list_tools()))
 
     assert counts == {
-        "core": 41,
-        "basic_fem": 79,
-        "wave_optics": 66,
-        "experimental": 67,
-        "full": 133,
+        "core": 43,
+        "basic_fem": 81,
+        "wave_optics": 68,
+        "experimental": 69,
+        "full": 135,
     }
