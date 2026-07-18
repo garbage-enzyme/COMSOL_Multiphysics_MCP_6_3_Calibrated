@@ -97,7 +97,7 @@ shared-server 或 Java 设置需要重启 MCP host；随后调用 `capabilities`
 | --- | --- |
 | `core`（默认） | 紧凑且成熟的控制面：状态、所有权、会话/模型检查、单点求解/求值及词法手册检索。 |
 | `basic_fem` | 在 `core` 基础上增加传统 FEM 的类型化构建、派生几何编辑和有界导出。 |
-| `wave_optics` | 超表面推荐：在 `core` 基础上增加派生几何编辑、材料预览、locale-safe 场数据发现及有界 NPZ/manifest 提取、周期网格审计/冒烟、视觉审查合同、Wave Optics 预检、单点/参考审计和分段工作流。 |
+| `wave_optics` | 超表面推荐：在 `core` 基础上增加派生几何编辑、材料预览、locale-safe 场数据发现及有界 NPZ/manifest 提取、周期网格审计/冒烟、视觉审查合同、Wave Optics 预检和单点/参考审计。持久化分段任务仍通过 `job_submit`。 |
 | `desktop_shared` | 显式选择的 shared Desktop/attached-Server 工作流；要求 `profile.name=desktop_shared` 且 `shared_server.enabled=true`、用户手动启动本地 Server、每次 attach 的用户确认、精确进程/listener 身份和精确模型采用；不会启动或终止外部 Server。 |
 | `semantic_docs` | 在 `core` 基础上增加隔离的实验性向量辅助手册检索。 |
 | `experimental` | 显式选择的通用创建、异步、属性逃生口和项目辅助工具。 |

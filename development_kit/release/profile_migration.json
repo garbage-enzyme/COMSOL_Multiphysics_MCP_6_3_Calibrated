@@ -1,0 +1,17 @@
+{
+  "schema_name": "comsol_mcp.profile_migration",
+  "schema_version": "1.0.0",
+  "profile": "wave_optics",
+  "before": {
+    "tool_count": 68,
+    "tools_removed_from_recommended_surface": ["study_staged_parametric_sweep"]
+  },
+  "after": {
+    "tool_count": 67,
+    "tools_added_to_recommended_surface": []
+  },
+  "reason": "The foreground staged sweep is deprecated in the recommended profile; durable job controls are the supported replacement.",
+  "replacement": "job_submit/job_status/job_tail/job_cancel/job_resume",
+  "compatibility": "The legacy tool remains available in the full and experimental profiles.",
+  "restart_required": true
+}

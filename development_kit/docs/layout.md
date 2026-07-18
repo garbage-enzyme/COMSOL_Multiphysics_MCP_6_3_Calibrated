@@ -56,6 +56,7 @@ models are intentionally absent.
 
 - `development_kit/release/support_matrix.json` — This file declares release identity sources, profile states, and licensed-gate requirements.
 - `development_kit/release/release_facts.json` — This generated view records live tool, profile, schema, and compatibility identities.
+- `development_kit/release/profile_migration.json` — This receipt records the exact recommended-profile tool diff and compatibility replacement.
 - `development_kit/release/vulnerability_allowlist.json` — This file records exact reviewed vulnerabilities with mandatory expiry dates.
 - `development_kit/release/planning_code_allowlist.json` — This file freezes historical planning-code matches by path, count, and hash.
 - `development_kit/release/integration_fixtures/manifest.json` — This file inventories sanitized integration contracts and their canonical hashes.

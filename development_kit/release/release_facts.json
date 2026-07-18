@@ -6,7 +6,7 @@
   "profiles": {
     "core": {"tool_count": 43},
     "basic_fem": {"tool_count": 81},
-    "wave_optics": {"tool_count": 68},
+    "wave_optics": {"tool_count": 67},
     "semantic_docs": {"tool_count": 46},
     "desktop_shared": {"tool_count": 19},
     "experimental": {"tool_count": 69},
@@ -17,8 +17,8 @@
     "registry_sha256": "239541ca00d34cadb164a0b84e75991e80880044ad215a6e9a39b6debb43e5a9"
   },
   "identities": {
-    "catalog_sha256": "31894abc18d6e409f30a275ee9d8feb73a83c0f0b58b441cd6d9332f3e5f2101",
-    "profile_tools_sha256": "0e66a0ea0d582f476ae18bcc336da543b9dbc05687c7baecd8641412f2bdfd92",
+    "catalog_sha256": "6063b2a6080f89dbac79a0eb7125c6235ac03218fed275e33d0b093ae010c652",
+    "profile_tools_sha256": "91007c83379fdf6387eca804680eef15226c03047b283410901441cdea23b93f",
     "runtime_compatibility_sha256": "f1a5ee126b15dec89fec3c5758b2d4ee5d0981a8dcd39e6b9cdca1980c82e640"
   }
 }

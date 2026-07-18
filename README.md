@@ -109,7 +109,7 @@ fixed for the lifetime of that server process; restart after changing it.
 | --- | --- |
 | `core` (default) | Compact, mature control plane: status, ownership, session/model inspection, one-point solve/evaluation, and lexical manuals. |
 | `basic_fem` | `core` plus typed conventional FEM construction, derived-geometry edits, and bounded exports. |
-| `wave_optics` | Recommended for metasurfaces: `core` plus derived-geometry edits, material preview, locale-safe field discovery and bounded NPZ/manifest extraction, periodic-mesh audit/smoke, visual-review contracts, Wave Optics preflight, point/reference audits, and staged workflows. |
+| `wave_optics` | Recommended for metasurfaces: `core` plus derived-geometry edits, material preview, locale-safe field discovery and bounded NPZ/manifest extraction, periodic-mesh audit/smoke, visual-review contracts, Wave Optics preflight, and point/reference audits. Durable staged jobs remain under `job_submit`. |
 | `desktop_shared` | Explicit opt-in shared Desktop/attached-Server workflow; requires `profile.name=desktop_shared` and `shared_server.enabled=true`, a manually started local Server, per-call user confirmation, exact process/listener identity, and exact model adoption. It never starts or terminates the external Server. |
 | `semantic_docs` | `core` plus isolated experimental vector-assisted manual retrieval. |
 | `experimental` | Explicit opt-in generic creation, async, property escape hatches, and project helpers. |

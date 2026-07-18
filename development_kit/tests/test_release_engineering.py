@@ -171,6 +171,25 @@ def test_support_matrix_matches_frozen_profile_counts_and_declared_dependencies(
     ]
 
 
+def test_recommended_profile_migration_records_the_exact_discovery_diff():
+    migration = _json(RELEASE / "profile_migration.json")
+    assert migration["profile"] == "wave_optics"
+    assert migration["before"] == {
+        "tool_count": 68,
+        "tools_removed_from_recommended_surface": [
+            "study_staged_parametric_sweep"
+        ],
+    }
+    assert migration["after"] == {
+        "tool_count": 67,
+        "tools_added_to_recommended_surface": [],
+    }
+    assert migration["replacement"] == (
+        "job_submit/job_status/job_tail/job_cancel/job_resume"
+    )
+    assert migration["restart_required"] is True
+
+
 def test_repository_root_is_release_focused_and_free_of_generated_artifacts():
     entries = _tracked_entries()
     root_files = {path for _mode, path in entries if "/" not in path}

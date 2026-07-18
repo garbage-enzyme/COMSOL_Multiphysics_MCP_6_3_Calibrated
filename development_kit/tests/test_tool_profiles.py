@@ -54,7 +54,7 @@ def test_environment_profile_is_normalized(monkeypatch):
     assert selection.default_used is False
 
     server = create_server("environment-wave-profile-test")
-    assert len(_tool_names(server)) == 68
+    assert len(_tool_names(server)) == 67
     assert "wave_optics_field_datasets" in _tool_names(server)
     assert "wave_optics_field_extract" in _tool_names(server)
     assert "wave_optics_material_expression_preview" in _tool_names(server)
@@ -184,7 +184,7 @@ def test_capabilities_are_bound_to_each_server_profile(monkeypatch):
     assert core_result["tool_count"] == 43
     assert core_result["profile_source"]["source"] == "explicit_argument"
     assert wave_result["active_profile"] == "wave_optics"
-    assert wave_result["tool_count"] == 68
+    assert wave_result["tool_count"] == 67
 
 
 @pytest.mark.parametrize("profile", ["core", "basic_fem", "wave_optics", "semantic_docs"])

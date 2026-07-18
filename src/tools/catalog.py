@@ -412,7 +412,6 @@ _BASIC_FEM_ADDITIONS = frozenset({
 _WAVE_OPTICS_ADDITIONS = frozenset({
     "param_sweep_setup", "results_evaluate", "results_inner_values",
     "results_outer_values", "mim_evaluate_spectral",
-    "study_staged_parametric_sweep",
     "wave_optics_preflight",
     "wave_optics_periodic_mesh_audit",
     "wave_optics_periodic_mesh_smoke",

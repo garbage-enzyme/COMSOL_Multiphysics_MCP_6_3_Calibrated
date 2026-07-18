@@ -105,6 +105,15 @@ def test_profile_registrar_selection_is_derived_from_tool_specs():
     assert "src.tools.wave_optics_audit.register_wave_optics_audit_tools" in full
 
 
+def test_deprecated_foreground_sweep_has_a_durable_replacement():
+    spec = TOOL_SPECS["study_staged_parametric_sweep"]
+    assert spec.deprecation_state == "deprecated"
+    assert spec.replacement_tool == "job_submit"
+    assert spec.sunset_release == "next_major"
+    assert "wave_optics" not in spec.intended_profiles
+    assert {"experimental", "full"} <= set(spec.intended_profiles)
+
+
 def test_unknown_tool_metadata_fails_closed():
     try:
         get_tool_metadata("not_a_registered_tool")

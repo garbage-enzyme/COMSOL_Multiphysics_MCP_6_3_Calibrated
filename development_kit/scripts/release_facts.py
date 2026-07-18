@@ -6,7 +6,12 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import sys
 from typing import Any
+
+ROOT = Path(__file__).parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src import __version__
 from src.compatibility import load_runtime_compatibility
@@ -15,7 +20,6 @@ from src.tools.catalog import PROFILE_NAMES, TOOL_METADATA
 from src.tools.profiles import tool_names_for_profile
 
 
-ROOT = Path(__file__).parents[2]
 FACTS_PATH = ROOT / "development_kit" / "release" / "release_facts.json"
 
 
