@@ -67,7 +67,8 @@ def test_capabilities_report_risky_operations_without_starting_comsol(monkeypatc
     assert result["tool_count"] == 41
     assert result["profile_source"]["default_used"] is True
     assert [item["name"] for item in result["available_profiles"]] == [
-        "core", "basic_fem", "wave_optics", "semantic_docs", "experimental", "full"
+        "core", "basic_fem", "wave_optics", "semantic_docs", "desktop_shared",
+        "experimental", "full"
     ]
     assert result["session"] == {"connected": False, "starting": False}
     assert result["long_jobs"]["real_cancellation"] is True

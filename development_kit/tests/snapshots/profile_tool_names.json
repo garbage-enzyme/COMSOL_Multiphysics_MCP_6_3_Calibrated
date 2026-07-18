@@ -237,6 +237,13 @@
     "study_list",
     "study_solve"
   ],
+  "desktop_shared": [
+    "capabilities",
+    "job_cancel",
+    "job_status",
+    "job_tail",
+    "solver_status"
+  ],
   "experimental": [
     "branch_continuation_plan",
     "capabilities",

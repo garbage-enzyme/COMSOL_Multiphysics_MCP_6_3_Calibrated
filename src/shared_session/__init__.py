@@ -27,6 +27,10 @@ from .cleanup import (
     evaluate_attached_detach,
     evaluate_owned_cleanup,
 )
+from .attach_request import (
+    SharedServerAttachRequest,
+    normalize_shared_server_attach_request,
+)
 
 __all__ = [
     "SHARED_SERVER_FEATURE_ENV",
@@ -38,6 +42,7 @@ __all__ = [
     "SharedModelRevision",
     "SharedModelSelector",
     "SharedServerEndpoint",
+    "SharedServerAttachRequest",
     "SharedServerFeatureGate",
     "build_shared_model_lock",
     "build_shared_model_revision",
@@ -47,5 +52,6 @@ __all__ = [
     "normalize_shared_model_identity",
     "normalize_shared_model_selector",
     "normalize_shared_server_endpoint",
+    "normalize_shared_server_attach_request",
     "normalize_shared_server_feature_gate",
 ]

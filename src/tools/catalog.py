@@ -7,7 +7,15 @@ from types import MappingProxyType
 from typing import Any
 
 
-PROFILE_NAMES = ("core", "basic_fem", "wave_optics", "semantic_docs", "experimental", "full")
+PROFILE_NAMES = (
+    "core",
+    "basic_fem",
+    "wave_optics",
+    "semantic_docs",
+    "desktop_shared",
+    "experimental",
+    "full",
+)
 
 
 @dataclass(frozen=True)
@@ -402,6 +410,10 @@ _SEMANTIC_DOCS_ADDITIONS = frozenset({
     "semantic_search", "semantic_status", "semantic_worker_reset",
 })
 
+_DESKTOP_SHARED_FOUNDATION = frozenset({
+    "capabilities", "solver_status", "job_status", "job_tail", "job_cancel",
+})
+
 
 def _build_registry() -> dict[str, ToolMetadata]:
     all_names = {
@@ -412,6 +424,7 @@ def _build_registry() -> dict[str, ToolMetadata]:
         "basic_fem": _CORE_TOOLS | _BASIC_FEM_ADDITIONS,
         "wave_optics": _CORE_TOOLS | _WAVE_OPTICS_ADDITIONS,
         "semantic_docs": _CORE_TOOLS | _SEMANTIC_DOCS_ADDITIONS,
+        "desktop_shared": _DESKTOP_SHARED_FOUNDATION,
         "experimental": _CORE_TOOLS | _EXPERIMENTAL_ADDITIONS,
         "full": frozenset(all_names),
     }

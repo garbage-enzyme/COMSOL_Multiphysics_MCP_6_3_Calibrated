@@ -1,97 +1,87 @@
-"""MCP Tools for COMSOL operations."""
+"""Lazy MCP tool registration that keeps startup profile gates solver-free."""
 
-from .capabilities import register_capability_tools
-from .ownership import register_ownership_tools
-from .jobs import register_job_tools
-from .session import register_session_tools
-from .model import register_model_tools
-from .parameters import register_parameter_tools
-from .geometry import register_geometry_tools
-from .physics import register_physics_tools
-from .mesh import register_mesh_tools
-from .study import register_study_tools
-from .results import register_results_tools
-from .mim_patch import register_mim_patch_tools
-from .workflow import register_workflow_tools
-from .properties import register_property_tools
-from .wave_optics_preflight import register_wave_optics_preflight_tools
-from .periodic_mesh_audit import register_periodic_mesh_audit_tools
-from .derived_geometry import register_derived_geometry_tools
-from .incidence_config import register_incidence_config_tools
-from .wave_optics_audit import register_wave_optics_audit_tools
-from .material_expressions import register_material_expression_tools
-from .visual_review import register_visual_review_tools
-from .field_evidence import register_field_evidence_tools
-from .semantic_docs import register_semantic_doc_tools
-from .spectral_characterization import register_spectral_characterization_tools
-from .convergence_evaluation import register_convergence_evaluation_tools
-from .branch_continuation import register_branch_continuation_tools
-from .profiles import ProfileSelection, register_profiled, resolve_profile, tool_names_for_profile
+from __future__ import annotations
 
-TOOL_REGISTRARS = (
-    register_capability_tools,
-    register_ownership_tools,
-    register_job_tools,
-    register_session_tools,
-    register_model_tools,
-    register_parameter_tools,
-    register_geometry_tools,
-    register_physics_tools,
-    register_mesh_tools,
-    register_study_tools,
-    register_results_tools,
-    register_mim_patch_tools,
-    register_workflow_tools,
-    register_property_tools,
-    register_wave_optics_preflight_tools,
-    register_periodic_mesh_audit_tools,
-    register_derived_geometry_tools,
-    register_incidence_config_tools,
-    register_wave_optics_audit_tools,
-    register_material_expression_tools,
-    register_visual_review_tools,
-    register_field_evidence_tools,
-    register_semantic_doc_tools,
-    register_spectral_characterization_tools,
-    register_convergence_evaluation_tools,
-    register_branch_continuation_tools,
+from collections.abc import Iterator, Sequence
+from importlib import import_module
+from typing import Any, Callable
+
+
+_REGISTRAR_PATHS = (
+    "src.tools.capabilities.register_capability_tools",
+    "src.tools.ownership.register_ownership_tools",
+    "src.tools.jobs.register_job_tools",
+    "src.tools.session.register_session_tools",
+    "src.tools.model.register_model_tools",
+    "src.tools.parameters.register_parameter_tools",
+    "src.tools.geometry.register_geometry_tools",
+    "src.tools.physics.register_physics_tools",
+    "src.tools.mesh.register_mesh_tools",
+    "src.tools.study.register_study_tools",
+    "src.tools.results.register_results_tools",
+    "src.tools.mim_patch.register_mim_patch_tools",
+    "src.tools.workflow.register_workflow_tools",
+    "src.tools.properties.register_property_tools",
+    "src.tools.wave_optics_preflight.register_wave_optics_preflight_tools",
+    "src.tools.periodic_mesh_audit.register_periodic_mesh_audit_tools",
+    "src.tools.derived_geometry.register_derived_geometry_tools",
+    "src.tools.incidence_config.register_incidence_config_tools",
+    "src.tools.wave_optics_audit.register_wave_optics_audit_tools",
+    "src.tools.material_expressions.register_material_expression_tools",
+    "src.tools.visual_review.register_visual_review_tools",
+    "src.tools.field_evidence.register_field_evidence_tools",
+    "src.tools.semantic_docs.register_semantic_doc_tools",
+    "src.tools.spectral_characterization.register_spectral_characterization_tools",
+    "src.tools.convergence_evaluation.register_convergence_evaluation_tools",
+    "src.tools.branch_continuation.register_branch_continuation_tools",
 )
 
 
-def register_tool_modules(mcp, profile: str | ProfileSelection = "full") -> None:
-    """Register the selected COMSOL tool surface on a FastMCP server."""
-    selection = profile if isinstance(profile, ProfileSelection) else resolve_profile(profile)
+def _load_symbol(path: str) -> Any:
+    module_name, symbol_name = path.rsplit(".", 1)
+    return getattr(import_module(module_name), symbol_name)
+
+
+class _LazyRegistrarSequence(Sequence[Callable[..., Any]]):
+    def __len__(self) -> int:
+        return len(_REGISTRAR_PATHS)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return tuple(_load_symbol(path) for path in _REGISTRAR_PATHS[index])
+        return _load_symbol(_REGISTRAR_PATHS[index])
+
+    def __iter__(self) -> Iterator[Callable[..., Any]]:
+        return (_load_symbol(path) for path in _REGISTRAR_PATHS)
+
+
+TOOL_REGISTRARS: Sequence[Callable[..., Any]] = _LazyRegistrarSequence()
+
+
+def register_tool_modules(mcp, profile="full") -> None:
+    """Import and register only after the static profile gate is accepted."""
+    from .profiles import ProfileSelection, resolve_profile, tool_names_for_profile
+
+    selection = (
+        profile if isinstance(profile, ProfileSelection) else resolve_profile(profile)
+    )
     enabled_names = tool_names_for_profile(selection.name)
     for register in TOOL_REGISTRARS:
+        from .profiles import register_profiled
+
         register_profiled(mcp, register, enabled_names, selection)
 
-__all__ = [
-    "register_capability_tools",
-    "register_ownership_tools",
-    "register_job_tools",
-    "register_session_tools",
-    "register_model_tools",
-    "register_parameter_tools",
-    "register_geometry_tools",
-    "register_physics_tools",
-    "register_mesh_tools",
-    "register_study_tools",
-    "register_results_tools",
-    "register_mim_patch_tools",
-    "register_workflow_tools",
-    "register_property_tools",
-    "register_wave_optics_preflight_tools",
-    "register_periodic_mesh_audit_tools",
-    "register_derived_geometry_tools",
-    "register_incidence_config_tools",
-    "register_wave_optics_audit_tools",
-    "register_material_expression_tools",
-    "register_visual_review_tools",
-    "register_field_evidence_tools",
-    "register_semantic_doc_tools",
-    "register_spectral_characterization_tools",
-    "register_convergence_evaluation_tools",
-    "register_branch_continuation_tools",
-    "TOOL_REGISTRARS",
-    "register_tool_modules",
-]
+
+_REGISTER_EXPORTS = {
+    path.rsplit(".", 1)[-1]: path for path in _REGISTRAR_PATHS
+}
+
+
+def __getattr__(name: str) -> Any:
+    path = _REGISTER_EXPORTS.get(name)
+    if path is not None:
+        return _load_symbol(path)
+    raise AttributeError(name)
+
+
+__all__ = [*_REGISTER_EXPORTS, "TOOL_REGISTRARS", "register_tool_modules"]

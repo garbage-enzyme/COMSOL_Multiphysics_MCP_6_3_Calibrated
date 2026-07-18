@@ -10,6 +10,7 @@ import pytest
 
 from src.server import create_server, register_all_tools
 from src.tools.catalog import PROFILE_NAMES, snapshot_tool_schemas
+from src.shared_session.contracts import SHARED_SERVER_FEATURE_ENV
 from src.tools.profiles import DEFAULT_PROFILE, PROFILE_ENV_VAR, resolve_profile
 
 
@@ -64,7 +65,8 @@ def test_environment_profile_is_normalized(monkeypatch):
     } <= set(_tool_names(server))
 
 
-def test_profile_name_and_schema_snapshots_are_exact():
+def test_profile_name_and_schema_snapshots_are_exact(monkeypatch):
+    monkeypatch.setenv(SHARED_SERVER_FEATURE_ENV, "true")
     expected_names = json.loads(
         (SNAPSHOT_DIR / "profile_tool_names.json").read_text(encoding="utf-8")
     )
@@ -97,6 +99,23 @@ def test_profile_registration_has_no_cross_server_leakage():
     assert {"semantic_search", "semantic_status", "semantic_worker_reset"}.isdisjoint(_tool_names(core))
     assert "wave_optics_incidence_preview" not in _tool_names(core)
     assert "wave_optics_incidence_apply" not in _tool_names(core)
+
+
+def test_desktop_shared_profile_is_static_default_off_and_minimal(monkeypatch):
+    monkeypatch.delenv(SHARED_SERVER_FEATURE_ENV, raising=False)
+    with pytest.raises(ValueError, match="requires COMSOL_MCP_ENABLE_SHARED_SERVER=true"):
+        resolve_profile("desktop_shared")
+
+    monkeypatch.setenv(SHARED_SERVER_FEATURE_ENV, "true")
+    server = create_server("desktop-shared-foundation", profile="desktop_shared")
+    names = set(_tool_names(server))
+
+    assert names == {"capabilities", "solver_status", "job_status", "job_tail", "job_cancel"}
+    assert {
+        "comsol_start", "comsol_connect", "comsol_disconnect", "session_reset",
+        "session_clear_models", "model_load", "model_create", "model_remove",
+        "model_set_current",
+    }.isdisjoint(names)
 
 
 def test_registered_server_profile_is_immutable():

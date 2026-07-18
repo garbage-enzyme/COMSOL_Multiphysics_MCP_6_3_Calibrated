@@ -8,6 +8,10 @@ from typing import Any, Callable, Mapping
 
 from .catalog import PROFILE_NAMES, TOOL_METADATA
 from src.operation_arbiter import guard_tool_call
+from src.shared_session.contracts import (
+    SHARED_SERVER_PROFILE,
+    normalize_shared_server_feature_gate,
+)
 
 
 PROFILE_ENV_VAR = "COMSOL_MCP_PROFILE"
@@ -18,6 +22,7 @@ PROFILE_DESCRIPTIONS = {
     "basic_fem": "Core plus typed conventional FEM construction and bounded exports.",
     "wave_optics": "Recommended metasurface profile: core plus material preview, field-dataset discovery, visual-review contracts, Wave Optics preflight, point audit, and staged workflows.",
     "semantic_docs": "Core plus isolated immutable BM25/vector manual retrieval and worker controls.",
+    "desktop_shared": "Default-off non-owning local COMSOL Server and shared Desktop collaboration surface.",
     "experimental": "Core plus explicitly risky, generic, asynchronous, and project helpers.",
     "full": "Backward-compatible discovery surface with legacy broad-path behavior and weaker containment guarantees.",
 }
@@ -27,6 +32,7 @@ PROFILE_MATURITY = {
     "basic_fem": "verified",
     "wave_optics": "experimental",
     "semantic_docs": "experimental",
+    "desktop_shared": "experimental",
     "experimental": "experimental",
     "full": "compatibility",
 }
@@ -68,6 +74,13 @@ def resolve_profile(
         raise ValueError(
             f"Invalid {PROFILE_ENV_VAR} profile {raw_name!r}; expected one of: {available}"
         )
+    if name == SHARED_SERVER_PROFILE:
+        gate = normalize_shared_server_feature_gate(name, environ=environment)
+        if not gate.feature_enabled:
+            raise ValueError(
+                f"Profile {SHARED_SERVER_PROFILE!r} requires "
+                f"{gate.environment_variable}=true and an MCP host restart"
+            )
     return ProfileSelection(
         name=name,
         environment_variable=PROFILE_ENV_VAR,
@@ -78,11 +91,16 @@ def resolve_profile(
 
 def tool_names_for_profile(profile: str) -> frozenset[str]:
     """Return the exact canonical tool-name set for a validated profile."""
-    selection = resolve_profile(profile, environ={})
+    if not isinstance(profile, str):
+        raise ValueError("profile name must be a string")
+    name = profile.strip().lower()
+    if name not in PROFILE_NAMES:
+        available = ", ".join(PROFILE_NAMES)
+        raise ValueError(f"Invalid profile {profile!r}; expected one of: {available}")
     return frozenset(
-        name
-        for name, metadata in TOOL_METADATA.items()
-        if selection.name in metadata.intended_profiles
+        tool_name
+        for tool_name, metadata in TOOL_METADATA.items()
+        if name in metadata.intended_profiles
     )
 
 

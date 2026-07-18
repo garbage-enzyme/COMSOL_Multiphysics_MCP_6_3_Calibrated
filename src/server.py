@@ -6,12 +6,7 @@ from weakref import WeakKeyDictionary, WeakSet
 
 from mcp.server.fastmcp import FastMCP
 
-from .tools import register_tool_modules
-from .tools.capabilities import startup_capability_summary
 from .tools.profiles import ProfileSelection, register_profiled, resolve_profile, tool_names_for_profile
-from .resources.model_resources import register_model_resources
-from .knowledge.embedded import register_knowledge_tools
-from .knowledge.lexical_manual import register_lexical_manual_tools
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -39,6 +34,10 @@ def register_all_tools(
         return existing
     selection = profile if isinstance(profile, ProfileSelection) else resolve_profile(profile)
     enabled_names = tool_names_for_profile(selection.name)
+    from .tools import register_tool_modules
+    from .knowledge.embedded import register_knowledge_tools
+    from .knowledge.lexical_manual import register_lexical_manual_tools
+
     register_tool_modules(target, selection)
     register_profiled(target, register_knowledge_tools, enabled_names, selection)
     register_profiled(target, register_lexical_manual_tools, enabled_names, selection)
@@ -52,6 +51,8 @@ def register_all_resources(server: FastMCP | None = None) -> None:
     target = server or mcp
     if target in _resource_servers:
         return
+    from .resources.model_resources import register_model_resources
+
     register_model_resources(target)
     _resource_servers.add(target)
     logger.info("Registered all resources")
@@ -68,6 +69,8 @@ def create_server(name: str = "COMSOL MCP", profile: str | None = None) -> FastM
 def main() -> None:
     """Run the MCP server."""
     selection = resolve_profile()
+    from .tools.capabilities import startup_capability_summary
+
     logger.info("Starting COMSOL MCP Server...")
     logger.info("Capabilities: %s", startup_capability_summary(selection))
     
