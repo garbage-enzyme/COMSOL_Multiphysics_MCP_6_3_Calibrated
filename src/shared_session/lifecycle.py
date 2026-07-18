@@ -54,11 +54,12 @@ def _default_model_inventory_reader(client: Any) -> list[dict[str, Any]]:
         java = model.java
         tag = str(java.tag())
         label = str(java.label())
-        path = model.file()
+        raw_path = str(java.getFilePath())
+        path = raw_path if raw_path else None
         inventory.append({
             "tag": tag,
             "label": label,
-            "file_path": None if path is None else str(path),
+            "file_path": path,
             "unsaved": path is None,
         })
     return inventory
@@ -95,7 +96,13 @@ class SharedSessionManager:
         raw = reader(client)
         if not isinstance(raw, list) or len(raw) > MAX_SERVER_MODELS:
             raise ValueError("server model inventory is not a bounded list")
-        normalized = [normalize_shared_model_identity(item) for item in raw]
+        normalized = sorted(
+            (normalize_shared_model_identity(item) for item in raw),
+            key=lambda item: item.tag,
+        )
+        tags = [item.tag for item in normalized]
+        if len(tags) != len(set(tags)):
+            raise ValueError("server model inventory contains duplicate tags")
         public = [item.to_dict() for item in normalized]
         return normalized, _canonical_sha256(public)
 
@@ -281,6 +288,35 @@ class SharedSessionManager:
                     else None
                 ),
                 "can_start_comsol": False,
+            }
+
+    def models(self) -> dict[str, Any]:
+        """Return one bounded fresh inventory without changing the baseline."""
+        with self._lock:
+            if self._client is None:
+                return {
+                    "success": False,
+                    "state": "detached",
+                    "models": [],
+                    "model_count": 0,
+                }
+            try:
+                models, inventory_sha256 = self._inventory(
+                    self._model_inventory_reader, self._client
+                )
+            except Exception as exc:
+                return {
+                    "success": False,
+                    "state": "model_inventory_failed",
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            return {
+                "success": True,
+                "state": "attached_model_pending_lock",
+                "models": [model.to_dict() for model in models],
+                "model_count": len(models),
+                "model_inventory_sha256": inventory_sha256,
+                "attached_inventory_sha256": self._inventory_sha256,
             }
 
     def detach(self) -> dict[str, Any]:

@@ -7,7 +7,10 @@ import json
 from pathlib import Path
 
 from src.shared_session.contracts import SHARED_SERVER_FEATURE_ENV
-from src.shared_session.lifecycle import SharedSessionManager
+from src.shared_session.lifecycle import (
+    SharedSessionManager,
+    _default_model_inventory_reader,
+)
 from src.tools.ownership import _command_signature
 
 
@@ -86,6 +89,35 @@ class FakeClient:
         raise AssertionError("attached lifecycle must never clear models")
 
 
+class FakeJavaModel:
+    def __init__(self, tag, label, path):
+        self._tag = tag
+        self._label = label
+        self._path = path
+
+    def tag(self):
+        return self._tag
+
+    def label(self):
+        return self._label
+
+    def getFilePath(self):
+        return self._path
+
+
+class FakeMphModel:
+    def __init__(self, tag, label, path):
+        self.java = FakeJavaModel(tag, label, path)
+
+
+class InventoryClient:
+    def __init__(self, models):
+        self._models = models
+
+    def models(self):
+        return self._models
+
+
 def _inventory(models=None):
     return models if models is not None else [
         {"tag": "Model_1", "label": "Shared", "file_path": None, "unsaved": True}
@@ -106,6 +138,79 @@ def _manager(tmp_path, *, client=None, snapshots=None, models=None, client_facto
         ownership,
         client,
     )
+
+
+def test_default_inventory_uses_raw_java_path_for_unsaved_models():
+    inventory = _default_model_inventory_reader(
+        InventoryClient(
+            [
+                FakeMphModel("Model_1", "Blank", ""),
+                FakeMphModel("Model_2", "共享", "C:/研究/共享.mph"),
+            ]
+        )
+    )
+
+    assert inventory == [
+        {"tag": "Model_1", "label": "Blank", "file_path": None, "unsaved": True},
+        {
+            "tag": "Model_2",
+            "label": "共享",
+            "file_path": "C:/研究/共享.mph",
+            "unsaved": False,
+        },
+    ]
+
+
+def test_attached_inventory_is_bounded_sorted_and_keeps_duplicate_metadata(tmp_path):
+    models = [
+        {"tag": "Model_2", "label": "Shared", "file_path": None, "unsaved": True},
+        {"tag": "Model_1", "label": "Shared", "file_path": None, "unsaved": True},
+    ]
+    manager, _ownership, _client = _manager(tmp_path, models=models)
+    assert manager.attach(
+        _request(),
+        profile="desktop_shared",
+        environ={SHARED_SERVER_FEATURE_ENV: "true"},
+    )["success"] is True
+
+    result = manager.models()
+
+    assert result["success"] is True
+    assert result["model_count"] == 2
+    assert [item["tag"] for item in result["models"]] == ["Model_1", "Model_2"]
+    assert [item["label"] for item in result["models"]] == ["Shared", "Shared"]
+    assert result["model_inventory_sha256"] == result["attached_inventory_sha256"]
+
+
+def test_duplicate_server_model_tags_fail_attach_closed(tmp_path):
+    models = [
+        {"tag": "Model_1", "label": "First", "file_path": None, "unsaved": True},
+        {"tag": "Model_1", "label": "Second", "file_path": None, "unsaved": True},
+    ]
+    manager, ownership, client = _manager(tmp_path, models=models)
+
+    result = manager.attach(
+        _request(),
+        profile="desktop_shared",
+        environ={SHARED_SERVER_FEATURE_ENV: "true"},
+    )
+
+    assert result["success"] is False
+    assert result["state"] == "attach_failed"
+    assert "duplicate tags" in result["error"]
+    assert client.calls == ["disconnect"]
+    assert ownership.releases == 1
+
+
+def test_model_inventory_requires_an_attached_client(tmp_path):
+    manager, _ownership, _client = _manager(tmp_path)
+
+    assert manager.models() == {
+        "success": False,
+        "state": "detached",
+        "models": [],
+        "model_count": 0,
+    }
 
 
 def test_attach_and_detach_preserve_server_listener_and_model_inventory(tmp_path):
