@@ -1,0 +1,67 @@
+{
+  "entries": [
+    {
+      "accepted_signals": [
+        "classifier:License :: OSI Approved :: MIT License",
+        "license-expression:MIT",
+        "license:MIT"
+      ],
+      "dependency": "mcp",
+      "reason": "The declared MCP SDK release line is distributed under the MIT license."
+    },
+    {
+      "accepted_signals": [
+        "classifier:License :: OSI Approved :: Python Software Foundation License"
+      ],
+      "dependency": "matplotlib",
+      "reason": "Matplotlib uses its PSF-compatible license and preserves bundled asset notices."
+    },
+    {
+      "accepted_signals": [
+        "classifier:License :: OSI Approved :: MIT License",
+        "license-expression:MIT",
+        "license:MIT"
+      ],
+      "dependency": "mph",
+      "reason": "MPh is distributed under the MIT license; COMSOL itself remains separately licensed and unbundled."
+    },
+    {
+      "accepted_signals": [
+        "classifier:License :: OSI Approved :: BSD License",
+        "license-expression:BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+        "license:BSD-3-Clause"
+      ],
+      "dependency": "numpy",
+      "reason": "NumPy publishes BSD-compatible package metadata with explicit bundled component licenses."
+    },
+    {
+      "accepted_signals": [
+        "classifier:License :: OSI Approved :: MIT License",
+        "license-expression:MIT",
+        "license:MIT"
+      ],
+      "dependency": "pydantic",
+      "reason": "Pydantic is distributed under the MIT license."
+    },
+    {
+      "accepted_signals": [
+        "classifier:License :: OSI Approved :: BSD License",
+        "license:BSD-3-Clause"
+      ],
+      "dependency": "psutil",
+      "reason": "psutil is distributed under the BSD three-clause license."
+    },
+    {
+      "accepted_signals": [
+        "classifier:License :: OSI Approved :: BSD License",
+        "license:BSD-3-Clause"
+      ],
+      "dependency": "scipy",
+      "reason": "SciPy is distributed under the BSD three-clause license with bundled notices retained upstream."
+    }
+  ],
+  "expires_on": "2027-07-18",
+  "reviewed_on": "2026-07-18",
+  "schema_name": "comsol_mcp.dependency_license_review",
+  "schema_version": "1.0.0"
+}

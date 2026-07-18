@@ -58,6 +58,7 @@ models are intentionally absent.
 - `development_kit/release/release_facts.json` — This generated view records live tool, profile, schema, and compatibility identities.
 - `development_kit/release/profile_migration.json` — This receipt records the exact recommended-profile tool diff and compatibility replacement.
 - `development_kit/release/vulnerability_allowlist.json` — This file records exact reviewed vulnerabilities with mandatory expiry dates.
+- `development_kit/release/dependency_license_review.json` — This file records accepted license metadata for every declared runtime dependency.
 - `development_kit/release/planning_code_allowlist.json` — This file freezes historical planning-code matches by path, count, and hash.
 - `development_kit/release/integration_fixtures/manifest.json` — This file inventories sanitized integration contracts and their canonical hashes.
 - `development_kit/release/integration_fixtures/capacitor_clientapi_regression.json` — This contract defines the analytic capacitor clientapi regression.
@@ -73,6 +74,7 @@ models are intentionally absent.
 ## Development and release scripts
 
 - `development_kit/scripts/__init__.py` — This file marks repository-only release utilities as a Python package.
+- `development_kit/scripts/dependency_license_gate.py` — This script emits a path-free receipt and fails on expired, missing, stale, or unmatched runtime dependency license reviews.
 - `development_kit/scripts/generate_release_lock.py` — This script generates the complete hashed Windows Python release lock.
 - `development_kit/scripts/installed_package_probe.py` — This script verifies installed discovery, schemas, profiles, and deployment identity without COMSOL startup.
 - `development_kit/scripts/installed_stdio_probe.py` — This script verifies the installed console entry point over real MCP stdio transport.
@@ -149,6 +151,7 @@ models are intentionally absent.
 - `development_kit/tests/test_derived_geometry.py` — This module tests typed derived-geometry edits without COMSOL.
 - `development_kit/tests/test_durable_job_control_plane.py` — This module tests durable submission, reconciliation, status, cancellation, and resume behavior.
 - `development_kit/tests/test_durable_primitives.py` — This module tests versioned canonical bytes, bounded hashing, atomic writes, and row recovery.
+- `development_kit/tests/test_dependency_license_gate.py` — This module tests deterministic dependency-license receipts and fail-closed review behavior.
 - `development_kit/tests/test_environment_identity.py` — This module tests redacted solver-free environment identity.
 - `development_kit/tests/test_evidence_contracts.py` — This module tests physical evidence, policies, and immutable migration contracts.
 - `development_kit/tests/test_evidence_integrity_controls.py` — This module tests default-on settings, explicit per-check opt-out, and fail-closed disclosure.
