@@ -28,6 +28,7 @@ from src.jobs.spectral_characterization import (
 )
 from src.evidence.spectral_characterization import MAX_SPECTRAL_POINTS
 from src.evidence.integrity_controls import evidence_integrity_capability
+from src.artifact_chain import ARTIFACT_CHAIN_SCHEMA, ARTIFACT_CHAIN_SCHEMA_VERSION
 from src.schema_registry import get_schema_registry
 from src.evidence.contracts import (
     EVIDENCE_STATES,
@@ -179,8 +180,8 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
         "environment_identity": get_environment_identity(),
         "schema_registry": get_schema_registry(),
         "artifact_chain_verification": {
-            "schema_name": "comsol_mcp.artifact_chain",
-            "schema_version": "1.1.0",
+            "schema_name": ARTIFACT_CHAIN_SCHEMA,
+            "schema_version": ARTIFACT_CHAIN_SCHEMA_VERSION,
             "solver_free": True,
             "content_validation": "schema_identity_and_hash_chain",
             "path_redacted_receipt": True,
