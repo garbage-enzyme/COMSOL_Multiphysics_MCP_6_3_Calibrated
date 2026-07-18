@@ -79,6 +79,13 @@ def test_every_entry_declares_read_write_and_non_mutating_migration_policy():
     )
     assert deployment["readable_versions"] == ["1.0.0", "1.1.0"]
     assert deployment["writable_version"] == "1.1.0"
+    path_policy = next(
+        item
+        for item in get_schema_registry()["entries"]
+        if item["schema_name"] == "comsol_mcp.path_policy"
+    )
+    assert path_policy["readable_versions"] == ["1.0.0", "1.1.0"]
+    assert path_policy["writable_version"] == "1.1.0"
 
 
 def test_support_resolution_accepts_current_and_rejects_future_without_mutation():

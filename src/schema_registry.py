@@ -179,7 +179,12 @@ def _entries() -> list[dict[str, Any]]:
             "src.operation_arbiter",
             artifact_kind="durable_artifact",
         ),
-        _entry(PATH_POLICY_SCHEMA, PATH_POLICY_VERSION, "src.path_policy"),
+        _entry(
+            PATH_POLICY_SCHEMA,
+            PATH_POLICY_VERSION,
+            "src.path_policy",
+            readable_versions=("1.0.0", "1.1.0"),
+        ),
         _entry(
             "comsol_mcp.physical_evidence",
             "1.1.0",

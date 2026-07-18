@@ -17,7 +17,8 @@ from src.utils.runtime_paths import default_runtime_dir
 MODEL_READ_ROOTS_ENV = "COMSOL_MCP_MODEL_READ_ROOTS"
 ARTIFACT_WRITE_ROOT_ENV = "COMSOL_MCP_ARTIFACT_WRITE_ROOT"
 PATH_POLICY_SCHEMA = "comsol_mcp.path_policy"
-PATH_POLICY_VERSION = "1.0.0"
+PATH_POLICY_VERSION = "1.1.0"
+SHARED_SNAPSHOT_DIRECTORY = "shared_snapshots"
 
 _WINDOWS_RESERVED = frozenset({
     "CON", "PRN", "AUX", "NUL", "CLOCK$",
@@ -79,6 +80,12 @@ def _reject_lexical_path(value: Any, *, require_ascii: bool) -> str:
 def _normalize_root(value: str, *, require_ascii: bool, must_exist: bool) -> Path:
     text = _reject_lexical_path(value, require_ascii=require_ascii)
     path = Path(text)
+    for candidate in (path, *path.parents):
+        if not candidate.exists():
+            continue
+        is_junction = getattr(candidate, "is_junction", lambda: False)
+        if candidate.is_symlink() or is_junction():
+            raise ValueError("configured path root contains a symlink or junction")
     try:
         resolved = path.resolve(strict=must_exist)
     except (OSError, RuntimeError) as exc:
@@ -97,6 +104,11 @@ class PathPolicy:
             raise ValueError("model read roots contain ambiguous case-normalized aliases")
         self.model_read_roots = model_read_roots
         self.artifact_write_root = artifact_write_root
+
+    @property
+    def shared_snapshot_root(self) -> Path:
+        """Return the single owned ASCII root reserved for shared snapshots."""
+        return self.artifact_write_root / SHARED_SNAPSHOT_DIRECTORY
 
     @classmethod
     def from_environment(
@@ -131,6 +143,9 @@ class PathPolicy:
             "enforced": enforced,
             "model_read_roots_configured": len(self.model_read_roots),
             "artifact_write_root_ascii": str(self.artifact_write_root).isascii(),
+            "shared_source_roots_configured": len(self.model_read_roots),
+            "shared_snapshot_root_owned": True,
+            "shared_snapshot_root_ascii": str(self.shared_snapshot_root).isascii(),
             "caller_selected_overwrite_allowed": False if enforced else None,
             "paths_included": False,
         }
@@ -172,20 +187,52 @@ class PathPolicy:
     def validate_artifact_write(
         self, value: Any, *, directory: bool = False
     ) -> PathDecision:
+        return self._validate_write_under_root(
+            value,
+            root=self.artifact_write_root,
+            directory=directory,
+            kind_prefix="artifact_write",
+        )
+
+    def validate_shared_source(self, value: Any) -> PathDecision:
+        """Validate one immutable shared-session source model."""
+        decision = self.validate_model_read(value, suffixes=(".mph",))
+        return PathDecision(
+            "shared_source_read", decision.normalized_path, decision.root_id
+        )
+
+    def validate_shared_snapshot_write(self, value: Any) -> PathDecision:
+        """Validate one new file beneath the fixed shared snapshot root."""
+        return self._validate_write_under_root(
+            value,
+            root=self.shared_snapshot_root,
+            directory=False,
+            kind_prefix="shared_snapshot_write",
+        )
+
+    @staticmethod
+    def _validate_write_under_root(
+        value: Any,
+        *,
+        root: Path,
+        directory: bool,
+        kind_prefix: str,
+    ) -> PathDecision:
         text = _reject_lexical_path(value, require_ascii=True)
         target = Path(text)
-        root = self.artifact_write_root.resolve(strict=False)
+        root = root.resolve(strict=False)
         root.mkdir(parents=True, exist_ok=True)
         if target.exists():
+            resolved_target = target.resolve(strict=True)
+            if not _is_relative_to(resolved_target, root):
+                raise ValueError("artifact target escapes the owned write root")
             if not directory:
                 raise ValueError("caller-selected artifact targets must not already exist")
-            resolved_directory = target.resolve(strict=True)
-            if not resolved_directory.is_dir() or not _is_relative_to(
-                resolved_directory, root
-            ):
+            resolved_directory = resolved_target
+            if not resolved_directory.is_dir():
                 raise ValueError("artifact directory escapes the owned write root")
             return PathDecision(
-                "artifact_write_directory",
+                f"{kind_prefix}_directory",
                 resolved_directory,
                 _root_id(root),
             )
@@ -204,7 +251,7 @@ class PathPolicy:
         if not _is_relative_to(normalized, root):
             raise ValueError("artifact target escapes the owned write root")
         return PathDecision(
-            "artifact_write_directory" if directory else "artifact_write",
+            f"{kind_prefix}_directory" if directory else kind_prefix,
             normalized,
             _root_id(root),
         )
@@ -308,6 +355,7 @@ __all__ = [
     "MODEL_READ_ROOTS_ENV",
     "PATH_POLICY_SCHEMA",
     "PATH_POLICY_VERSION",
+    "SHARED_SNAPSHOT_DIRECTORY",
     "PathDecision",
     "PathPolicy",
     "validate_tool_paths",

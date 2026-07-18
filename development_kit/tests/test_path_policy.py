@@ -170,6 +170,58 @@ def test_capabilities_redact_roots_and_report_weaker_compatibility(
 
     assert core["server_safety"]["path_policy"]["enforced"] is True
     assert core["server_safety"]["path_policy"]["model_read_roots_configured"] == 1
+    assert core["server_safety"]["path_policy"]["shared_source_roots_configured"] == 1
+    assert core["server_safety"]["path_policy"]["shared_snapshot_root_owned"] is True
+    assert core["server_safety"]["path_policy"]["shared_snapshot_root_ascii"] is True
     assert full["server_safety"]["path_policy"]["enforced"] is False
     assert full["server_safety"]["compatibility_profile_weaker_guarantees"] is True
     assert str(tmp_path) not in serialized
+
+
+def test_shared_source_and_fixed_snapshot_root_reuse_containment(tmp_path, ascii_root):
+    policy, read_root, write_root = _policy(tmp_path, ascii_root)
+    source = read_root / "shared.mph"
+    source.write_bytes(b"immutable")
+    snapshot = write_root / "shared_snapshots" / "copy.mph"
+
+    source_decision = policy.validate_shared_source(str(source))
+    snapshot_decision = policy.validate_shared_snapshot_write(str(snapshot))
+
+    assert source_decision.kind == "shared_source_read"
+    assert source_decision.normalized_path == source.resolve()
+    assert snapshot_decision.kind == "shared_snapshot_write"
+    assert snapshot_decision.normalized_path == snapshot.resolve()
+    assert policy.shared_snapshot_root == write_root / "shared_snapshots"
+
+
+def test_shared_snapshot_rejects_external_alias_and_overwrite(tmp_path, ascii_root):
+    policy, _, write_root = _policy(tmp_path, ascii_root)
+    outside = ascii_root / "outside.mph"
+    outside.write_bytes(b"sentinel")
+
+    with pytest.raises(ValueError, match="escapes"):
+        policy.validate_shared_snapshot_write(str(outside))
+
+    snapshot = write_root / "shared_snapshots" / "existing.mph"
+    snapshot.parent.mkdir(parents=True, exist_ok=True)
+    snapshot.write_bytes(b"first")
+    with pytest.raises(ValueError, match="must not already exist"):
+        policy.validate_shared_snapshot_write(str(snapshot))
+    assert outside.read_bytes() == b"sentinel"
+    assert snapshot.read_bytes() == b"first"
+
+
+def test_configured_reparse_root_is_rejected(tmp_path, ascii_root):
+    real_root = tmp_path / "real_models"
+    real_root.mkdir()
+    linked_root = tmp_path / "linked_models"
+    try:
+        linked_root.symlink_to(real_root, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="symlink or junction"):
+        PathPolicy.from_environment({
+            MODEL_READ_ROOTS_ENV: str(linked_root),
+            ARTIFACT_WRITE_ROOT_ENV: str(ascii_root / "artifacts"),
+        })
