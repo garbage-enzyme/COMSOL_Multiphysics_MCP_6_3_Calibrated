@@ -44,6 +44,10 @@ from src.jobs.spectral_progress import (
     SPECTRAL_PROGRESS_SCHEMA_NAME,
     SPECTRAL_PROGRESS_SCHEMA_VERSION,
 )
+from src.jobs.attached_backend import (
+    ATTACHED_EXECUTION_BACKEND_SCHEMA,
+    ATTACHED_EXECUTION_BACKEND_VERSION,
+)
 from src.jobs.convergence_campaign_rows import (
     CONVERGENCE_CAMPAIGN_LEVEL_SCHEMA_NAME,
     CONVERGENCE_CAMPAIGN_LEVEL_SCHEMA_VERSION,
@@ -111,6 +115,12 @@ def _entries() -> list[dict[str, Any]]:
     entries = [
         _entry("comsol_mcp.artifact_chain", "1.0.0", "src.artifact_chain"),
         _entry("comsol_mcp.artifact_chain_verification", "1.0.0", "src.artifact_chain"),
+        _entry(
+            ATTACHED_EXECUTION_BACKEND_SCHEMA,
+            ATTACHED_EXECUTION_BACKEND_VERSION,
+            "src.jobs.attached_backend",
+            artifact_kind="durable_artifact",
+        ),
         _entry("comsol_mcp.build_identity", "1.0.0", "src.build_identity"),
         _entry(
             CLEANUP_OUTCOME_SCHEMA,

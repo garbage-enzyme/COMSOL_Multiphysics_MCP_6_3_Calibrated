@@ -114,6 +114,7 @@ models are intentionally absent.
 ## Dependency and process tests
 
 - `development_kit/tests/test_artifact_chain.py` — This module tests bounded solver-free artifact hash-chain verification.
+- `development_kit/tests/test_attached_job_backend.py` — This module tests immutable attached-job targets, handoff, worker execution, resume, cancellation, and preservation.
 - `development_kit/tests/test_async_solver.py` — This module tests asynchronous solver thread state with fake studies.
 - `development_kit/tests/test_basic.py` — This module tests basic server helpers and registration assumptions.
 - `development_kit/tests/test_branch_continuation.py` — This module tests ordered solver-free branch-continuation state binding and planning.
@@ -274,6 +275,8 @@ models are intentionally absent.
 ## Durable job modules
 
 - `src/jobs/__init__.py` — This file exports durable background-job primitives.
+- `src/jobs/attached_backend.py` — This module normalizes immutable automation-exclusive attached-server execution specifications.
+- `src/jobs/attached_runtime.py` — This module verifies attached server, model, revision, and preservation identities for durable workers.
 - `src/jobs/cancel_worker.py` — This module coordinates detached durable cancellation and cleanup.
 - `src/jobs/convergence_campaign.py` — This module normalizes immutable bounded durable convergence campaign specifications.
 - `src/jobs/branch_continuation_campaign.py` — This module normalizes immutable bounded durable branch-continuation campaign specifications.

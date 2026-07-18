@@ -12,6 +12,8 @@ from src.shared_session.locking import normalize_shared_model_identity
 
 
 ATTACHED_EXECUTION_BACKEND_KIND = "attached_shared_server"
+ATTACHED_EXECUTION_BACKEND_SCHEMA = "comsol_mcp.attached_execution_backend"
+ATTACHED_EXECUTION_BACKEND_VERSION = "1.0.0"
 
 _REQUEST_FIELDS = frozenset(
     {
@@ -181,8 +183,18 @@ def normalize_attached_execution_backend(value: Any) -> dict[str, Any]:
         value,
         _BACKEND_FIELDS,
         "attached execution backend",
-        optional=frozenset({"backend_identity_sha256"}),
+        optional=frozenset(
+            {"schema_name", "schema_version", "backend_identity_sha256"}
+        ),
     )
+    if raw.get("schema_name", ATTACHED_EXECUTION_BACKEND_SCHEMA) != (
+        ATTACHED_EXECUTION_BACKEND_SCHEMA
+    ):
+        raise ValueError("attached execution backend schema is unsupported")
+    if raw.get("schema_version", ATTACHED_EXECUTION_BACKEND_VERSION) != (
+        ATTACHED_EXECUTION_BACKEND_VERSION
+    ):
+        raise ValueError("attached execution backend schema version is unsupported")
     if raw["kind"] != ATTACHED_EXECUTION_BACKEND_KIND:
         raise ValueError("attached execution backend kind is unsupported")
     if raw["user_confirmed_automation_exclusive"] is not True:
@@ -196,6 +208,8 @@ def normalize_attached_execution_backend(value: Any) -> dict[str, Any]:
         model_identity_sha256=model["identity_sha256"],
     )
     body = {
+        "schema_name": ATTACHED_EXECUTION_BACKEND_SCHEMA,
+        "schema_version": ATTACHED_EXECUTION_BACKEND_VERSION,
         "kind": ATTACHED_EXECUTION_BACKEND_KIND,
         "user_confirmed_automation_exclusive": True,
         "source_model_lock_sha256": _hex64(
@@ -241,6 +255,8 @@ def normalize_attached_execution_request(value: Any) -> dict[str, Any]:
 
 __all__ = [
     "ATTACHED_EXECUTION_BACKEND_KIND",
+    "ATTACHED_EXECUTION_BACKEND_SCHEMA",
+    "ATTACHED_EXECUTION_BACKEND_VERSION",
     "normalize_attached_execution_backend",
     "normalize_attached_execution_request",
 ]
