@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import math
 from pathlib import Path
 from typing import Any, Mapping
+
+from src.durable import canonical_json_v1, canonical_sha256_v1
 
 
 CONTRACT_VERSION = "1"
@@ -81,17 +81,11 @@ THREAT_MODEL = {
 
 def canonical_json_bytes(value: Any) -> bytes:
     """Encode a contract object deterministically for hashing."""
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        allow_nan=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
+    return canonical_json_v1(value)
 
 
 def object_sha256(value: Any) -> str:
-    return hashlib.sha256(canonical_json_bytes(value)).hexdigest()
+    return canonical_sha256_v1(value)
 
 
 def _require_ascii_absolute_path(value: Any, label: str) -> str:

@@ -71,6 +71,7 @@ def atomic_write_bytes(
     retry_seconds: float = DEFAULT_REPLACE_RETRY_SECONDS,
     stage_hook: WriteStageHook | None = None,
     replace_fn: Callable[[str | bytes | os.PathLike[str] | os.PathLike[bytes], str | bytes | os.PathLike[str] | os.PathLike[bytes]], None] | None = None,
+    compact_temporary: bool = False,
 ) -> None:
     """Durably replace one file with complete same-directory temporary bytes."""
     target = Path(path)
@@ -80,7 +81,9 @@ def atomic_write_bytes(
         raise ValueError("retry_seconds must be non-negative")
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_name(
-        f".{target.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        f".tmp-{uuid.uuid4().hex[:8]}"
+        if compact_temporary
+        else f".{target.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
     )
     replaced = False
     replace = replace_fn or os.replace
@@ -131,6 +134,7 @@ def atomic_write_json(
     *,
     stage_hook: WriteStageHook | None = None,
     replace_fn: Callable[[str | bytes | os.PathLike[str] | os.PathLike[bytes], str | bytes | os.PathLike[str] | os.PathLike[bytes]], None] | None = None,
+    compact_temporary: bool = False,
 ) -> None:
     """Write one finite pretty JSON document through atomic replacement."""
     atomic_write_bytes(
@@ -138,6 +142,7 @@ def atomic_write_json(
         json_document_bytes(value),
         stage_hook=stage_hook,
         replace_fn=replace_fn,
+        compact_temporary=compact_temporary,
     )
 
 

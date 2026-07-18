@@ -21,6 +21,8 @@ from typing import Any, Iterable, Iterator, Mapping, Protocol, Sequence
 import unicodedata
 import uuid
 
+from src.durable import atomic_write_json, sha256_file_bounded
+
 from .semantic_contracts import (
     INDEX_MANIFEST_SCHEMA_VERSION,
     MODEL_MANIFEST_SCHEMA_VERSION,
@@ -37,6 +39,7 @@ DEFAULT_CHUNK_CHARACTERS = 1_200
 DEFAULT_CHUNK_OVERLAP = 120
 DEFAULT_BATCH_SIZE = 64
 BUILD_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,79}$")
+MAX_SEMANTIC_ARTIFACT_BYTES = 8 * 1024 * 1024 * 1024
 
 
 class Encoder(Protocol):
@@ -58,11 +61,10 @@ def _require_ascii_absolute(path: str | Path, label: str) -> Path:
 
 
 def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+    return sha256_file_bounded(
+        path,
+        max_bytes=MAX_SEMANTIC_ARTIFACT_BYTES,
+    )["sha256"]
 
 
 def _file_record(path: Path, root: Path) -> dict[str, Any]:
@@ -80,27 +82,12 @@ def _file_set_sha256(records: Sequence[Mapping[str, Any]]) -> str:
 
 
 def _atomic_write_json(path: Path, value: Mapping[str, Any]) -> None:
-    encoded = json.dumps(value, ensure_ascii=False, allow_nan=False, indent=2, sort_keys=True).encode("utf-8") + b"\n"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Keep the atomic sibling name short: the immutable index hierarchy already
-    # contains two 64-character fingerprints and Windows may enforce MAX_PATH.
-    temporary = path.with_name(f".tmp-{uuid.uuid4().hex[:8]}")
-    try:
-        with temporary.open("wb") as handle:
-            handle.write(encoded)
-            handle.flush()
-            os.fsync(handle.fileno())
-        deadline = time.monotonic() + 1.0
-        while True:
-            try:
-                os.replace(temporary, path)
-                break
-            except PermissionError:
-                if time.monotonic() >= deadline:
-                    raise
-                time.sleep(0.02)
-    finally:
-        temporary.unlink(missing_ok=True)
+    atomic_write_json(
+        path,
+        dict(value),
+        replace_fn=os.replace,
+        compact_temporary=True,
+    )
 
 
 def _normalize_text(text: str) -> str:
