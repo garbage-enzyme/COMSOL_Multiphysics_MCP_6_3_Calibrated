@@ -1,0 +1,219 @@
+"""Settings-aware formal evidence verification tests."""
+
+from __future__ import annotations
+
+from copy import deepcopy
+import json
+import os
+from pathlib import Path
+import shutil
+import tempfile
+
+import pytest
+from mcp.server.fastmcp import FastMCP
+
+from development_kit.tests.test_portfolio_verifier import _fixture, _rehash_request
+from src.evidence.integrity_controls import (
+    DISABLED_CHECK_WARNING,
+    DISABLED_CHECK_WARNING_CODE,
+    EVIDENCE_CHECKS,
+    EVIDENCE_INTEGRITY_VERSION,
+    EVIDENCE_SETTINGS_ENV,
+    EVIDENCE_SETTINGS_SCHEMA,
+    load_evidence_integrity_status,
+)
+from src.evidence.integrity_verifier import verify_evidence_integrity
+from src.path_policy import ARTIFACT_WRITE_ROOT_ENV
+from src.tools.evidence_integrity import register_evidence_integrity_tools
+
+
+def _settings(tmp_path, checks: dict[str, bool]) -> dict:
+    path = tmp_path / "settings.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_name": EVIDENCE_SETTINGS_SCHEMA,
+                "schema_version": EVIDENCE_INTEGRITY_VERSION,
+                "checks": checks,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return load_evidence_integrity_status({EVIDENCE_SETTINGS_ENV: str(path)})
+
+
+def _compatibility(driver: str = "d" * 64) -> dict:
+    identity = {
+        "producer": "comsol-mcp",
+        "producer_version": "3.0.0",
+        "driver_sha256": driver,
+        "schema_version": "1.0.0",
+    }
+    return {"expected": identity, "observed": deepcopy(identity)}
+
+
+@pytest.fixture
+def ascii_artifact_root():
+    base = Path("D:/comsol_runtime") if Path("D:/").exists() else Path(
+        os.environ.get("SystemRoot", "C:/Windows")
+    ) / "Temp"
+    root = Path(tempfile.mkdtemp(prefix="evidence_integrity_", dir=base))
+    try:
+        yield root
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_all_default_checks_produce_one_strictly_verified_receipt(tmp_path):
+    request, _raw, _fit = _fixture(tmp_path)
+
+    result = verify_evidence_integrity(
+        portfolio_request=request,
+        artifact_roots={"case-one": str(tmp_path)},
+        settings_status=load_evidence_integrity_status({}),
+    )
+
+    assert result["success"] is True
+    assert result["verification_state"] == "verified"
+    assert result["strictly_verified"] is True
+    assert result["reason_code"] == "all_enabled_checks_passed"
+    assert result["check_results"]["producer_driver_compatibility"]["state"] == "not_applicable"
+    assert all(
+        result["check_results"][name]["state"] == "passed"
+        for name in EVIDENCE_CHECKS[:-1]
+    )
+    assert result["paths_included"] is False
+    assert len(result["verification_sha256"]) == 64
+
+
+@pytest.mark.parametrize("disabled_check", EVIDENCE_CHECKS)
+def test_each_disabled_check_is_the_only_skipped_check_and_forces_unverified(
+    tmp_path, disabled_check
+):
+    artifact_root = tmp_path / "artifacts"
+    artifact_root.mkdir()
+    request, _raw, _fit = _fixture(artifact_root)
+    status = _settings(tmp_path, {disabled_check: False})
+
+    result = verify_evidence_integrity(
+        portfolio_request=request,
+        artifact_roots={"case-one": str(artifact_root)},
+        settings_status=status,
+    )
+
+    assert result["success"] is True
+    assert result["verification_state"] == "unverified"
+    assert result["strictly_verified"] is False
+    assert result["check_results"][disabled_check] == {
+        "state": "skipped",
+        "reason_code": "disabled_by_settings",
+    }
+    for name in set(EVIDENCE_CHECKS[:-1]) - {disabled_check}:
+        assert result["check_results"][name]["state"] == "passed"
+    if disabled_check != "producer_driver_compatibility":
+        assert result["check_results"]["producer_driver_compatibility"]["state"] == "not_applicable"
+    assert result["disabled_evidence_checks"] == [disabled_check]
+    assert result["evidence_integrity_warning_codes"] == [DISABLED_CHECK_WARNING_CODE]
+    assert result["evidence_integrity_warnings"] == [DISABLED_CHECK_WARNING]
+
+
+def test_disabled_summary_check_allows_exploration_but_never_verified(tmp_path):
+    artifact_root = tmp_path / "artifacts"
+    artifact_root.mkdir()
+    request, _raw, _fit = _fixture(artifact_root)
+    request["cases"][0]["summary_claims"][0]["value"] = "invented-value"
+    request = _rehash_request(request)
+
+    result = verify_evidence_integrity(
+        portfolio_request=request,
+        artifact_roots={"case-one": str(artifact_root)},
+        settings_status=_settings(tmp_path, {"summary_claim_verification": False}),
+    )
+
+    assert result["success"] is True
+    assert result["strictly_verified"] is False
+    assert result["check_results"]["summary_claim_verification"]["state"] == "skipped"
+
+
+def test_enabled_summary_check_rejects_a_claim_absent_from_raw_evidence(tmp_path):
+    request, _raw, _fit = _fixture(tmp_path)
+    request["cases"][0]["summary_claims"][0]["value"] = "invented-value"
+    request = _rehash_request(request)
+
+    result = verify_evidence_integrity(
+        portfolio_request=request,
+        artifact_roots={"case-one": str(tmp_path)},
+        settings_status=load_evidence_integrity_status({}),
+    )
+
+    assert result["success"] is False
+    assert result["verification_state"] == "failed"
+    assert result["strictly_verified"] is False
+    assert result["check_results"]["summary_claim_verification"]["state"] == "failed"
+
+
+def test_resume_requires_exact_producer_and_driver_identity(tmp_path):
+    request, _raw, _fit = _fixture(tmp_path)
+    matched = _compatibility()
+    accepted = verify_evidence_integrity(
+        portfolio_request=request,
+        artifact_roots={"case-one": str(tmp_path)},
+        resumed=True,
+        producer_compatibility=matched,
+        settings_status=load_evidence_integrity_status({}),
+    )
+    assert accepted["strictly_verified"] is True
+    assert accepted["check_results"]["producer_driver_compatibility"]["state"] == "passed"
+
+    mismatched = _compatibility()
+    mismatched["observed"]["driver_sha256"] = "e" * 64
+    rejected = verify_evidence_integrity(
+        portfolio_request=request,
+        artifact_roots={"case-one": str(tmp_path)},
+        resumed=True,
+        producer_compatibility=mismatched,
+        settings_status=load_evidence_integrity_status({}),
+    )
+    assert rejected["success"] is False
+    assert rejected["strictly_verified"] is False
+    assert rejected["check_results"]["producer_driver_compatibility"]["state"] == "failed"
+
+
+def test_invalid_settings_block_formal_verification_before_artifact_reads(tmp_path):
+    path = tmp_path / "bad.json"
+    path.write_text("{", encoding="utf-8")
+    status = load_evidence_integrity_status({EVIDENCE_SETTINGS_ENV: str(path)})
+
+    result = verify_evidence_integrity(
+        portfolio_request={},
+        artifact_roots={},
+        settings_status=status,
+    )
+
+    assert result["success"] is False
+    assert result["verification_state"] == "blocked"
+    assert result["strictly_verified"] is False
+    assert result["reason_code"] == "evidence_integrity_settings_invalid"
+
+
+def test_mcp_verify_tool_enforces_owned_artifact_root_and_returns_no_path(
+    ascii_artifact_root, monkeypatch
+):
+    artifact_root = ascii_artifact_root / "case"
+    artifact_root.mkdir()
+    request, _raw, _fit = _fixture(artifact_root)
+    monkeypatch.delenv(EVIDENCE_SETTINGS_ENV, raising=False)
+    monkeypatch.setenv(ARTIFACT_WRITE_ROOT_ENV, str(ascii_artifact_root))
+    server = FastMCP("evidence-integrity-tool-test")
+    register_evidence_integrity_tools(server)
+
+    result = server._tool_manager._tools["evidence_integrity_verify"].fn(
+        request,
+        {"case-one": str(artifact_root)},
+    )
+
+    assert result["success"] is True
+    assert result["strictly_verified"] is True
+    assert result["artifact_root_validation"]["validated_root_count"] == 1
+    assert result["artifact_root_validation"]["paths_included"] is False
+    assert str(ascii_artifact_root) not in json.dumps(result)

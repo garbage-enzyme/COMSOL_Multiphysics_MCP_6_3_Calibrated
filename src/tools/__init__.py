@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 _REGISTRAR_PATHS = (
     "src.tools.capabilities.register_capability_tools",
+    "src.tools.evidence_integrity.register_evidence_integrity_tools",
     "src.tools.ownership.register_ownership_tools",
     "src.tools.jobs.register_job_tools",
     "src.tools.session.register_session_tools",

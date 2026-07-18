@@ -109,6 +109,23 @@ def test_artifact_writes_are_ascii_new_and_contained(tmp_path, ascii_root):
         policy.validate_artifact_write(str(write_root / ".." / "outside.json"))
 
 
+def test_evidence_artifact_roots_are_existing_owned_directories(tmp_path, ascii_root):
+    policy, _, write_root = _policy(tmp_path, ascii_root)
+    evidence_root = write_root / "formal-evidence"
+    evidence_root.mkdir(parents=True)
+    outside = ascii_root / "outside-evidence"
+    outside.mkdir()
+
+    accepted = policy.validate_artifact_read_root(str(evidence_root))
+
+    assert accepted.kind == "artifact_read_root"
+    assert accepted.normalized_path == evidence_root.resolve()
+    with pytest.raises(ValueError, match="escapes"):
+        policy.validate_artifact_read_root(str(outside))
+    with pytest.raises(ValueError, match="cannot be resolved"):
+        policy.validate_artifact_read_root(str(write_root / "missing"))
+
+
 def test_recommended_profile_wrapper_rejects_unconfigured_model_path(
     tmp_path, ascii_root, monkeypatch
 ):

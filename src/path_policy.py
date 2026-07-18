@@ -184,6 +184,27 @@ class PathPolicy:
             raise ValueError("artifact input escapes the owned artifact root")
         return PathDecision("artifact_read", resolved, _root_id(root))
 
+    def validate_artifact_read_root(self, value: Any) -> PathDecision:
+        """Validate one caller-selected directory beneath the owned artifact root."""
+        text = _reject_lexical_path(value, require_ascii=True)
+        path = Path(text)
+        try:
+            resolved = path.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ValueError(
+                f"artifact root cannot be resolved: {type(exc).__name__}"
+            ) from exc
+        is_junction = getattr(path, "is_junction", lambda: False)
+        root = self.artifact_write_root.resolve(strict=False)
+        if (
+            path.is_symlink()
+            or is_junction()
+            or not resolved.is_dir()
+            or not _is_relative_to(resolved, root)
+        ):
+            raise ValueError("artifact root escapes the owned artifact root")
+        return PathDecision("artifact_read_root", resolved, _root_id(root))
+
     def validate_artifact_write(
         self, value: Any, *, directory: bool = False
     ) -> PathDecision:

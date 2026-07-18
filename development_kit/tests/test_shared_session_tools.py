@@ -48,7 +48,7 @@ def test_shared_profile_capabilities_and_tools_are_explicit(monkeypatch):
         },
         "restart_required_after_change": True,
     }
-    assert capabilities["tool_count"] == 17
+    assert capabilities["tool_count"] == 19
 
 
 def test_shared_attach_public_schema_requires_confirmation(monkeypatch):

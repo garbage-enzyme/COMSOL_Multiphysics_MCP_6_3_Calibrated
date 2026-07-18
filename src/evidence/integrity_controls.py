@@ -13,6 +13,7 @@ from typing import Any, Mapping
 EVIDENCE_SETTINGS_ENV = "COMSOL_MCP_EVIDENCE_SETTINGS_PATH"
 EVIDENCE_SETTINGS_SCHEMA = "comsol_mcp.evidence_integrity_settings"
 EVIDENCE_STATUS_SCHEMA = "comsol_mcp.evidence_integrity_status"
+EVIDENCE_VERIFICATION_SCHEMA = "comsol_mcp.evidence_integrity_verification"
 EVIDENCE_INTEGRITY_VERSION = "1.0.0"
 MAX_EVIDENCE_SETTINGS_BYTES = 64 * 1024
 
@@ -274,6 +275,7 @@ __all__ = [
     "EVIDENCE_SETTINGS_ENV",
     "EVIDENCE_SETTINGS_SCHEMA",
     "EVIDENCE_STATUS_SCHEMA",
+    "EVIDENCE_VERIFICATION_SCHEMA",
     "INVALID_SETTINGS_WARNING_CODE",
     "annotate_tool_response",
     "evidence_integrity_capability",

@@ -145,7 +145,11 @@ def _validate_claim(value: Any, case_index: int, claim_index: int) -> dict[str, 
 
 
 def validate_portfolio_evidence_request(
-    value: Any, *, verify_hash: bool = True
+    value: Any,
+    *,
+    verify_hash: bool = True,
+    validate_outcomes: bool = True,
+    validate_artifact_chains: bool = True,
 ) -> dict[str, Any]:
     """Validate a bounded policy-free portfolio evidence request."""
     request = _mapping(value, "portfolio_request")
@@ -168,8 +172,14 @@ def validate_portfolio_evidence_request(
         if set(case) != _CASE_FIELDS:
             raise ValueError(f"{label} fields are incomplete")
         case_ids.append(_identifier(case["case_id"], f"{label}.case_id"))
-        validate_outcome_contract(case["outcome"])
-        validate_artifact_chain_manifest(case["artifact_chain"])
+        if validate_outcomes:
+            validate_outcome_contract(case["outcome"])
+        else:
+            _mapping(case["outcome"], f"{label}.outcome")
+        if validate_artifact_chains:
+            validate_artifact_chain_manifest(case["artifact_chain"])
+        else:
+            _mapping(case["artifact_chain"], f"{label}.artifact_chain")
         claims = case["summary_claims"]
         if not isinstance(claims, list) or len(claims) > _MAX_CLAIMS_PER_CASE:
             raise ValueError(f"{label}.summary_claims must be a bounded list")
@@ -322,6 +332,140 @@ def verify_portfolio_evidence(
     return {**body, "verification_sha256": canonical_sha256(body)}
 
 
+def verify_portfolio_evidence_checks(
+    value: Any,
+    *,
+    artifact_roots: Mapping[str, str | Path],
+    check_outcome_contract: bool,
+    check_artifact_chain: bool,
+    check_summary_claims: bool,
+) -> dict[str, Any]:
+    """Run an explicit subset of deterministic checks for exploration opt-out."""
+    for name, enabled in {
+        "check_outcome_contract": check_outcome_contract,
+        "check_artifact_chain": check_artifact_chain,
+        "check_summary_claims": check_summary_claims,
+    }.items():
+        if not isinstance(enabled, bool):
+            raise ValueError(f"{name} must be a boolean")
+    if not any((check_outcome_contract, check_artifact_chain, check_summary_claims)):
+        raise ValueError("at least one portfolio evidence check must be selected")
+
+    request = validate_portfolio_evidence_request(
+        value,
+        validate_outcomes=check_outcome_contract,
+        validate_artifact_chains=check_artifact_chain or check_summary_claims,
+    )
+    expected_case_ids = [case["case_id"] for case in request["cases"]]
+    filesystem_checks = check_artifact_chain or check_summary_claims
+    if filesystem_checks and set(artifact_roots) != set(expected_case_ids):
+        raise ValueError("artifact_roots must map every and only requested case ID")
+    if not filesystem_checks and artifact_roots:
+        raise ValueError("artifact_roots must be empty when no filesystem check is selected")
+
+    case_receipts = []
+    total_claims = 0
+    total_artifacts = 0
+    for case in request["cases"]:
+        case_id = case["case_id"]
+        outcome = (
+            validate_outcome_contract(case["outcome"])
+            if check_outcome_contract
+            else None
+        )
+        chain = (
+            validate_artifact_chain_manifest(case["artifact_chain"])
+            if filesystem_checks
+            else None
+        )
+        root = (
+            Path(artifact_roots[case_id]).resolve(strict=True)
+            if filesystem_checks
+            else None
+        )
+        chain_receipt = (
+            verify_artifact_chain(chain, artifact_root=root)
+            if check_artifact_chain
+            else None
+        )
+
+        if check_outcome_contract and check_artifact_chain:
+            chain_raw_ids = sorted(
+                artifact["artifact_id"]
+                for artifact in chain["artifacts"]
+                if artifact["role"] == "raw_evidence"
+            )
+            if outcome["evidence"]["raw_artifact_ids"] != chain_raw_ids:
+                raise ValueError(
+                    f"case {case_id} outcome raw artifact IDs do not match the evidence chain"
+                )
+
+        if check_summary_claims:
+            by_id = {artifact["artifact_id"]: artifact for artifact in chain["artifacts"]}
+            documents: dict[str, dict[str, Any]] = {}
+            for claim in case["summary_claims"]:
+                citation = claim["citation"]
+                artifact = by_id.get(citation["artifact_id"])
+                if artifact is None:
+                    raise ValueError(
+                        f"case {case_id} claim {claim['claim_id']} cites a missing artifact"
+                    )
+                if citation["artifact_sha256"] != artifact["sha256"]:
+                    raise ValueError(
+                        f"case {case_id} claim {claim['claim_id']} cites the wrong artifact hash"
+                    )
+                document = documents.get(artifact["artifact_id"])
+                if document is None:
+                    document = _read_cited_artifact(root=root, artifact=artifact)
+                    documents[artifact["artifact_id"]] = document
+                tokens = _decode_json_pointer(
+                    citation["json_pointer"],
+                    f"case {case_id} claim {claim['claim_id']} JSON Pointer",
+                )
+                measured = _pointer_value(
+                    document,
+                    tokens,
+                    f"case {case_id} claim {claim['claim_id']} JSON Pointer",
+                )
+                if canonical_json_bytes(measured) != canonical_json_bytes(claim["value"]):
+                    raise ValueError(
+                        f"case {case_id} claim {claim['claim_id']} is absent from the cited evidence"
+                    )
+            total_claims += len(case["summary_claims"])
+
+        artifact_count = chain_receipt["artifact_count"] if chain_receipt else 0
+        total_artifacts += artifact_count
+        case_receipts.append(
+            {
+                "case_id": case_id,
+                "outcome_contract": "passed" if check_outcome_contract else "not_selected",
+                "artifact_chain": "passed" if check_artifact_chain else "not_selected",
+                "summary_claims": "passed" if check_summary_claims else "not_selected",
+                "claim_count": len(case["summary_claims"]) if check_summary_claims else 0,
+                "artifact_count": artifact_count,
+            }
+        )
+
+    body = {
+        "schema_name": PORTFOLIO_VERIFICATION_SCHEMA_NAME,
+        "schema_version": PORTFOLIO_SCHEMA_VERSION,
+        "portfolio_id": request["portfolio_id"],
+        "request_sha256": request["request_sha256"],
+        "selected_checks": {
+            "outcome_contract_validation": check_outcome_contract,
+            "artifact_chain_verification": check_artifact_chain,
+            "summary_claim_verification": check_summary_claims,
+        },
+        "case_count": len(case_receipts),
+        "claim_count": total_claims,
+        "artifact_count": total_artifacts,
+        "case_receipts": case_receipts,
+        "paths_included": False,
+        "source_mutation_performed": False,
+    }
+    return {**body, "verification_sha256": canonical_sha256(body)}
+
+
 __all__ = [
     "CLAIM_DIMENSIONS",
     "PORTFOLIO_REQUEST_SCHEMA_NAME",
@@ -330,4 +474,5 @@ __all__ = [
     "build_portfolio_evidence_request",
     "validate_portfolio_evidence_request",
     "verify_portfolio_evidence",
+    "verify_portfolio_evidence_checks",
 ]

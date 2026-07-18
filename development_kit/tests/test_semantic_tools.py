@@ -159,7 +159,7 @@ import asyncio, json, sys
 from src.server import create_server
 server = create_server('semantic-profile-subprocess', profile='semantic_docs')
 names = sorted(tool.name for tool in asyncio.run(server.list_tools()))
-assert len(names) == 44
+assert len(names) == 46
 assert {'semantic_search','semantic_status','semantic_worker_reset'} <= set(names)
 for name in ('chromadb','torch','sentence_transformers'):
     assert name not in sys.modules, name

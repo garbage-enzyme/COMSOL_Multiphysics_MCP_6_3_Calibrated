@@ -137,6 +137,8 @@ models are intentionally absent.
 - `development_kit/tests/test_durable_job_control_plane.py` — This module tests durable submission, reconciliation, status, cancellation, and resume behavior.
 - `development_kit/tests/test_environment_identity.py` — This module tests redacted solver-free environment identity.
 - `development_kit/tests/test_evidence_contracts.py` — This module tests physical evidence, policies, and immutable migration contracts.
+- `development_kit/tests/test_evidence_integrity_controls.py` — This module tests default-on settings, explicit per-check opt-out, and fail-closed disclosure.
+- `development_kit/tests/test_evidence_integrity_verifier.py` — This module tests settings-aware formal evidence verification and resume identity checks.
 - `development_kit/tests/test_field_artifacts.py` — This module tests bounded durable scalar field serialization.
 - `development_kit/tests/test_field_bundle.py` — This module tests field-evidence request normalization and identity.
 - `development_kit/tests/test_field_dataset.py` — This module tests read-only dataset adaptation to field evidence.
@@ -251,6 +253,8 @@ models are intentionally absent.
 - `src/evidence/contracts.py` — This module implements strict physical evidence, policy, and migration contracts.
 - `src/evidence/branch_continuation.py` — This module validates and plans ordered branch-continuation states without a solver.
 - `src/evidence/convergence_evaluation.py` — This module validates ordered spectral convergence ladders and caller policies.
+- `src/evidence/integrity_controls.py` — This module loads default-on evidence-integrity settings and defines warning propagation.
+- `src/evidence/integrity_verifier.py` — This module composes settings-aware outcome, artifact, summary, and resume verification.
 - `src/evidence/field_artifacts.py` — This module serializes bounded gridded scalar field artifacts.
 - `src/evidence/field_bundle.py` — This module normalizes bounded field-evidence extraction requests.
 - `src/evidence/field_dataset.py` — This module adapts existing MPh datasets to field-evidence samples.
@@ -350,6 +354,7 @@ models are intentionally absent.
 - `src/tools/convergence_evaluation.py` — This module exposes bounded solver-free convergence evaluation.
 - `src/tools/catalog.py` — This module classifies tools and snapshots deterministic public schemas.
 - `src/tools/derived_geometry.py` — This module applies typed edits only to provenance-tracked derived models.
+- `src/tools/evidence_integrity.py` — This module exposes solver-free evidence-integrity status and formal verification tools.
 - `src/tools/field_evidence.py` — This module exposes read-only field discovery and extraction tools.
 - `src/tools/geometry.py` — This module exposes COMSOL geometry tools.
 - `src/tools/incidence_config.py` — This module exposes typed periodic incidence preview and mutation gates.

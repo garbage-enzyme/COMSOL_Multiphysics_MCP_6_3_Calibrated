@@ -44,6 +44,7 @@ from src.evidence.integrity_controls import (
     EVIDENCE_INTEGRITY_VERSION,
     EVIDENCE_SETTINGS_SCHEMA,
     EVIDENCE_STATUS_SCHEMA,
+    EVIDENCE_VERIFICATION_SCHEMA,
 )
 from src.jobs.spectral_progress import (
     SPECTRAL_PROGRESS_SCHEMA_NAME,
@@ -192,6 +193,11 @@ def _entries() -> list[dict[str, Any]]:
             EVIDENCE_STATUS_SCHEMA,
             EVIDENCE_INTEGRITY_VERSION,
             "src.evidence.integrity_controls",
+        ),
+        _entry(
+            EVIDENCE_VERIFICATION_SCHEMA,
+            EVIDENCE_INTEGRITY_VERSION,
+            "src.evidence.integrity_verifier",
         ),
         _entry(
             "comsol_mcp.execution_evidence_outcome",

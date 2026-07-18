@@ -41,6 +41,9 @@ _TOOLS_BY_REGISTRAR = {
     "src.tools.capabilities.register_capability_tools": (
         "capabilities",
     ),
+    "src.tools.evidence_integrity.register_evidence_integrity_tools": (
+        "evidence_integrity_status", "evidence_integrity_verify",
+    ),
     "src.tools.ownership.register_ownership_tools": (
         "solver_status", "solver_preflight", "solver_recover_stale_lease",
     ),
@@ -156,6 +159,7 @@ _TOOLS_BY_REGISTRAR = {
 
 _GROUP_BY_REGISTRAR = {
     "register_capability_tools": "capabilities",
+    "register_evidence_integrity_tools": "evidence_integrity",
     "register_ownership_tools": "ownership",
     "register_job_tools": "jobs",
     "register_session_tools": "session",
@@ -315,7 +319,7 @@ _STARTS_SOLVER = frozenset({
 })
 
 _CONTROL_PLANE_TOOLS = frozenset({
-    "capabilities", "solver_status", "solver_preflight",
+    "capabilities", "evidence_integrity_status", "solver_status", "solver_preflight",
     "solver_recover_stale_lease", "job_status", "job_tail", "job_cancel",
     "comsol_status", "study_get_progress", "study_cancel", "study_wait",
     "semantic_status", "semantic_worker_reset",
@@ -323,7 +327,7 @@ _CONTROL_PLANE_TOOLS = frozenset({
 })
 
 _SOLVER_FREE_TOOLS = frozenset({
-    "manual_search", "manual_read_pages", "semantic_search",
+    "evidence_integrity_verify", "manual_search", "manual_read_pages", "semantic_search",
     "docs_get", "docs_list", "physics_get_guide", "troubleshoot",
     "modeling_best_practices", "wave_optics_material_expression_preview",
     "visual_review_capability_normalize", "visual_review_request_create",
@@ -358,7 +362,7 @@ _MODEL_REVISION_NONADVANCING = frozenset({
 })
 
 _CORE_TOOLS = frozenset({
-    "capabilities",
+    "capabilities", "evidence_integrity_status", "evidence_integrity_verify",
     "solver_status", "solver_preflight", "solver_recover_stale_lease",
     "job_submit", "job_status", "job_tail", "job_cancel", "job_resume",
     "comsol_start", "comsol_disconnect", "comsol_status", "session_reset",
@@ -431,7 +435,8 @@ _SEMANTIC_DOCS_ADDITIONS = frozenset({
 })
 
 _DESKTOP_SHARED_FOUNDATION = frozenset({
-    "capabilities", "solver_status", "job_submit", "job_status", "job_tail",
+    "capabilities", "evidence_integrity_status", "evidence_integrity_verify",
+    "solver_status", "job_submit", "job_status", "job_tail",
     "job_cancel", "job_resume",
     "shared_server_preflight", "shared_server_attach",
     "shared_server_detach", "shared_server_status",

@@ -353,6 +353,51 @@
     "title": "docs_listArguments",
     "type": "object"
   },
+  "evidence_integrity_status": {
+    "properties": {},
+    "title": "evidence_integrity_statusArguments",
+    "type": "object"
+  },
+  "evidence_integrity_verify": {
+    "properties": {
+      "artifact_roots": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "title": "Artifact Roots",
+        "type": "object"
+      },
+      "portfolio_request": {
+        "additionalProperties": true,
+        "title": "Portfolio Request",
+        "type": "object"
+      },
+      "producer_compatibility": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Producer Compatibility"
+      },
+      "resumed": {
+        "default": false,
+        "title": "Resumed",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "portfolio_request",
+      "artifact_roots"
+    ],
+    "title": "evidence_integrity_verifyArguments",
+    "type": "object"
+  },
   "geometry_add_block": {
     "properties": {
       "component_name": {
