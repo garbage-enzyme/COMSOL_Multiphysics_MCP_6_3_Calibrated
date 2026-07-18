@@ -13,6 +13,14 @@ from src.shared_session.locking import normalize_shared_model_identity
 
 ATTACHED_EXECUTION_BACKEND_KIND = "attached_shared_server"
 
+_REQUEST_FIELDS = frozenset(
+    {
+        "kind",
+        "expected_lock_sha256",
+        "expected_revision_sha256",
+        "user_confirmed_automation_exclusive",
+    }
+)
 _BACKEND_FIELDS = frozenset(
     {
         "kind",
@@ -206,7 +214,33 @@ def normalize_attached_execution_backend(value: Any) -> dict[str, Any]:
     return {**body, "backend_identity_sha256": identity_sha256}
 
 
+def normalize_attached_execution_request(value: Any) -> dict[str, Any]:
+    """Normalize the short public request resolved from the live model lock."""
+    raw = _exact_mapping(
+        value,
+        _REQUEST_FIELDS,
+        "attached execution request",
+    )
+    if raw["kind"] != ATTACHED_EXECUTION_BACKEND_KIND:
+        raise ValueError("attached execution request kind is unsupported")
+    if raw["user_confirmed_automation_exclusive"] is not True:
+        raise ValueError(
+            "attached execution requires explicit automation-exclusive confirmation"
+        )
+    return {
+        "kind": ATTACHED_EXECUTION_BACKEND_KIND,
+        "expected_lock_sha256": _hex64(
+            raw["expected_lock_sha256"], "expected model lock SHA-256"
+        ),
+        "expected_revision_sha256": _hex64(
+            raw["expected_revision_sha256"], "expected model revision SHA-256"
+        ),
+        "user_confirmed_automation_exclusive": True,
+    }
+
+
 __all__ = [
     "ATTACHED_EXECUTION_BACKEND_KIND",
     "normalize_attached_execution_backend",
+    "normalize_attached_execution_request",
 ]

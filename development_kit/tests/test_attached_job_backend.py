@@ -15,7 +15,10 @@ import types
 
 import pytest
 
-from src.jobs.attached_backend import normalize_attached_execution_backend
+from src.jobs.attached_backend import (
+    normalize_attached_execution_backend,
+    normalize_attached_execution_request,
+)
 from src.jobs.attached_runtime import (
     normalize_attached_execution_target,
     verify_attached_model_inventory,
@@ -24,6 +27,7 @@ from src.jobs.attached_runtime import (
 from src.jobs.manager import JobManager, validate_staged_sweep_spec
 from src.jobs.store import JobStore, process_identity
 import src.jobs.worker as production_worker
+from src.tools.jobs import _submit_job
 from src.shared_session.identity import normalize_attached_server_identity
 from src.shared_session.locking import (
     build_shared_model_revision,
@@ -121,6 +125,26 @@ def test_attached_backend_rejects_tampered_aggregate_identity():
 
     with pytest.raises(ValueError, match="backend identity SHA-256"):
         normalize_attached_execution_backend(normalized)
+
+
+def test_public_attached_request_is_short_strict_and_hash_bound():
+    request = normalize_attached_execution_request(
+        {
+            "kind": "attached_shared_server",
+            "expected_lock_sha256": "A" * 64,
+            "expected_revision_sha256": "B" * 64,
+            "user_confirmed_automation_exclusive": True,
+        }
+    )
+
+    assert request == {
+        "kind": "attached_shared_server",
+        "expected_lock_sha256": "a" * 64,
+        "expected_revision_sha256": "b" * 64,
+        "user_confirmed_automation_exclusive": True,
+    }
+    with pytest.raises(ValueError, match="unknown"):
+        normalize_attached_execution_request(_backend())
 
 
 def test_attached_backend_contract_import_does_not_import_mph():
@@ -506,3 +530,101 @@ def test_attached_manager_preflight_rejects_changed_server_process(
     assert preflight["success"] is False
     assert preflight["ready"] is False
     assert preflight["state"] == "attached_server_identity_changed"
+
+
+def test_public_job_submit_resolves_live_handoff_before_manager_submit(
+    ascii_job_root,
+):
+    source = ascii_job_root / "immutable-source.mph"
+    source.write_bytes(b"immutable source")
+    calls = []
+
+    class FakeSessionManager:
+        def prepare_attached_job_handoff(self, **kwargs):
+            calls.append(("handoff", kwargs))
+            return {
+                "success": True,
+                "state": "attached_job_handoff_ready",
+                "execution_backend": normalize_attached_execution_backend(_backend()),
+                "detach": {
+                    "state": "detached",
+                    "external_resources_preserved": True,
+                },
+            }
+
+    class FakeJobManager:
+        def submit(self, spec):
+            calls.append(("submit", spec))
+            return {"success": True, "job_id": "job-attached", "status": "starting"}
+
+    result = _submit_job(
+        {
+            "job_type": "staged_sweep",
+            "source_model_path": str(source),
+            "parameter_name": "gap",
+            "parameter_values": [10.0],
+            "expressions": ["A"],
+            "execution_backend": {
+                "kind": "attached_shared_server",
+                "expected_lock_sha256": "a" * 64,
+                "expected_revision_sha256": "b" * 64,
+                "user_confirmed_automation_exclusive": True,
+            },
+        },
+        manager=FakeJobManager(),
+        session_manager=FakeSessionManager(),
+    )
+
+    assert result["success"] is True
+    assert result["job_id"] == "job-attached"
+    assert result["attached_handoff"]["external_resources_preserved"] is True
+    assert calls[0][0] == "handoff"
+    assert calls[0][1]["source_model_path"] == str(source.resolve())
+    assert calls[1][0] == "submit"
+    assert calls[1][1]["execution_backend"]["backend_identity_sha256"] == (
+        result["attached_handoff"]["backend_identity_sha256"]
+    )
+
+
+def test_public_job_submit_does_not_launch_after_handoff_failure(ascii_job_root):
+    source = ascii_job_root / "immutable-source.mph"
+    source.write_bytes(b"immutable source")
+
+    class RejectingSessionManager:
+        def prepare_attached_job_handoff(self, **_kwargs):
+            return {"success": False, "state": "handoff_precondition_failed"}
+
+    class UnexpectedJobManager:
+        def submit(self, _spec):
+            raise AssertionError("failed handoff must not submit a worker")
+
+    result = _submit_job(
+        {
+            "job_type": "staged_sweep",
+            "source_model_path": str(source),
+            "parameter_name": "gap",
+            "parameter_values": [10.0],
+            "expressions": ["A"],
+            "execution_backend": {
+                "kind": "attached_shared_server",
+                "expected_lock_sha256": "a" * 64,
+                "expected_revision_sha256": "b" * 64,
+                "user_confirmed_automation_exclusive": True,
+            },
+        },
+        manager=UnexpectedJobManager(),
+        session_manager=RejectingSessionManager(),
+    )
+
+    assert result == {
+        "success": False,
+        "state": "attached_handoff_failed",
+        "attached_handoff": {
+            "state": "handoff_precondition_failed",
+            "backend_identity_sha256": None,
+            "server_identity_sha256": None,
+            "model_identity_sha256": None,
+            "external_resources_preserved": None,
+            "detach_state": None,
+        },
+    }

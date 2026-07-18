@@ -6,11 +6,83 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from src.jobs.manager import JobManager
+from src.jobs.attached_backend import normalize_attached_execution_request
+from src.jobs.manager import JobManager, validate_staged_sweep_spec
+from src.tools.shared_session import shared_session_manager
 from src.utils.control_plane import measured_call
 
 
 job_manager = JobManager()
+
+
+def _attached_handoff_summary(value: dict[str, Any]) -> dict[str, Any]:
+    backend = value.get("execution_backend") or {}
+    detach = value.get("detach") or {}
+    return {
+        "state": value.get("state"),
+        "backend_identity_sha256": backend.get("backend_identity_sha256"),
+        "server_identity_sha256": (backend.get("attached_server") or {}).get(
+            "identity_sha256"
+        ),
+        "model_identity_sha256": (backend.get("model") or {}).get(
+            "identity_sha256"
+        ),
+        "external_resources_preserved": detach.get(
+            "external_resources_preserved"
+        ),
+        "detach_state": detach.get("state"),
+    }
+
+
+def _submit_job(
+    spec: dict[str, Any],
+    *,
+    manager: JobManager = job_manager,
+    session_manager=shared_session_manager,
+) -> dict[str, Any]:
+    if not isinstance(spec, dict):
+        raise ValueError("Job specification must be an object")
+    execution_request = spec.get("execution_backend")
+    if execution_request is None:
+        return manager.submit(spec)
+    if spec.get("job_type") != "staged_sweep":
+        raise ValueError(
+            "attached execution is currently supported only for staged_sweep jobs"
+        )
+    request = normalize_attached_execution_request(execution_request)
+    standalone_fields = dict(spec)
+    standalone_fields.pop("execution_backend")
+    validated = validate_staged_sweep_spec(standalone_fields)
+    handoff = session_manager.prepare_attached_job_handoff(
+        expected_lock_sha256=request["expected_lock_sha256"],
+        expected_revision_sha256=request["expected_revision_sha256"],
+        source_model_path=validated["source_model_path"],
+        user_confirmed_automation_exclusive=(
+            request["user_confirmed_automation_exclusive"]
+        ),
+    )
+    if not handoff.get("success"):
+        return {
+            "success": False,
+            "state": "attached_handoff_failed",
+            "attached_handoff": _attached_handoff_summary(handoff),
+        }
+    expanded = dict(spec)
+    expanded["execution_backend"] = handoff["execution_backend"]
+    try:
+        submitted = manager.submit(expanded)
+    except Exception as exc:
+        return {
+            "success": False,
+            "state": "job_submit_failed_after_attached_handoff",
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+            "attached_handoff": _attached_handoff_summary(handoff),
+        }
+    return {
+        **submitted,
+        "attached_handoff": _attached_handoff_summary(handoff),
+    }
 
 
 def _job_call(operation: str, callback, **error_fields: Any) -> dict[str, Any]:
@@ -33,8 +105,8 @@ def register_job_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     def job_submit(spec: dict[str, Any]) -> dict[str, Any]:
-        """Validate and detach one bounded sweep, evidence matrix, spectrum, convergence, or continuation campaign."""
-        return _job_call("job_submit", lambda: job_manager.submit(spec))
+        """Validate and detach one bounded standalone or attached durable job."""
+        return _job_call("job_submit", lambda: _submit_job(spec))
 
     @mcp.tool()
     def job_status(job_id: str) -> dict[str, Any]:
