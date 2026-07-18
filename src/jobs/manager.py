@@ -16,6 +16,7 @@ import psutil
 
 from .process_control import inspect_identity, verify_absent
 from .resource_admission import normalize_resource_policy
+from .attached_backend import normalize_attached_execution_backend
 from .branch_continuation_campaign import normalize_branch_continuation_campaign_spec
 from .convergence_campaign import normalize_convergence_campaign_spec
 from .spectral_characterization import normalize_spectral_characterization_job_spec
@@ -64,6 +65,7 @@ def validate_staged_sweep_spec(raw: dict[str, Any]) -> dict[str, Any]:
         "smoke_points",
         "record_wavelength_controls",
         "resource_policy",
+        "execution_backend",
     }
     unknown = sorted(set(spec) - allowed)
     if unknown:
@@ -129,6 +131,10 @@ def validate_staged_sweep_spec(raw: dict[str, Any]) -> dict[str, Any]:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     spec["source_model_sha256"] = digest.hexdigest()
+    if "execution_backend" in spec:
+        spec["execution_backend"] = normalize_attached_execution_backend(
+            spec["execution_backend"]
+        )
     spec["smoke_points"] = smoke_points
     spec["schema_version"] = JOB_SCHEMA_VERSION
     spec["spec_fingerprint"] = _fingerprint({k: v for k, v in spec.items() if k != "spec_fingerprint"})

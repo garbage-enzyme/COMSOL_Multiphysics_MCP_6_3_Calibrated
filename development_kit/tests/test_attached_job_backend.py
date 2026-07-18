@@ -10,6 +10,7 @@ import sys
 import pytest
 
 from src.jobs.attached_backend import normalize_attached_execution_backend
+from src.jobs.manager import validate_staged_sweep_spec
 from src.shared_session.identity import normalize_attached_server_identity
 from src.shared_session.locking import (
     build_shared_model_revision,
@@ -114,3 +115,31 @@ assert 'mph' not in sys.modules
     )
 
     assert completed.returncode == 0, completed.stderr
+
+
+def test_staged_sweep_fingerprint_binds_normalized_attached_backend(tmp_path):
+    source = tmp_path / "immutable-source.mph"
+    source.write_bytes(b"immutable source")
+    spec = validate_staged_sweep_spec(
+        {
+            "job_type": "staged_sweep",
+            "source_model_path": str(source),
+            "parameter_name": "gap",
+            "parameter_values": [10.0, 11.0],
+            "expressions": ["A"],
+            "execution_backend": _backend(),
+        }
+    )
+
+    assert spec["execution_backend"]["kind"] == "attached_shared_server"
+    assert len(spec["execution_backend"]["backend_identity_sha256"]) == 64
+    assert spec["spec_fingerprint"] == validate_staged_sweep_spec(
+        {
+            "job_type": "staged_sweep",
+            "source_model_path": str(source),
+            "parameter_name": "gap",
+            "parameter_values": [10.0, 11.0],
+            "expressions": ["A"],
+            "execution_backend": _backend(),
+        }
+    )["spec_fingerprint"]
