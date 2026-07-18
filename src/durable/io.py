@@ -183,6 +183,9 @@ def read_complete_jsonl(
     path: str | Path,
     *,
     max_bytes: int = DEFAULT_MAX_JSONL_BYTES,
+    version_field: str | None = None,
+    current_version: str | None = None,
+    legacy_versions: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Classify and return complete JSONL records without rewriting the source."""
     candidate = Path(path)
@@ -209,8 +212,22 @@ def read_complete_jsonl(
             "complete_byte_count": 0,
             "error_type": type(exc).__name__,
         }
+    state = "incomplete" if trailing else "current_valid"
+    if not trailing and version_field is not None:
+        if not current_version:
+            raise ValueError("current_version is required for versioned JSONL recovery")
+        versions = {
+            record.get(version_field) if isinstance(record, dict) else None
+            for record in records
+        }
+        if versions == {current_version}:
+            state = "current_valid"
+        elif len(versions) == 1 and versions <= set(legacy_versions):
+            state = "legacy_valid"
+        else:
+            state = "corrupt"
     return {
-        "state": "incomplete" if trailing else "current_valid",
+        "state": state,
         "records": records,
         "complete_byte_count": complete_end,
         "trailing_byte_count": len(trailing),

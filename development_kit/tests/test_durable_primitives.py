@@ -105,6 +105,22 @@ def test_jsonl_recovery_distinguishes_absent_valid_incomplete_and_corrupt(tmp_pa
     assert read_complete_jsonl(path)["state"] == "corrupt"
 
 
+def test_versioned_jsonl_recovery_distinguishes_legacy_without_rewriting(tmp_path):
+    path = tmp_path / "legacy.jsonl"
+    append_jsonl_record(path, {"schema_version": "1", "sequence": 1})
+    original = path.read_bytes()
+
+    receipt = read_complete_jsonl(
+        path,
+        version_field="schema_version",
+        current_version="2",
+        legacy_versions=("1",),
+    )
+
+    assert receipt["state"] == "legacy_valid"
+    assert path.read_bytes() == original
+
+
 def test_csv_append_quotes_one_complete_row_per_fsync_boundary(tmp_path):
     path = tmp_path / "rows.csv"
     append_csv_row(path, ["a,b", 1, "line"])
