@@ -136,6 +136,7 @@ models are intentionally absent.
 - `development_kit/tests/test_cancel_state_machine.py` — This module tests deterministic cancellation state transitions without wall-clock sleeps.
 - `development_kit/tests/test_clientapi_properties.py` — This module tests constrained clientapi property access with mocks.
 - `development_kit/tests/test_control_plane_metrics.py` — This module tests bounded control-plane latency, overload, and fairness evidence.
+- `development_kit/tests/test_control_plane_startup.py` — This module tests solver-free cold discovery and startup budgets.
 - `development_kit/tests/test_convergence_campaign_job.py` — This module tests immutable bounded durable convergence campaign specifications.
 - `development_kit/tests/test_convergence_campaign_rows.py` — This module tests hash-chained durable convergence level evidence and artifact replay.
 - `development_kit/tests/test_convergence_campaign_runner.py` — This module tests composed spectral-level execution, convergence stopping, and exact resume.
@@ -391,6 +392,7 @@ models are intentionally absent.
 - `src/tools/periodic_mesh_audit.py` — This module exposes periodic geometry and mesh evidence tools.
 - `src/tools/physics.py` — This module exposes COMSOL physics and multiphysics tools.
 - `src/tools/profiles.py` — This module resolves static profiles and filters tool registration.
+- `src/tools/session_status.py` — This module stores last-known session booleans without importing COMSOL or MPh.
 - `src/tools/properties.py` — This module exposes constrained clientapi property access.
 - `src/tools/property_transport.py` — This module normalizes bounded property values for JSON transport.
 - `src/tools/results.py` — This module exposes result evaluation and export tools.

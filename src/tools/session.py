@@ -1,15 +1,66 @@
 """Session management tools for COMSOL MCP Server."""
 
+from __future__ import annotations
+
 import hashlib
 import json
 import threading
 from pathlib import Path
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
-import mph
-import mph.session as mph_session
 
 from .ownership import ownership_manager
+from .session_status import set_session_status
+
+
+class _LazyMphModule:
+    """Compatibility proxy that imports MPh only when a client is needed."""
+
+    def __init__(self) -> None:
+        object.__setattr__(self, "_module", None)
+
+    def _get(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            import mph as module
+
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name: str):
+        return getattr(self._get(), name)
+
+    def __setattr__(self, name: str, value) -> None:
+        if name == "_module":
+            object.__setattr__(self, name, value)
+            return
+        setattr(self._get(), name, value)
+
+    def __delattr__(self, name: str) -> None:
+        delattr(self._get(), name)
+
+
+class _LazyMphSessionModule(_LazyMphModule):
+    """Compatibility proxy for MPh's process-global session module."""
+
+    def _get(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            import mph.session as module
+
+            object.__setattr__(self, "_module", module)
+        return module
+
+
+mph = _LazyMphModule()
+mph_session = _LazyMphSessionModule()
+
+
+def _load_mph():
+    import mph
+    import mph.session as mph_session
+
+    return mph, mph_session
 
 
 class SessionManager:
@@ -150,6 +201,7 @@ class SessionManager:
 
     def _start_worker(self, kwargs: dict) -> None:
         """Runs mph.Client() in a daemon thread. Sets _client on success."""
+        mph, mph_session = _load_mph()
         client = None
         try:
             # Reuse an MPh session client if one happens to exist.
@@ -198,6 +250,7 @@ class SessionManager:
     
     def connect(self, port: int, host: str = "localhost") -> dict:
         """Connect to a remote COMSOL server."""
+        mph, mph_session = _load_mph()
         with self._start_lock:
             if self._starting:
                 return {
@@ -252,6 +305,7 @@ class SessionManager:
     
     def disconnect(self) -> dict:
         """Disconnect and clear the session."""
+        _, mph_session = _load_mph()
         # A blocking mph.Client() construction cannot be interrupted safely.
         # Mark it for disposal as soon as the worker receives the client.
         with self._start_lock:
@@ -304,6 +358,10 @@ class SessionManager:
     
     def get_status(self) -> dict:
         """Get current session status."""
+        set_session_status(
+            connected=self._client is not None,
+            starting=self._starting,
+        )
         # Background start in flight and not yet ready.
         if self._client is None and self._starting:
             return {
