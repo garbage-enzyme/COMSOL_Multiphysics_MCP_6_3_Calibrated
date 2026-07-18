@@ -12,6 +12,10 @@ from src.operation_arbiter import OPERATION_LOCK_SCHEMA, OPERATION_LOCK_VERSION
 from src.path_policy import PATH_POLICY_SCHEMA, PATH_POLICY_VERSION
 from src.shared_session.cleanup import CLEANUP_OUTCOME_SCHEMA, CLEANUP_OUTCOME_VERSION
 from src.shared_session.locking import SHARED_MODEL_LOCK_SCHEMA, SHARED_MODEL_LOCK_VERSION
+from src.shared_session.lifecycle import (
+    SHARED_MODEL_SNAPSHOT_SCHEMA,
+    SHARED_MODEL_SNAPSHOT_VERSION,
+)
 from src.shared_session.preflight import (
     SHARED_SERVER_PREFLIGHT_SCHEMA,
     SHARED_SERVER_PREFLIGHT_VERSION,
@@ -256,6 +260,12 @@ def _entries() -> list[dict[str, Any]]:
             SHARED_MODEL_LOCK_SCHEMA,
             SHARED_MODEL_LOCK_VERSION,
             "src.shared_session.locking",
+            artifact_kind="durable_artifact",
+        ),
+        _entry(
+            SHARED_MODEL_SNAPSHOT_SCHEMA,
+            SHARED_MODEL_SNAPSHOT_VERSION,
+            "src.shared_session.lifecycle",
             artifact_kind="durable_artifact",
         ),
         _entry(

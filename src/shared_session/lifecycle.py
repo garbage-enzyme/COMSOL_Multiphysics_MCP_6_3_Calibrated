@@ -30,6 +30,8 @@ MAX_SERVER_MODELS = 32
 MAX_UNLOCK_REASON_CHARACTERS = 512
 SOURCE_HASH_CHUNK_BYTES = 1024 * 1024
 MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024 * 1024
+SHARED_MODEL_SNAPSHOT_SCHEMA = "comsol_mcp.shared_model_snapshot"
+SHARED_MODEL_SNAPSHOT_VERSION = "1.0.0"
 
 
 def _canonical_sha256(value: Any) -> str:
@@ -681,8 +683,8 @@ class SharedSessionManager:
                 )
                 snapshot_sha256 = _hash_file(target)
                 body = {
-                    "schema_name": "comsol_mcp.shared_model_snapshot",
-                    "schema_version": "1.0.0",
+                    "schema_name": SHARED_MODEL_SNAPSHOT_SCHEMA,
+                    "schema_version": SHARED_MODEL_SNAPSHOT_VERSION,
                     "snapshot_id": target.stem,
                     "created_at_epoch": self._clock(),
                     "save_copy_api": "Model.java.save(path, True)",
