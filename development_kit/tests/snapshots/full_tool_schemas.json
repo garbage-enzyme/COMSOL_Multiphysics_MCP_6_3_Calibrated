@@ -4152,6 +4152,29 @@
     "title": "shared_model_lockArguments",
     "type": "object"
   },
+  "shared_model_snapshot": {
+    "properties": {
+      "expected_lock_sha256": {
+        "title": "Expected Lock Sha256",
+        "type": "string"
+      },
+      "expected_revision_sha256": {
+        "title": "Expected Revision Sha256",
+        "type": "string"
+      },
+      "max_snapshot_bytes": {
+        "title": "Max Snapshot Bytes",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "expected_lock_sha256",
+      "expected_revision_sha256",
+      "max_snapshot_bytes"
+    ],
+    "title": "shared_model_snapshotArguments",
+    "type": "object"
+  },
   "shared_model_unlock": {
     "properties": {
       "expected_lock_sha256": {

@@ -18,7 +18,7 @@ def test_shared_profile_capabilities_and_tools_are_explicit(monkeypatch):
         "shared_server_preflight", "shared_server_attach",
         "shared_server_detach", "shared_server_status",
         "shared_server_models", "shared_model_lock",
-        "shared_model_verify", "shared_model_unlock",
+        "shared_model_verify", "shared_model_unlock", "shared_model_snapshot",
     } <= set(tools)
     assert capabilities["shared_session"] == {
         "profile": "desktop_shared",
@@ -33,7 +33,7 @@ def test_shared_profile_capabilities_and_tools_are_explicit(monkeypatch):
         "model_scope": "one_exact_server_model",
         "restart_required_after_change": True,
     }
-    assert capabilities["tool_count"] == 13
+    assert capabilities["tool_count"] == 14
 
 
 def test_shared_attach_public_schema_requires_confirmation(monkeypatch):
@@ -96,6 +96,11 @@ def test_shared_model_guard_tools_delegate_exact_caller_evidence(monkeypatch):
         "unlock_model",
         lambda **kwargs: calls.append(("unlock", kwargs)) or {"success": True},
     )
+    monkeypatch.setattr(
+        module.shared_session_manager,
+        "snapshot_model",
+        lambda **kwargs: calls.append(("snapshot", kwargs)) or {"success": True},
+    )
     tools = server._tool_manager._tools
 
     assert tools["shared_server_models"].fn()["sentinel"] == "models"
@@ -104,6 +109,9 @@ def test_shared_model_guard_tools_delegate_exact_caller_evidence(monkeypatch):
     )["success"] is True
     assert tools["shared_model_verify"].fn("a" * 64, "b" * 64)["success"] is True
     assert tools["shared_model_unlock"].fn("a" * 64, "Desktop turn")["success"] is True
+    assert tools["shared_model_snapshot"].fn(
+        "a" * 64, "b" * 64, 1024
+    )["success"] is True
     assert calls == [
         (
             "lock",
@@ -119,5 +127,13 @@ def test_shared_model_guard_tools_delegate_exact_caller_evidence(monkeypatch):
         (
             "unlock",
             {"expected_lock_sha256": "a" * 64, "reason": "Desktop turn"},
+        ),
+        (
+            "snapshot",
+            {
+                "expected_lock_sha256": "a" * 64,
+                "expected_revision_sha256": "b" * 64,
+                "max_snapshot_bytes": 1024,
+            },
         ),
     ]

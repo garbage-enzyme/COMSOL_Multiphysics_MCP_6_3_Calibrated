@@ -124,5 +124,18 @@ def register_shared_session_tools(mcp: FastMCP) -> None:
             reason=reason,
         )
 
+    @mcp.tool()
+    def shared_model_snapshot(
+        expected_lock_sha256: str,
+        expected_revision_sha256: str,
+        max_snapshot_bytes: int,
+    ) -> dict[str, Any]:
+        """Create one contained Save Copy after exact model-guard verification."""
+        return shared_session_manager.snapshot_model(
+            expected_lock_sha256=expected_lock_sha256,
+            expected_revision_sha256=expected_revision_sha256,
+            max_snapshot_bytes=max_snapshot_bytes,
+        )
+
 
 __all__ = ["register_shared_session_tools", "shared_session_manager"]
