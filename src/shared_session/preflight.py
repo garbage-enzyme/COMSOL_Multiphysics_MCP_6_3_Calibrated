@@ -8,11 +8,16 @@ import math
 import re
 from typing import Any, Mapping
 
-from .contracts import normalize_shared_server_endpoint
+from .contracts import (
+    LISTENER_BIND_SCOPE_WILDCARD,
+    normalize_shared_listener_bind_host,
+    normalize_shared_server_endpoint,
+    summarize_shared_listener_bindings,
+)
 
 
 SHARED_SERVER_PREFLIGHT_SCHEMA = "comsol_mcp.shared_server_preflight"
-SHARED_SERVER_PREFLIGHT_VERSION = "1.0.0"
+SHARED_SERVER_PREFLIGHT_VERSION = "1.1.0"
 ACCEPTED_RELEASE_LINE = (6, 4, 0)
 MAX_INVENTORY_PROCESSES = 128
 MAX_INVENTORY_LISTENERS = 128
@@ -137,13 +142,15 @@ def _normalize_process(value: Any, index: int) -> dict[str, Any]:
 def _normalize_listener(value: Any, index: int) -> dict[str, Any]:
     label = f"listeners[{index}]"
     raw = _exact_mapping(value, _LISTENER_FIELDS, label)
-    endpoint = normalize_shared_server_endpoint(
-        {"host": raw["host"], "port": raw["port"]}
-    )
+    host, bind_scope = normalize_shared_listener_bind_host(raw["host"])
+    port = normalize_shared_server_endpoint(
+        {"host": "127.0.0.1", "port": raw["port"]}
+    ).port
     return {
-        "host": endpoint.host,
-        "port": endpoint.port,
+        "host": host,
+        "port": port,
         "pid": _positive_integer(raw["pid"], f"{label}.pid"),
+        "bind_scope": bind_scope,
     }
 
 
@@ -212,20 +219,19 @@ def classify_shared_server_preflight(
         if item["pid"] not in first_by_pid
         or item["identity_sha256"] != first_by_pid[item["pid"]]["identity_sha256"]
     ]
-    first_listener = [
-        item
-        for item in first["listeners"]
-        if item["host"] == declared.host and item["port"] == declared.port
-    ]
-    second_listener = [
-        item
-        for item in second["listeners"]
-        if item["host"] == declared.host and item["port"] == declared.port
-    ]
+    first_listener = summarize_shared_listener_bindings(
+        first["listeners"], endpoint=declared
+    )
+    second_listener = summarize_shared_listener_bindings(
+        second["listeners"], endpoint=declared
+    )
     violations: list[str] = []
     warnings: list[str] = []
     state = "ready_for_attach"
     retryable = False
+    listener_bind_scope = second_listener["bind_scope"]
+    if listener_bind_scope == LISTENER_BIND_SCOPE_WILDCARD:
+        warnings.append("listener_bind_scope=wildcard")
 
     comsol_versions = [
         item["version_parts"]
@@ -247,7 +253,7 @@ def classify_shared_server_preflight(
     elif len(desktops) > 1 or sum(item["window_count"] for item in desktops) > 1:
         violations.append("ambiguous_gui_clients")
         state = "ambiguous_gui_clients"
-    elif not desktops and not second_listener:
+    elif not desktops and second_listener["classification"] == "unavailable":
         violations.append("desktop_and_server_absent")
         state = "desktop_and_server_absent"
         retryable = True
@@ -258,17 +264,23 @@ def classify_shared_server_preflight(
     elif (
         desktops[0]["window_count"] == 0
         or not desktops[0]["responding"]
-        or len(first_listener) != 1
-        or len(second_listener) != 1
+        or first_listener["classification"] == "unavailable"
+        or second_listener["classification"] == "unavailable"
     ):
         violations.append("desktop_or_server_starting")
         state = "desktop_or_server_starting"
         retryable = True
-    elif first_listener[0]["pid"] != second_listener[0]["pid"]:
+    elif not first_listener["stable"] or not second_listener["stable"]:
+        violations.append("unknown_or_multiple_candidate_servers")
+        state = "unknown_or_multiple_candidate_servers"
+    elif first_listener["owner_pid"] != second_listener["owner_pid"]:
         violations.append("listener_owner_changed_between_probes")
         state = "listener_owner_changed_between_probes"
+    elif first_listener["bind_scope"] != second_listener["bind_scope"]:
+        violations.append("listener_bind_scope_changed_between_probes")
+        state = "listener_bind_scope_changed_between_probes"
     else:
-        owner_pid = second_listener[0]["pid"]
+        owner_pid = second_listener["owner_pid"]
         owner = next((item for item in servers if item["pid"] == owner_pid), None)
         if owner is None or len(servers) != 1:
             violations.append("unknown_or_multiple_candidate_servers")
@@ -286,6 +298,8 @@ def classify_shared_server_preflight(
         "state": state,
         "retryable": retryable,
         "endpoint": declared.to_dict(),
+        "listener_bind_scope": listener_bind_scope,
+        "listener_bind_hosts": second_listener["bind_hosts"],
         "desktop_count": len(desktops),
         "desktop_window_count": sum(item["window_count"] for item in desktops),
         "server_count": len(servers),

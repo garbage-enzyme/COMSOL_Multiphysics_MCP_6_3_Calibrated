@@ -13,6 +13,8 @@ from typing import Any, Callable, Iterable
 
 import psutil
 
+from .contracts import normalize_shared_listener_bind_host
+
 
 MAX_COMMAND_PARTS = 64
 MAX_PROCESS_RECORDS = 4096
@@ -74,9 +76,15 @@ def _listener_records() -> list[dict[str, Any]]:
         port = getattr(connection.laddr, "port", None)
         if host is None or port is None:
             continue
-        if host not in {"127.0.0.1", "::1"}:
+        try:
+            normalized_host, _bind_scope = normalize_shared_listener_bind_host(host)
+        except ValueError:
             continue
-        listeners.append({"host": host, "port": int(port), "pid": int(connection.pid)})
+        listeners.append({
+            "host": normalized_host,
+            "port": int(port),
+            "pid": int(connection.pid),
+        })
     return listeners
 
 

@@ -28,7 +28,7 @@ def _process(pid, kind, command, *, windows=0, created=None):
     }
 
 
-def _snapshot(server_created=20.0):
+def _snapshot(server_created=20.0, listener_host="127.0.0.1"):
     return {
         "inventory_complete": True,
         "observed_at_epoch": 1000.0,
@@ -41,7 +41,7 @@ def _snapshot(server_created=20.0):
                 created=server_created,
             ),
         ],
-        "listeners": [{"host": "127.0.0.1", "port": 2036, "pid": 20}],
+        "listeners": [{"host": listener_host, "port": 2036, "pid": 20}],
     }
 
 
@@ -225,6 +225,24 @@ def test_attached_inventory_is_bounded_sorted_and_keeps_duplicate_metadata(tmp_p
     assert [item["tag"] for item in result["models"]] == ["Model_1", "Model_2"]
     assert [item["label"] for item in result["models"]] == ["Shared", "Shared"]
     assert result["model_inventory_sha256"] == result["attached_inventory_sha256"]
+
+
+def test_attach_preserves_wildcard_listener_scope_in_server_identity(tmp_path):
+    manager, _ownership, _client = _manager(
+        tmp_path,
+        snapshots=[_snapshot(listener_host="::") for _ in range(10)],
+    )
+
+    result = manager.attach(
+        _request(),
+        profile="desktop_shared",
+        environ={SHARED_SERVER_FEATURE_ENV: "true"},
+    )
+
+    assert result["success"] is True
+    assert result["preflight"]["listener_bind_scope"] == "wildcard"
+    assert result["preflight"]["warnings"] == ["listener_bind_scope=wildcard"]
+    assert manager._server_identity.listener_bind_scope == "wildcard"
 
 
 def test_exact_tag_adoption_allows_duplicate_unicode_labels_and_paths(tmp_path):

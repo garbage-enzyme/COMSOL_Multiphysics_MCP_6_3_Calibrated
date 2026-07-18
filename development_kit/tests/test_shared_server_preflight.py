@@ -84,6 +84,61 @@ def test_final_build_difference_is_accepted_and_reported():
     assert result["warnings"] == ["same_accepted_release_line_build_difference"]
 
 
+def test_wildcard_listener_is_preserved_and_explicitly_warned():
+    snapshot = _ready()
+    snapshot["listeners"] = [{"host": "::", "port": 2036, "pid": 20}]
+
+    result = _classify(snapshot)
+
+    assert result["success"] is True
+    assert result["listener_bind_scope"] == "wildcard"
+    assert result["listener_bind_hosts"] == ["::"]
+    assert result["warnings"] == ["listener_bind_scope=wildcard"]
+
+
+def test_dual_stack_wildcard_records_collapse_only_for_one_owner():
+    snapshot = _ready()
+    snapshot["listeners"] = [
+        {"host": "0.0.0.0", "port": 2036, "pid": 20},
+        {"host": "::", "port": 2036, "pid": 20},
+    ]
+
+    result = _classify(snapshot)
+
+    assert result["success"] is True
+    assert result["listener_bind_scope"] == "wildcard"
+    assert result["listener_bind_hosts"] == ["0.0.0.0", "::"]
+
+
+def test_wildcard_listener_with_foreign_owner_is_rejected():
+    snapshot = _ready()
+    snapshot["listeners"] = [{"host": "::", "port": 2036, "pid": 21}]
+
+    result = _classify(snapshot)
+
+    assert result["state"] == "unknown_or_multiple_candidate_servers"
+
+
+def test_wildcard_listener_with_multiple_owners_is_rejected():
+    snapshot = _ready()
+    snapshot["listeners"] = [
+        {"host": "0.0.0.0", "port": 2036, "pid": 20},
+        {"host": "::", "port": 2036, "pid": 21},
+    ]
+
+    assert _classify(snapshot)["state"] == "unknown_or_multiple_candidate_servers"
+
+
+def test_listener_bind_scope_change_between_probes_is_rejected():
+    first = _ready()
+    second = _ready()
+    second["listeners"] = [{"host": "::", "port": 2036, "pid": 20}]
+
+    assert _classify(first, second)["state"] == (
+        "listener_bind_scope_changed_between_probes"
+    )
+
+
 @pytest.mark.parametrize("version", ["6.3.0.405", "6.4.1.12", "6.5.0.1"])
 def test_other_release_lines_are_rejected(version):
     result = _classify(_ready(desktop_version=version))

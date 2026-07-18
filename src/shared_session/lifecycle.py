@@ -13,6 +13,7 @@ import uuid
 
 from .attach_request import normalize_shared_server_attach_request
 from .cleanup import evaluate_attached_detach
+from .contracts import summarize_shared_listener_bindings
 from .identity import (
     normalize_attached_server_identity,
     normalize_shared_model_selector,
@@ -261,14 +262,12 @@ class SharedSessionManager:
     @staticmethod
     def _server_identity_from_snapshot(endpoint, snapshot):
         normalized = normalize_shared_preflight_snapshot(snapshot)
-        listeners = [
-            item
-            for item in normalized["listeners"]
-            if item["host"] == endpoint.host and item["port"] == endpoint.port
-        ]
-        if len(listeners) != 1:
+        listener = summarize_shared_listener_bindings(
+            normalized["listeners"], endpoint=endpoint
+        )
+        if not listener["stable"]:
             raise ValueError("declared listener is no longer unique")
-        pid = listeners[0]["pid"]
+        pid = listener["owner_pid"]
         server = next(
             (
                 item for item in normalized["processes"]
@@ -283,6 +282,7 @@ class SharedSessionManager:
             "server_pid": pid,
             "server_process_create_time": server["create_time"],
             "server_command_signature": server["command_signature"],
+            "listener_bind_scope": listener["bind_scope"],
             "listener_observed_at_epoch": normalized["observed_at_epoch"],
         })
 

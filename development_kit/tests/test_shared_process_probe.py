@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import sys
+from types import SimpleNamespace
+
+import psutil
 
 from src.shared_session.preflight import classify_shared_server_preflight
 from src.shared_session.process_probe import (
     _is_primary_desktop_window,
+    _listener_records,
     collect_shared_preflight_snapshot,
 )
 
@@ -238,3 +242,21 @@ def test_comsol_64_window_filter_rejects_observed_auxiliary_windows():
         title="",
         class_name="PseudoConsoleWindow",
     )
+
+
+def test_listener_collector_preserves_wildcard_and_discards_remote_bind(monkeypatch):
+    connections = [
+        SimpleNamespace(
+            status=psutil.CONN_LISTEN,
+            pid=20,
+            laddr=SimpleNamespace(ip="::", port=2036),
+        ),
+        SimpleNamespace(
+            status=psutil.CONN_LISTEN,
+            pid=30,
+            laddr=SimpleNamespace(ip="192.168.1.2", port=2036),
+        ),
+    ]
+    monkeypatch.setattr(psutil, "net_connections", lambda kind: connections)
+
+    assert _listener_records() == [{"host": "::", "port": 2036, "pid": 20}]

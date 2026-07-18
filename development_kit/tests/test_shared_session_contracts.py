@@ -10,8 +10,10 @@ import pytest
 
 from src.shared_session.contracts import (
     SHARED_SERVER_FEATURE_ENV,
+    normalize_shared_listener_bind_host,
     normalize_shared_server_endpoint,
     normalize_shared_server_feature_gate,
+    shared_listener_matches_endpoint,
 )
 
 
@@ -84,6 +86,35 @@ def test_loopback_endpoint_is_normalized_without_dns(raw, expected_host):
 def test_endpoint_rejects_remote_malformed_and_unknown_inputs(raw):
     with pytest.raises(ValueError):
         normalize_shared_server_endpoint(raw)
+
+
+@pytest.mark.parametrize(
+    ("host", "expected"),
+    [
+        ("127.0.0.1", ("127.0.0.1", "loopback")),
+        ("::1", ("::1", "loopback")),
+        ("0.0.0.0", ("0.0.0.0", "wildcard")),
+        ("::", ("::", "wildcard")),
+    ],
+)
+def test_listener_bind_host_preserves_scope(host, expected):
+    assert normalize_shared_listener_bind_host(host) == expected
+
+
+def test_wildcard_listener_matches_only_the_declared_endpoint_port():
+    endpoint = normalize_shared_server_endpoint(
+        {"host": "127.0.0.1", "port": 2036}
+    )
+
+    assert shared_listener_matches_endpoint(
+        listener_host="::", listener_port=2036, endpoint=endpoint
+    )
+    assert not shared_listener_matches_endpoint(
+        listener_host="::", listener_port=2037, endpoint=endpoint
+    )
+    assert not shared_listener_matches_endpoint(
+        listener_host="192.168.1.2", listener_port=2036, endpoint=endpoint
+    )
 
 
 def test_contract_import_does_not_import_mph_or_construct_a_client():

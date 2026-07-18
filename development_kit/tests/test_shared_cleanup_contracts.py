@@ -15,6 +15,7 @@ def _server(*, pid=4200, observed=2000.0):
             "server_pid": pid,
             "server_process_create_time": 1000.0,
             "server_command_signature": "a" * 64,
+            "listener_bind_scope": "loopback",
             "listener_observed_at_epoch": observed,
         }
     )

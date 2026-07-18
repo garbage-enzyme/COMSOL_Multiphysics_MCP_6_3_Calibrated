@@ -18,6 +18,7 @@ def _server_identity():
         "server_pid": 4200,
         "server_process_create_time": 1234.5,
         "server_command_signature": "A" * 64,
+        "listener_bind_scope": "loopback",
         "listener_observed_at_epoch": 2345.6,
     }
 
@@ -29,6 +30,7 @@ def test_attached_server_identity_is_exact_stable_and_non_owned():
     assert first == second
     assert first.server_command_signature == "a" * 64
     assert first.ownership == "external_user_owned"
+    assert first.listener_bind_scope == "loopback"
     assert len(first.identity_sha256) == 64
     assert first.to_dict()["endpoint"]["scope"] == "loopback"
 
@@ -43,6 +45,16 @@ def test_listener_observation_time_is_evidence_not_process_identity():
     )
 
 
+def test_listener_bind_scope_is_part_of_server_identity():
+    loopback = _server_identity()
+    wildcard = {**loopback, "listener_bind_scope": "wildcard"}
+
+    assert (
+        normalize_attached_server_identity(loopback).identity_sha256
+        != normalize_attached_server_identity(wildcard).identity_sha256
+    )
+
+
 @pytest.mark.parametrize(
     "field,value",
     [
@@ -51,6 +63,7 @@ def test_listener_observation_time_is_evidence_not_process_identity():
         ("server_process_create_time", float("nan")),
         ("server_process_create_time", 0),
         ("server_command_signature", "short"),
+        ("listener_bind_scope", "remote"),
         ("listener_observed_at_epoch", float("inf")),
     ],
 )

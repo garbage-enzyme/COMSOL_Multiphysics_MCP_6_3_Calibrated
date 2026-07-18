@@ -402,13 +402,14 @@ def test_real_process_evidence_refuses_known_external_client(runtime_dir):
         child.wait(timeout=5)
 
 
-def _attached_identity(pid=720, created=720.0, command=None):
+def _attached_identity(pid=720, created=720.0, command=None, bind_scope="loopback"):
     command = command or ["comsolmphserver.exe", "-port", "2036"]
     return normalize_attached_server_identity({
         "endpoint": {"host": "127.0.0.1", "port": 2036},
         "server_pid": pid,
         "server_process_create_time": created,
         "server_command_signature": _command_signature(command),
+        "listener_bind_scope": bind_scope,
         "listener_observed_at_epoch": 800.0,
     })
 
@@ -446,6 +447,63 @@ def test_attached_lease_separates_external_server_from_owned_targets(runtime_dir
     assert manager.release() == {"success": True, "released": True}
     after = manager.status(require_fresh_inventory=True)
     assert after["external_solver_processes"][0]["pid"] == 720
+
+
+def test_attached_lease_preserves_wildcard_listener_scope(runtime_dir):
+    own_process = process(711, 711.0, ["python.exe", "-m", "src.server"])
+    server_command = ["comsolmphserver.exe", "-port", "2036"]
+    server = process(721, 721.0, server_command)
+    manager = owner(
+        runtime_dir,
+        711,
+        711.0,
+        own_process["command_line"],
+        [own_process, server],
+    )
+
+    result = manager.acquire_attached(
+        _attached_identity(
+            pid=721,
+            created=721.0,
+            command=server_command,
+            bind_scope="wildcard",
+        ),
+        listener_provider=lambda: [
+            {"host": "0.0.0.0", "port": 2036, "pid": 721},
+            {"host": "::", "port": 2036, "pid": 721},
+        ],
+    )
+
+    assert result["success"] is True
+    assert result["lease"]["attached_server"]["listener_bind_scope"] == "wildcard"
+
+
+def test_attached_lease_rejects_listener_scope_change(runtime_dir):
+    own_process = process(712, 712.0, ["python.exe", "-m", "src.server"])
+    server_command = ["comsolmphserver.exe", "-port", "2036"]
+    server = process(722, 722.0, server_command)
+    manager = owner(
+        runtime_dir,
+        712,
+        712.0,
+        own_process["command_line"],
+        [own_process, server],
+    )
+
+    result = manager.acquire_attached(
+        _attached_identity(
+            pid=722,
+            created=722.0,
+            command=server_command,
+            bind_scope="wildcard",
+        ),
+        listener_provider=lambda: [
+            {"host": "127.0.0.1", "port": 2036, "pid": 722}
+        ],
+    )
+
+    assert result["success"] is False
+    assert not manager.lease_path.exists()
 
 
 @pytest.mark.parametrize("changed", ["pid_reuse", "listener_owner"])

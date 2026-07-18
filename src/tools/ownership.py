@@ -696,6 +696,9 @@ class SolverOwnership:
         listener_provider: Callable[[], list[dict[str, Any]]] = _system_listeners,
     ) -> dict[str, Any]:
         """Acquire the existing lease while preserving one exact external server."""
+        from src.shared_session.contracts import (
+            summarize_shared_listener_bindings,
+        )
         from src.shared_session.identity import AttachedServerIdentity
 
         if not isinstance(attached_server, AttachedServerIdentity):
@@ -744,14 +747,14 @@ class SolverOwnership:
                 "error": f"Attached listener inventory failed: {type(exc).__name__}",
             }
         endpoint = attached_server.endpoint
-        matching_listeners = [
-            item
-            for item in listeners
-            if str(item.get("host")) == endpoint.host
-            and item.get("port") == endpoint.port
-            and item.get("pid") == attached_server.server_pid
-        ]
-        if len(matching_listeners) != 1:
+        listener = summarize_shared_listener_bindings(
+            listeners, endpoint=endpoint
+        )
+        if (
+            not listener["stable"]
+            or listener["owner_pid"] != attached_server.server_pid
+            or listener["bind_scope"] != attached_server.listener_bind_scope
+        ):
             return {
                 "success": False,
                 "acquired": False,
@@ -762,6 +765,7 @@ class SolverOwnership:
             "identity_sha256": attached_server.identity_sha256,
             "host": endpoint.host,
             "port": endpoint.port,
+            "listener_bind_scope": attached_server.listener_bind_scope,
             "server_pid": attached_server.server_pid,
             "process_create_time": attached_server.server_process_create_time,
             "command_signature": attached_server.server_command_signature,
