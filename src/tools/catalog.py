@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Mapping
 
 
 PROFILE_NAMES = (
@@ -19,8 +19,8 @@ PROFILE_NAMES = (
 
 
 @dataclass(frozen=True)
-class ToolMetadata:
-    """Static classification used by discovery profiles and capabilities."""
+class ToolSpec:
+    """Immutable public contract used to derive every discovery view."""
 
     name: str
     registrar: str
@@ -32,9 +32,21 @@ class ToolMetadata:
     advances_model_revision: bool
     starts_solver: bool
     intended_profiles: tuple[str, ...]
+    input_contract: str
+    output_contract: str
+    structural_limits: tuple[tuple[str, int], ...] = ()
+    artifact_path_classes: tuple[str, ...] = ()
+    required_features: tuple[str, ...] = ()
+    replacement_tool: str | None = None
+    sunset_release: str | None = None
+    deprecation_state: str = "active"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+# Compatibility name retained for one release while callers adopt ToolSpec.
+ToolMetadata = ToolSpec
 
 
 _TOOLS_BY_REGISTRAR = {
@@ -468,7 +480,7 @@ def _build_registry() -> dict[str, ToolMetadata]:
                 side_effect_class in _MODEL_REVISION_REQUIRED_CLASSES
                 or name in _MODEL_REVISION_REQUIRED_ADDITIONS
             ) and name not in _MODEL_REVISION_EXCLUSIONS
-            registry[name] = ToolMetadata(
+            registry[name] = ToolSpec(
                 name=name,
                 registrar=registrar,
                 group=group,
@@ -489,11 +501,88 @@ def _build_registry() -> dict[str, ToolMetadata]:
                 intended_profiles=tuple(
                     profile for profile in PROFILE_NAMES if name in profile_tools[profile]
                 ),
+                input_contract=f"comsol_mcp.tool.{name}.input/1.0.0",
+                output_contract=f"comsol_mcp.tool.{name}.output/1.0.0",
+                structural_limits=(
+                    ("request_bytes", 1_048_576),
+                    ("response_bytes", 4_194_304),
+                ),
+                artifact_path_classes=(
+                    "owned_artifact"
+                    if side_effect_class in {"filesystem_write", "filesystem_write_model_mutation"}
+                    else "none"
+                ,),
+                required_features=("comsol",) if name in _STARTS_SOLVER else (),
+                replacement_tool=(
+                    "job_submit" if name == "study_staged_parametric_sweep" else None
+                ),
+                sunset_release=(
+                    "next_major" if name == "study_staged_parametric_sweep" else None
+                ),
+                deprecation_state=(
+                    "deprecated" if name == "study_staged_parametric_sweep" else "active"
+                ),
             )
     return registry
 
 
-TOOL_METADATA = MappingProxyType(_build_registry())
+TOOL_SPECS = MappingProxyType(_build_registry())
+TOOL_METADATA = TOOL_SPECS
+
+
+def validate_tool_specs(
+    specs: Mapping[str, ToolSpec] = TOOL_SPECS,
+) -> dict[str, Any]:
+    """Validate the import-free invariants of the public tool registry."""
+    names = list(specs)
+    if len(names) != len(set(names)):
+        raise ValueError("duplicate tool names in ToolSpec registry")
+    if not names:
+        raise ValueError("ToolSpec registry cannot be empty")
+    profile_set = set(PROFILE_NAMES)
+    for name, spec in specs.items():
+        if spec.name != name:
+            raise ValueError(f"ToolSpec key/name mismatch for {name!r}")
+        if "." not in spec.registrar or not spec.registrar.rsplit(".", 1)[-1]:
+            raise ValueError(f"ToolSpec registrar is invalid for {name!r}")
+        if not spec.group or not spec.input_contract or not spec.output_contract:
+            raise ValueError(f"ToolSpec contract metadata is incomplete for {name!r}")
+        if not spec.intended_profiles or not set(spec.intended_profiles) <= profile_set:
+            raise ValueError(f"ToolSpec profiles are invalid for {name!r}")
+        if "full" not in spec.intended_profiles:
+            raise ValueError(f"ToolSpec compatibility profile is missing for {name!r}")
+        if spec.maturity not in {"verified", "experimental", "deprecated"}:
+            raise ValueError(f"ToolSpec maturity is invalid for {name!r}")
+        if spec.side_effect_class == "read_only" and spec.requires_model_revision:
+            raise ValueError(f"read-only ToolSpec requires a model revision: {name!r}")
+        if spec.advances_model_revision and not spec.requires_model_revision:
+            raise ValueError(f"advancing ToolSpec lacks revision requirement: {name!r}")
+        if spec.deprecation_state == "deprecated" and not spec.replacement_tool:
+            raise ValueError(f"deprecated ToolSpec lacks replacement: {name!r}")
+        if spec.replacement_tool and spec.replacement_tool not in specs:
+            raise ValueError(f"ToolSpec replacement is unknown for {name!r}")
+    return {
+        "valid": True,
+        "tool_count": len(specs),
+        "profile_count": len(PROFILE_NAMES),
+    }
+
+
+validate_tool_specs()
+
+
+def registrars_for_profile(profile: str) -> tuple[str, ...]:
+    """Return only registrar paths needed by one validated profile."""
+    if profile not in PROFILE_NAMES:
+        raise ValueError(f"Invalid profile {profile!r}")
+    return tuple(
+        registrar
+        for registrar in _TOOLS_BY_REGISTRAR
+        if any(
+            spec.registrar == registrar and profile in spec.intended_profiles
+            for spec in TOOL_SPECS.values()
+        )
+    )
 
 
 def get_tool_metadata(name: str) -> ToolMetadata:
@@ -515,8 +604,12 @@ async def snapshot_tool_schemas(server: Any) -> dict[str, dict[str, Any]]:
 
 __all__ = [
     "PROFILE_NAMES",
+    "TOOL_SPECS",
     "TOOL_METADATA",
+    "ToolSpec",
     "ToolMetadata",
     "get_tool_metadata",
+    "registrars_for_profile",
     "snapshot_tool_schemas",
+    "validate_tool_specs",
 ]

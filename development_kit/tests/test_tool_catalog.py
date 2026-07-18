@@ -16,9 +16,12 @@ from src.server import create_server
 from src.tools import TOOL_REGISTRARS
 from src.tools.catalog import (
     PROFILE_NAMES,
+    TOOL_SPECS,
     TOOL_METADATA,
     get_tool_metadata,
+    registrars_for_profile,
     snapshot_tool_schemas,
+    validate_tool_specs,
 )
 
 
@@ -77,6 +80,29 @@ def test_every_registered_tool_has_complete_canonical_metadata():
         assert metadata.intended_profiles
         assert set(metadata.intended_profiles) <= set(PROFILE_NAMES)
         assert "full" in metadata.intended_profiles
+
+
+def test_tool_specs_are_the_validated_canonical_registry():
+    assert TOOL_SPECS is TOOL_METADATA
+    assert validate_tool_specs() == {
+        "valid": True,
+        "tool_count": 135,
+        "profile_count": len(PROFILE_NAMES),
+    }
+    for spec in TOOL_SPECS.values():
+        assert spec.input_contract.startswith("comsol_mcp.tool.")
+        assert spec.output_contract.startswith("comsol_mcp.tool.")
+        assert dict(spec.structural_limits)["request_bytes"] > 0
+        assert dict(spec.structural_limits)["response_bytes"] > 0
+
+
+def test_profile_registrar_selection_is_derived_from_tool_specs():
+    core = registrars_for_profile("core")
+    full = registrars_for_profile("full")
+    assert core
+    assert len(core) < len(full)
+    assert "src.tools.wave_optics_audit.register_wave_optics_audit_tools" not in core
+    assert "src.tools.wave_optics_audit.register_wave_optics_audit_tools" in full
 
 
 def test_unknown_tool_metadata_fails_closed():

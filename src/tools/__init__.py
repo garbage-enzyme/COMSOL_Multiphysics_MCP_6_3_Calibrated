@@ -62,13 +62,15 @@ TOOL_REGISTRARS: Sequence[Callable[..., Any]] = _LazyRegistrarSequence()
 
 def register_tool_modules(mcp, profile="full") -> None:
     """Import and register only after the static profile gate is accepted."""
+    from .catalog import registrars_for_profile
     from .profiles import ProfileSelection, resolve_profile, tool_names_for_profile
 
     selection = (
         profile if isinstance(profile, ProfileSelection) else resolve_profile(profile)
     )
     enabled_names = tool_names_for_profile(selection.name)
-    for register in TOOL_REGISTRARS:
+    for registrar_path in registrars_for_profile(selection.name):
+        register = _load_symbol(registrar_path)
         from .profiles import register_profiled
 
         register_profiled(mcp, register, enabled_names, selection)
