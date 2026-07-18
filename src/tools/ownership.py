@@ -367,19 +367,21 @@ class SolverOwnership:
         lease, _raw, error = self._read_lease_with_bytes()
         return lease, error
 
-    def _lease_state(self, lease: dict[str, Any], processes: list[dict[str, Any]]) -> dict[str, Any]:
+    def _lease_state_from_process(
+        self,
+        lease: dict[str, Any], process: dict[str, Any] | None
+    ) -> dict[str, Any]:
         required = {"pid", "process_create_time", "command_signature"}
         if not required <= set(lease):
             return {"state": "uncertain", "reason": "lease is missing process identity fields"}
-        match = next((item for item in processes if item.get("pid") == int(lease["pid"])), None)
-        if match is None:
+        if process is None:
             return {"state": "stale", "reason": "lease PID no longer exists"}
-        actual_time = match.get("create_time")
+        actual_time = process.get("create_time")
         if actual_time is None:
             return {"state": "uncertain", "reason": "process creation time is unavailable"}
         if abs(float(actual_time) - float(lease["process_create_time"])) > CREATE_TIME_TOLERANCE_SECONDS:
             return {"state": "stale", "reason": "PID was reused with a different creation time"}
-        actual_command = list(match.get("command_line") or [])
+        actual_command = list(process.get("command_line") or [])
         if actual_command and _command_signature(actual_command) != lease["command_signature"]:
             return {"state": "stale", "reason": "PID command line no longer matches the lease"}
         return {
@@ -391,6 +393,40 @@ class SolverOwnership:
                 <= CREATE_TIME_TOLERANCE_SECONDS
             ),
         }
+
+    def _lease_state(self, lease: dict[str, Any], processes: list[dict[str, Any]]) -> dict[str, Any]:
+        match = next((item for item in processes if item.get("pid") == int(lease.get("pid", -1))), None)
+        return self._lease_state_from_process(lease, match)
+
+    def _targeted_lease_state(self, lease: dict[str, Any]) -> dict[str, Any] | None:
+        """Prove the recorded lease identity without waiting for a host-wide scan.
+
+        A cold Windows process inventory can exceed the status budget even when
+        the recorded lease PID is immediately inspectable.  This targeted read
+        is diagnostic only; acquisition and external-collision decisions still
+        require a complete inventory.
+        """
+        if self._process_inventory is None:
+            # Injected providers are deterministic test/control surfaces.  Their
+            # snapshots remain the authority so tests cannot accidentally probe
+            # the host running the test suite.
+            return None
+        required = {"pid", "process_create_time", "command_signature"}
+        if not required <= set(lease):
+            return {"state": "uncertain", "reason": "lease is missing process identity fields"}
+        try:
+            process = psutil.Process(int(lease["pid"]))
+            with process.oneshot():
+                record = {
+                    "pid": process.pid,
+                    "create_time": process.create_time(),
+                    "command_line": list(process.cmdline()),
+                }
+        except psutil.NoSuchProcess:
+            return {"state": "stale", "reason": "lease PID no longer exists"}
+        except (psutil.AccessDenied, psutil.ZombieProcess, OSError) as exc:
+            return {"state": "uncertain", "reason": f"targeted lease identity unavailable: {exc}"}
+        return self._lease_state_from_process(lease, record)
 
     @staticmethod
     def _is_descendant(pid: int, parent_map: dict[int, int], ancestor: int) -> bool:
@@ -500,21 +536,34 @@ class SolverOwnership:
             if require_fresh_inventory
             else PROCESS_INVENTORY_STATUS_TIMEOUT_SECONDS
         ) if inventory_timeout is None else float(inventory_timeout)
+        lease, lease_error = self._read_lease()
+        targeted_lease_state = (
+            self._targeted_lease_state(lease)
+            if lease is not None and not lease_error
+            else None
+        )
         processes, inventory = self._collect_processes(
             require_fresh=require_fresh_inventory,
             timeout=timeout,
         )
-        lease, lease_error = self._read_lease()
         if lease_error:
             lease_status = {"state": "uncertain", "reason": lease_error}
         elif lease is None:
             lease_status = {"state": "absent", "reason": "no solver lease exists"}
         elif not inventory["complete"]:
-            lease_status = {
-                "state": "uncertain",
-                "reason": "process inventory is incomplete; lease identity cannot be validated safely",
-                "lease": lease,
-            }
+            if targeted_lease_state and targeted_lease_state["state"] in {"active", "stale"}:
+                lease_status = {
+                    **targeted_lease_state,
+                    "identity_source": "targeted_process_probe",
+                    "lease": lease,
+                }
+            else:
+                lease_status = {
+                    "state": "uncertain",
+                    "reason": "process inventory is incomplete and targeted lease identity is unavailable",
+                    "identity_source": "targeted_process_probe_unavailable",
+                    "lease": lease,
+                }
         else:
             lease_status = {**self._lease_state(lease, processes), "lease": lease}
         external = self._external_solver_processes(processes, lease)

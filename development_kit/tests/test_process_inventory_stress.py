@@ -171,6 +171,51 @@ def test_bounded_inventory_timeout_fails_closed_and_cache_cannot_authorize_acqui
     assert not manager.lease_path.exists()
 
 
+def test_independent_cold_observers_prove_stale_lease_without_full_inventory(
+    runtime_dir, monkeypatch
+):
+    original = _record(920_101, 3000.0, ["python.exe", "owned-server"])
+    owner = SolverOwnership(
+        runtime_dir,
+        process_provider=lambda: [original],
+        pid=original["pid"],
+        parent_pid=0,
+        create_time=original["create_time"],
+        command_line=original["command_line"],
+        owner="cold-start-original",
+    )
+    assert owner.acquire(mode="cold-start-test")["success"] is True
+
+    def slow_inventory():
+        time.sleep(0.2)
+        return []
+
+    monkeypatch.setattr(ownership_module, "_system_processes", slow_inventory)
+    monkeypatch.setattr(ownership_module, "PROCESS_INVENTORY_STATUS_TIMEOUT_SECONDS", 0.05)
+
+    observations = []
+    for index in range(5):
+        observer = SolverOwnership(
+            runtime_dir,
+            pid=930_000 + index,
+            parent_pid=0,
+            create_time=4000.0 + index,
+            command_line=["python.exe", f"observer-{index}"],
+            owner=f"cold-start-observer-{index}",
+        )
+        status = observer.status()
+        observations.append(status)
+
+    assert all(status["process_inventory"]["complete"] is False for status in observations)
+    assert all(status["lease"]["state"] == "stale" for status in observations)
+    assert all(
+        status["lease"]["identity_source"] == "targeted_process_probe"
+        for status in observations
+    )
+    assert all(status["collision"] is True for status in observations)
+    time.sleep(0.25)
+
+
 def test_real_host_inventory_retains_marker_during_short_process_churn(runtime_dir):
     marker = subprocess.Popen(
         [sys.executable, "-c", "import time; marker='mph.Client'; time.sleep(30)"],
