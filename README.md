@@ -8,6 +8,20 @@ English | [中文](README_CN.md)
 
 This server gives AI agents a safer, smaller interface for COMSOL inspection, controlled one-point validation, durable staged sweeps, and offline manual lookup. It is designed for the `model.java` clientapi object returned by `mph.Client()`, whose API differs materially from the direct `com.comsol.model.Model` API targeted by the upstream project.
 
+## Featured capabilities
+
+- **Evidence integrity and anti-hallucination verification (default-on).** Formal
+  claims can be checked against exact outcome contracts, raw artifact chains,
+  summary citations, and resume producer/driver identity. Users may explicitly
+  opt out per check for exploration, but affected results carry an unverified
+  warning. Read the independent [English evidence-integrity guide](docs/evidence_integrity/README.md)
+  or [中文证据完整性指南](docs/evidence_integrity/README_CN.md).
+- **Interactive COMSOL Desktop/Server collaboration (default-off).** A user and
+  agent can take explicit turns with one user-owned local Server, one connected
+  Desktop, and one exact server-held model. It requires explicit profile/flag
+  enablement and per-session confirmation. Read the [English interactive guide](docs/interactive_shared_session/README.md)
+  or [中文交互协作指南](docs/interactive_shared_session/README_CN.md).
+
 ## Recommended companion skill
 
 For Claude Code, Codex CLI, opencode, Hermes Agent, and other skill-aware agents, use the

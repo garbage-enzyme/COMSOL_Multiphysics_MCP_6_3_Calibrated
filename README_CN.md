@@ -8,6 +8,19 @@
 
 该服务器为 AI agent 提供更安全、更紧凑的 COMSOL 接口，用于模型检查、受控单点验证、可恢复的分段扫描与离线手册检索。它适配 `mph.Client()` 返回的 `model.java` clientapi 对象；该对象与上游面向的直接 `com.comsol.model.Model` API 有实质差异。
 
+## 特色功能
+
+- **证据完整性与 AI 防幻觉验证（默认开启）。** 正式结论可以针对精确的 outcome
+  contract、原始 artifact chain、summary citation 以及 resume producer/driver
+  identity 做验证。用户可以为了探索逐项 opt-out，但受影响的结果必须携带未验证
+  warning。请阅读独立的[中文证据完整性指南](docs/evidence_integrity/README_CN.md)
+  或 [English evidence-integrity guide](docs/evidence_integrity/README.md)。
+- **COMSOL Desktop/Server 交互协作（默认关闭）。** 用户和 agent 可以在一个用户拥有的
+  本地 Server、一个连接的 Desktop 和一个精确 server-held model 上明确轮流操作。
+  该模式要求显式 profile/flag enablement 以及每次 session confirmation。请阅读
+  [中文交互协作指南](docs/interactive_shared_session/README_CN.md) 或
+  [English interactive guide](docs/interactive_shared_session/README.md)。
+
 ## 推荐配套 Skill
 
 Claude Code、Codex CLI、opencode、Hermes Agent 及其他支持 skill 的 agent，推荐将本服务器与

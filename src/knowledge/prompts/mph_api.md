@@ -14,7 +14,9 @@ their own compatibility checks.
   separate path.
 - A direct `mph.Client(port=...)` connection does not by itself provide safe
   shared Desktop ownership, model locking, or detach-preservation semantics.
-  The current MCP release has no protected shared Desktop mode.
+  Use the explicit default-off `desktop_shared` profile and its preflight,
+  exact adoption, revision lock, Save Copy, and detach tools for the supported
+  local shared lifecycle; see `docs/interactive_shared_session/`.
 
 ## Installation
 

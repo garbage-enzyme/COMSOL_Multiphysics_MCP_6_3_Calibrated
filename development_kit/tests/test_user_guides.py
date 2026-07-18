@@ -113,3 +113,37 @@ def test_chinese_interactive_guide_is_complete_and_contract_equivalent():
     assert "Immutable source" in guide
     assert "Open working model" in guide
     assert "Save Copy snapshot/checkpoint" in guide
+
+
+def test_root_readmes_expose_two_separate_feature_entry_points():
+    english = (ROOT / "README.md").read_text(encoding="utf-8")
+    chinese = (ROOT / "README_CN.md").read_text(encoding="utf-8")
+
+    assert "## Featured capabilities" in english
+    assert "## 特色功能" in chinese
+    for guide_path in (
+        "docs/evidence_integrity/README.md",
+        "docs/evidence_integrity/README_CN.md",
+        "docs/interactive_shared_session/README.md",
+        "docs/interactive_shared_session/README_CN.md",
+    ):
+        assert guide_path in english
+        assert guide_path in chinese
+    assert "default-on" in english
+    assert "default-off" in english
+    assert "默认开启" in chinese
+    assert "默认关闭" in chinese
+
+
+def test_embedded_guidance_no_longer_denies_the_shared_profile():
+    documents = [
+        ROOT / "docs" / "profile_migration.md",
+        ROOT / "src" / "knowledge" / "prompts" / "workflow.md",
+        ROOT / "src" / "knowledge" / "prompts" / "mph_api.md",
+    ]
+    combined = "\n".join(path.read_text(encoding="utf-8") for path in documents)
+
+    assert "no protected shared Desktop" not in combined
+    assert "No current profile implements protected shared" not in combined
+    assert "desktop_shared" in combined
+    assert "shared_server_preflight" in combined

@@ -10,6 +10,7 @@ workflow before the MCP process starts.
 | Typed conventional FEM construction and bounded exports | `basic_fem` | Verified |
 | Periodic Wave Optics preflight, evidence audit, visual-review contracts | `wave_optics` | Experimental; licensed acceptance is version/model-specific |
 | Isolated vector-assisted manuals | `semantic_docs` | Experimental; promotion rejected |
+| User-owned local Desktop/Server collaboration | `desktop_shared` | Experimental; default-off, local-only, explicit confirmation |
 | Generic or risky legacy helpers | `experimental` | Experimental |
 | Maximum legacy discovery compatibility | `full` | Compatibility only |
 
@@ -33,6 +34,10 @@ The release support matrix records expected profile counts, version identities,
 unavailable claims, and the real-integration policy. Live `capabilities` and
 tool discovery remain authoritative for an installed process.
 
-No current profile implements protected shared Desktop/attached-Server
-operation. The experimental `comsol_connect` tool is legacy compatibility, not
-a non-owning shared-model workflow.
+The `desktop_shared` profile implements the protected non-owning local
+Desktop/attached-Server lifecycle. Enable it with
+`COMSOL_MCP_ENABLE_SHARED_SERVER=true`, restart the MCP host, start the Server
+manually, connect Desktop, run `shared_server_preflight`, and provide explicit
+confirmation to `shared_server_attach`. It never replaces or terminates the
+user's Server. The experimental `comsol_connect` tool remains legacy
+compatibility and is not a substitute for this lifecycle.
