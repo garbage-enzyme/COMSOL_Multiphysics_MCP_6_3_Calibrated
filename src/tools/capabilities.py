@@ -27,6 +27,7 @@ from src.jobs.spectral_characterization import (
     MAX_WINDOW_EXPANSIONS,
 )
 from src.evidence.spectral_characterization import MAX_SPECTRAL_POINTS
+from src.evidence.integrity_controls import evidence_integrity_capability
 from src.schema_registry import get_schema_registry
 from src.evidence.contracts import (
     EVIDENCE_STATES,
@@ -190,6 +191,7 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
             "content_validation": "schema_identity_and_hash_chain",
             "path_redacted_receipt": True,
         },
+        "evidence_integrity": evidence_integrity_capability(),
         "deployment_identity": _deployment_identity(),
         "session": {
             "connected": bool(status.get("connected")),

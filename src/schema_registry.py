@@ -40,6 +40,11 @@ from src.evidence.spectral_characterization import (
     SPECTRAL_DECISION_SCHEMA,
     SPECTRAL_SCHEMA_VERSION,
 )
+from src.evidence.integrity_controls import (
+    EVIDENCE_INTEGRITY_VERSION,
+    EVIDENCE_SETTINGS_SCHEMA,
+    EVIDENCE_STATUS_SCHEMA,
+)
 from src.jobs.spectral_progress import (
     SPECTRAL_PROGRESS_SCHEMA_NAME,
     SPECTRAL_PROGRESS_SCHEMA_VERSION,
@@ -178,6 +183,16 @@ def _entries() -> list[dict[str, Any]]:
             readable_versions=("1.0.0", "1.1.0"),
         ),
         _entry("comsol_mcp.environment_identity", "1.0.0", "src.environment_identity"),
+        _entry(
+            EVIDENCE_SETTINGS_SCHEMA,
+            EVIDENCE_INTEGRITY_VERSION,
+            "src.evidence.integrity_controls",
+        ),
+        _entry(
+            EVIDENCE_STATUS_SCHEMA,
+            EVIDENCE_INTEGRITY_VERSION,
+            "src.evidence.integrity_controls",
+        ),
         _entry(
             "comsol_mcp.execution_evidence_outcome",
             "1.0.0",
