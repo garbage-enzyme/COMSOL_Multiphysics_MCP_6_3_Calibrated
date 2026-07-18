@@ -145,6 +145,7 @@ models are intentionally absent.
 - `development_kit/tests/test_deployment_identity.py` — This module tests package version, build identity, and fresh-process deployment consistency.
 - `development_kit/tests/test_derived_geometry.py` — This module tests typed derived-geometry edits without COMSOL.
 - `development_kit/tests/test_durable_job_control_plane.py` — This module tests durable submission, reconciliation, status, cancellation, and resume behavior.
+- `development_kit/tests/test_durable_primitives.py` — This module tests versioned canonical bytes, bounded hashing, atomic writes, and row recovery.
 - `development_kit/tests/test_environment_identity.py` — This module tests redacted solver-free environment identity.
 - `development_kit/tests/test_evidence_contracts.py` — This module tests physical evidence, policies, and immutable migration contracts.
 - `development_kit/tests/test_evidence_integrity_controls.py` — This module tests default-on settings, explicit per-check opt-out, and fail-closed disclosure.
@@ -252,6 +253,9 @@ models are intentionally absent.
 - `src/contracts/__init__.py` — This module exports lightweight public input contracts without solver imports.
 - `src/contracts/job_submission.py` — This module defines bounded discriminated durable-job submission inputs.
 - `src/contracts/structural.py` — This module applies shared public schema and runtime structural limits.
+- `src/durable/__init__.py` — This module exports versioned canonicalization and durable filesystem primitives.
+- `src/durable/canonical.py` — This module preserves legacy canonical bytes and adds domain-separated identities for new schemas.
+- `src/durable/io.py` — This module implements bounded hashing, atomic replacement, and complete-row persistence.
 - `src/compatibility_manifest.json` — This file declares exact licensed, dependency-only, and unknown runtime compatibility.
 - `src/deployment_manifest.json` — This file binds deployment identity to frozen tool and profile snapshots.
 - `src/environment_identity.py` — This module reports redacted Python, platform, dependency, and optional-feature identity.
