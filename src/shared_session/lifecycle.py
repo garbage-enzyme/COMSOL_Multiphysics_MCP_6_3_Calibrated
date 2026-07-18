@@ -810,6 +810,100 @@ class SharedSessionManager:
                     ),
                 }
 
+    def prepare_attached_job_handoff(
+        self,
+        *,
+        expected_lock_sha256: str,
+        expected_revision_sha256: str,
+        source_model_path: str,
+        user_confirmed_automation_exclusive: bool,
+    ) -> dict[str, Any]:
+        """Create an immutable worker target and release this client's session."""
+        with self._lock:
+            if self._client is None or self._model_lock is None:
+                return {"success": False, "state": "model_not_locked"}
+            if user_confirmed_automation_exclusive is not True:
+                return {
+                    "success": False,
+                    "state": "automation_confirmation_required",
+                }
+            if self._model_lock.collaboration_mode != "automation_exclusive":
+                return {
+                    "success": False,
+                    "state": "automation_exclusive_lock_required",
+                }
+            verified = self.verify_model_lock(
+                expected_lock_sha256=expected_lock_sha256,
+                expected_revision_sha256=expected_revision_sha256,
+            )
+            if not verified.get("success"):
+                return {
+                    "success": False,
+                    "state": "handoff_precondition_failed",
+                    "model_lock_verification": verified,
+                }
+            try:
+                from src.jobs.attached_backend import (
+                    normalize_attached_execution_backend,
+                )
+
+                source = _verify_immutable_source(
+                    self._model_lock.immutable_source
+                )
+                if source is None:
+                    raise ValueError(
+                        "attached durable work requires an immutable source"
+                    )
+                requested_path = Path(source_model_path).expanduser().resolve()
+                declared_path = Path(source["path"]).expanduser().resolve()
+                if os.path.normcase(str(requested_path)) != os.path.normcase(
+                    str(declared_path)
+                ):
+                    raise ValueError(
+                        "job source_model_path does not match the locked immutable source"
+                    )
+                backend = normalize_attached_execution_backend(
+                    {
+                        "kind": "attached_shared_server",
+                        "user_confirmed_automation_exclusive": True,
+                        "source_model_lock_sha256": self._model_lock.lock_sha256,
+                        "attached_server": self._model_lock.attached_server,
+                        "model": self._model_lock.model,
+                        "expected_revision": self._model_lock.revision,
+                    }
+                )
+            except Exception as exc:
+                return {
+                    "success": False,
+                    "state": "handoff_target_rejected",
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            unlocked = self.unlock_model(
+                expected_lock_sha256=expected_lock_sha256,
+                reason="durable attached job handoff",
+            )
+            if not unlocked.get("success"):
+                return {
+                    "success": False,
+                    "state": "handoff_unlock_failed",
+                    "unlock": unlocked,
+                }
+            detached = self.detach()
+            if not detached.get("success"):
+                return {
+                    "success": False,
+                    "state": "handoff_detach_failed",
+                    "execution_backend": backend,
+                    "detach": detached,
+                }
+            return {
+                "success": True,
+                "state": "attached_job_handoff_ready",
+                "execution_backend": backend,
+                "unlock": unlocked,
+                "detach": detached,
+            }
+
     def detach(self) -> dict[str, Any]:
         """Disconnect only the MCP client and prove external preservation."""
         with self._lock:

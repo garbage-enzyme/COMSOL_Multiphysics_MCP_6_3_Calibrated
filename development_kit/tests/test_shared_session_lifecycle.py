@@ -326,6 +326,30 @@ def _attach_and_lock(manager):
     return locked["model_lock"]
 
 
+def _attach_saved_and_lock(manager, source, *, collaboration_mode):
+    assert manager.attach(
+        _request(),
+        profile="desktop_shared",
+        environ={SHARED_SERVER_FEATURE_ENV: "true"},
+    )["success"] is True
+    assert manager.adopt_model(
+        {
+            "tag": "Model_1",
+            "expected_label": "Working",
+            "expected_file_path": "D:/models/working.mph",
+        }
+    )["success"] is True
+    locked = manager.lock_model(
+        collaboration_mode=collaboration_mode,
+        immutable_source={
+            "path": str(source),
+            "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        },
+    )
+    assert locked["success"] is True
+    return locked["model_lock"]
+
+
 def test_model_lock_binds_fresh_server_model_revision_and_process(tmp_path):
     manager, _ownership, _client = _manager(tmp_path)
 
@@ -365,6 +389,115 @@ def test_model_lock_verifies_immutable_source_bytes(tmp_path):
     assert "does not match" in rejected["error"]
     assert accepted["success"] is True
     assert accepted["model_lock"]["immutable_source"]["sha256"] == source_sha256
+
+
+def test_automation_handoff_verifies_target_then_detaches_without_clear(tmp_path):
+    source = tmp_path / "immutable-source.mph"
+    source.write_bytes(b"immutable source")
+    models = [
+        {
+            "tag": "Model_1",
+            "label": "Working",
+            "file_path": "D:/models/working.mph",
+            "unsaved": False,
+        }
+    ]
+    manager, ownership, client = _manager(tmp_path, models=models)
+    lock = _attach_saved_and_lock(
+        manager, source, collaboration_mode="automation_exclusive"
+    )
+
+    result = manager.prepare_attached_job_handoff(
+        expected_lock_sha256=lock["lock_sha256"],
+        expected_revision_sha256=lock["revision"]["revision_sha256"],
+        source_model_path=str(source),
+        user_confirmed_automation_exclusive=True,
+    )
+
+    assert result["success"] is True
+    assert result["state"] == "attached_job_handoff_ready"
+    assert result["execution_backend"]["kind"] == "attached_shared_server"
+    assert result["execution_backend"]["source_model_lock_sha256"] == (
+        lock["lock_sha256"]
+    )
+    assert result["execution_backend"]["model"]["file_path"] == (
+        "D:\\models\\working.mph"
+    )
+    assert result["detach"]["external_resources_preserved"] is True
+    assert manager.status()["state"] == "detached"
+    assert client.calls == ["disconnect"]
+    assert ownership.releases == 1
+
+
+def test_automation_handoff_requires_exclusive_lock_and_confirmation(tmp_path):
+    source = tmp_path / "immutable-source.mph"
+    source.write_bytes(b"immutable source")
+    models = [
+        {
+            "tag": "Model_1",
+            "label": "Working",
+            "file_path": "D:/models/working.mph",
+            "unsaved": False,
+        }
+    ]
+    manager, ownership, client = _manager(tmp_path, models=models)
+    lock = _attach_saved_and_lock(
+        manager, source, collaboration_mode="interactive_inspection"
+    )
+
+    confirmation = manager.prepare_attached_job_handoff(
+        expected_lock_sha256=lock["lock_sha256"],
+        expected_revision_sha256=lock["revision"]["revision_sha256"],
+        source_model_path=str(source),
+        user_confirmed_automation_exclusive=False,
+    )
+    mode = manager.prepare_attached_job_handoff(
+        expected_lock_sha256=lock["lock_sha256"],
+        expected_revision_sha256=lock["revision"]["revision_sha256"],
+        source_model_path=str(source),
+        user_confirmed_automation_exclusive=True,
+    )
+
+    assert confirmation["state"] == "automation_confirmation_required"
+    assert mode["state"] == "automation_exclusive_lock_required"
+    assert manager.status()["state"] == "attached_model_locked"
+    assert client.calls == []
+    assert ownership.releases == 0
+
+
+def test_automation_handoff_rejects_mismatched_immutable_source_before_detach(
+    tmp_path,
+):
+    source = tmp_path / "immutable-source.mph"
+    other = tmp_path / "other-source.mph"
+    source.write_bytes(b"immutable source")
+    other.write_bytes(b"other source")
+    models = [
+        {
+            "tag": "Model_1",
+            "label": "Working",
+            "file_path": "D:/models/working.mph",
+            "unsaved": False,
+        }
+    ]
+    manager, ownership, client = _manager(tmp_path, models=models)
+    lock = _attach_saved_and_lock(
+        manager, source, collaboration_mode="automation_exclusive"
+    )
+
+    result = manager.prepare_attached_job_handoff(
+        expected_lock_sha256=lock["lock_sha256"],
+        expected_revision_sha256=lock["revision"]["revision_sha256"],
+        source_model_path=str(other),
+        user_confirmed_automation_exclusive=True,
+    )
+
+    assert result["success"] is False
+    assert result["state"] == "handoff_target_rejected"
+    assert "does not match the locked immutable source" in result["error"]
+    assert manager.status()["state"] == "attached_model_locked"
+    assert client.calls == []
+    assert ownership.releases == 0
 
 
 def test_model_lock_verify_detects_desktop_readback_change(tmp_path):
