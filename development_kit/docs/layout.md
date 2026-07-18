@@ -192,6 +192,7 @@ models are intentionally absent.
 - `development_kit/tests/test_shared_attach_request.py` — This module tests the complete pre-lease shared-server attach gate.
 - `development_kit/tests/test_shared_cleanup_contracts.py` — This module tests non-owning detach and owned-cleanup outcome semantics.
 - `development_kit/tests/test_shared_model_locking.py` — This module tests bounded shared-model revisions and exact enforcement locks.
+- `development_kit/tests/test_shared_operation_dependencies.py` — This module tests shared operations against the reused arbiter and path-containment dependencies.
 - `development_kit/tests/test_shared_session_contracts.py` — This module tests default-off feature and loopback endpoint contracts.
 - `development_kit/tests/test_shared_session_identity.py` — This module tests attached-server and exact model-selector identities.
 - `development_kit/tests/test_spectral_characterization.py` — This module tests provenance-bound offline spectral validation and measurements.
