@@ -107,3 +107,76 @@ def test_collector_excludes_current_mcp_process_identity():
     )
 
     assert snapshot["processes"] == []
+
+
+def test_repository_path_text_does_not_impersonate_comsol_processes():
+    records = [
+        _record(
+            10,
+            0,
+            "python.exe",
+            ["python.exe", "C:/work/COMSOL_Multiphysics_MCP/probe.py"],
+            executable="C:/Python314/python.exe",
+        ),
+        _record(
+            20,
+            0,
+            "Code.exe",
+            ["Code.exe", "C:/work/COMSOL_Multiphysics_MCP"],
+            executable="C:/Apps/Code.exe",
+        ),
+        _record(
+            30,
+            0,
+            "powershell.exe",
+            ["powershell.exe", "Get-ChildItem", "COMSOL_Multiphysics_MCP"],
+            executable="C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+        ),
+        _record(
+            40,
+            0,
+            "java.exe",
+            ["java.exe", "C:/work/COMSOL_Multiphysics_MCP", "server"],
+            executable="C:/Java/bin/java.exe",
+        ),
+    ]
+
+    snapshot = collect_shared_preflight_snapshot(
+        process_provider=lambda: records,
+        listener_provider=list,
+        window_provider=lambda: {20: {"window_count": 1, "responding": True}},
+        version_provider=lambda path: "unexpected",
+        clock=lambda: 1000.0,
+    )
+
+    assert snapshot["processes"] == []
+
+
+def test_explicit_comsol_executable_identity_does_not_require_command_substrings():
+    records = [
+        _record(
+            10,
+            0,
+            "comsol.exe",
+            ["C:/Program Files/COMSOL/Multiphysics/bin/win64/comsol.exe"],
+        ),
+        _record(
+            20,
+            0,
+            "comsolmphserver.exe",
+            ["C:/Program Files/COMSOL/Multiphysics/bin/win64/comsolmphserver.exe"],
+        ),
+    ]
+
+    snapshot = collect_shared_preflight_snapshot(
+        process_provider=lambda: records,
+        listener_provider=list,
+        window_provider=lambda: {10: {"window_count": 1, "responding": True}},
+        version_provider=lambda path: "6.4.0.293",
+        clock=lambda: 1000.0,
+    )
+
+    assert [item["kind"] for item in snapshot["processes"]] == [
+        "comsol_desktop",
+        "comsol_server",
+    ]

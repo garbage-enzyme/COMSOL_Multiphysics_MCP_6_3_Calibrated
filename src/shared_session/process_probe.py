@@ -16,6 +16,14 @@ import psutil
 
 MAX_COMMAND_PARTS = 64
 MAX_PROCESS_RECORDS = 4096
+_DESKTOP_EXECUTABLES = frozenset({
+    "comsol.exe",
+    "comsolmphclient.exe",
+})
+_SERVER_EXECUTABLES = frozenset({
+    "comsolmphserver.exe",
+    "comsolserver.exe",
+})
 
 
 def _command_signature(command_line: Iterable[Any]) -> str:
@@ -149,16 +157,23 @@ def _is_descendant(pid: int, parent_map: dict[int, int], ancestors: set[int]) ->
 
 def _kind(record: dict[str, Any], window_count: int) -> str | None:
     name = str(record.get("name") or "").casefold()
-    command = " ".join(str(part) for part in record.get("command_line") or []).casefold()
-    if "mphserver" in name or (
-        name in {"java", "java.exe"} and "comsol" in command and "server" in command
+    executable_name = Path(str(record.get("executable") or "")).name.casefold()
+    process_names = {name, executable_name} - {""}
+    command_parts = [
+        str(part).casefold() for part in record.get("command_line") or []
+    ]
+    command = " ".join(command_parts)
+    command_basenames = {Path(part).name.casefold() for part in command_parts}
+    explicit_server_command = bool(command_basenames & _SERVER_EXECUTABLES)
+    if process_names & _SERVER_EXECUTABLES or (
+        process_names & {"java", "java.exe"} and explicit_server_command
     ):
         return "comsol_server"
     if any(pattern in command for pattern in ("mph.client", "import mph", "from mph", "-m mph")):
         return "mph_client"
-    if window_count > 0 and ("comsol" in name or "comsol" in command):
+    if window_count > 0 and process_names & _DESKTOP_EXECUTABLES:
         return "comsol_desktop"
-    if "comsol" in name or "comsol" in command:
+    if any(value.startswith("comsol") for value in process_names):
         return "other_comsol"
     return None
 
