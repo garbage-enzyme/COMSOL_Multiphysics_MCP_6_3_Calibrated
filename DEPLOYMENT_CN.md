@@ -15,8 +15,8 @@ Client 验收状态：
 
 要求：
 
-- COMSOL Multiphysics 6.4（licensed acceptance 固定于 6.4.0.293；其他 build
-  需要单独验证）；
+- COMSOL Multiphysics 6.4.0.*（licensed reference acceptance 固定于 6.4.0.293；
+  第三位数字变化视为新的 release family）；
 - 标准 GIL 版本的 Python 3.14，环境路径只使用 ASCII 字符；
 - 已验证本机配置所需的 COMSOL Java runtime。
 
@@ -39,6 +39,7 @@ console entry point 绝对路径。
 | `core` | 紧凑默认控制面和词法手册检索。 |
 | `basic_fem` | 常规 FEM 构建和有界导出。 |
 | `wave_optics` | 周期光学、超表面、有界场数据发现/提取、预检和证据审计。 |
+| `desktop_shared` | 默认关闭的 shared Desktop/attached-Server 工作流，提供精确进程/listener/model 身份、非拥有式租约、revision lock、持久化 attached job 和 detach preservation。 |
 | `semantic_docs` | 隔离的实验性语义手册检索。 |
 | `experimental` | 显式选择的通用和 escape-hatch 工具。 |
 | `full` | 宽兼容界面；默认不推荐。 |
@@ -47,9 +48,32 @@ console entry point 绝对路径。
 `core`。stdio 进程启动时会冻结 profile，修改后必须重启 client/MCP host。非法
 profile 会使启动失败，不会静默回退。
 
-当前没有任何 profile 提供受保护的共享 Desktop/attached-Server 模式。
-experimental 中的旧 `comsol_connect` 兼容工具不具备 non-owning 共享模型生命周期，
-不得按共享模式使用。
+默认的 `core` 和 `wave_optics` profile 不暴露 shared-session 工具。
+只有显式选择 `desktop_shared` profile 并设置下面的静态 feature flag，才会启用受保护
+的 shared workflow。旧 `comsol_connect` 仍是 experimental 兼容工具，不能替代该生命周期。
+
+### 可选的 shared Desktop/attached-Server 模式
+
+shared profile 不会启动、停止或终止用户的 COMSOL Server。请先手动启动带 persistent
+multi-client 选项的 COMSOL Multiphysics Server 6.4，记录本地 endpoint（通常是 2036
+端口），再让 Desktop client 连接该 Server。然后为 MCP host 配置：
+
+```text
+COMSOL_MCP_PROFILE=desktop_shared
+COMSOL_MCP_ENABLE_SHARED_SERVER=true
+COMSOL_MCP_RUNTIME_DIR=D:\comsol_mcp_runtime
+```
+
+重启 MCP host 后调用 `capabilities`，确认 live profile 是 `desktop_shared`。在
+`shared_server_attach` 前调用 `shared_server_preflight`；只有确认 endpoint 和 Desktop
+连接正确后，才传入 `user_confirmed=true`。attach 要求一个精确的 6.4.0.* Server 身份
+和一个精确的 Server-held model；对于启动中/未就绪 Server、多个 GUI client、歧义模型、
+PID reuse、混合 release family 和未分类 COMSOL/MPh 进程，都会拒绝并 fail closed，不会猜测。
+
+Desktop 左下角的 `localhost:2036` 提示可作为用户观察证据，但不能替代进程/listener
+身份检查。MCP 持有 `automation_exclusive` lock 时，COMSOL 可能显示占用模型警告并禁用
+GUI 编辑，这是预期行为。detach 前先 unlock；detach 会保留用户的 Server、listener、
+Desktop、model 和 result，MCP 不会调用 `clear()` 或关闭外部 Server。
 
 ## 3. Claude Code（理论兼容，尚未测试）
 
@@ -182,6 +206,11 @@ active_profile = wave_optics
 
 然后在构造 client 前调用 `solver_status` 和 `solver_preflight`。保持单一 solver
 owner。长仿真使用 durable jobs，不要让单个同步 MCP call 持续占用全部 wall time。
+
+如果使用 `desktop_shared`，还要确认 `capabilities` 报告 shared profile，并且只有在
+feature flag 开启后才出现 shared-session 工具。先启动并连接 Desktop/Server，再调用
+`shared_server_preflight` 和带显式用户确认的 `shared_server_attach`。此模式不要调用
+`comsol_start`，也不要把成功 attach 理解为可以并行执行模型修改。
 
 ## 8. 更新安装
 

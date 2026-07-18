@@ -17,8 +17,8 @@ Client acceptance status:
 
 Requirements:
 
-- COMSOL Multiphysics 6.4 (licensed acceptance is pinned to 6.4.0.293; other
-  builds require separate validation);
+- COMSOL Multiphysics 6.4.0.* (licensed reference acceptance is pinned to
+  6.4.0.293; a third numeric component change is a separate release family);
 - standard GIL-enabled Python 3.14 in an ASCII-only environment path;
 - COMSOL's Java runtime for the verified local configuration.
 
@@ -41,6 +41,7 @@ portable deployment. Configure the absolute installed console entry point.
 | `core` | Compact default control plane and lexical manuals. |
 | `basic_fem` | Conventional FEM construction and bounded exports. |
 | `wave_optics` | Periodic optics, metasurfaces, bounded field discovery/extraction, preflight, and evidence audits. |
+| `desktop_shared` | Default-off shared Desktop/attached-Server workflow with exact process/listener/model identity, non-owning leases, revision locks, durable attached jobs, and detach preservation. |
 | `semantic_docs` | Isolated experimental semantic manual retrieval. |
 | `experimental` | Explicit opt-in generic and escape-hatch tools. |
 | `full` | Broad compatibility surface; not recommended by default. |
@@ -50,9 +51,38 @@ Set `COMSOL_MCP_PROFILE` in the client's server environment. Omitting it selects
 a client/MCP-host restart. An invalid profile fails startup instead of silently
 falling back.
 
-No current profile provides a protected shared Desktop/attached-Server mode.
-The experimental `comsol_connect` compatibility tool is not a non-owning shared-
-model lifecycle and must not be used as one.
+The default `core` and `wave_optics` profiles do not expose shared-session tools.
+Enable the protected workflow only with the explicit `desktop_shared` profile and
+the static feature flag below. The legacy `comsol_connect` compatibility tool
+remains experimental and is not a substitute for this lifecycle.
+
+### Optional shared Desktop/attached-Server mode
+
+The shared profile never starts, stops, or terminates the user's COMSOL Server.
+Start COMSOL Multiphysics Server 6.4 manually with its persistent multi-client
+option, record the local endpoint (normally port 2036), and connect the Desktop
+client to that Server. Then configure the MCP host with:
+
+```text
+COMSOL_MCP_PROFILE=desktop_shared
+COMSOL_MCP_ENABLE_SHARED_SERVER=true
+COMSOL_MCP_RUNTIME_DIR=D:\comsol_mcp_runtime
+```
+
+After restarting the MCP host, call `capabilities` and verify the live
+`desktop_shared` profile. Call `shared_server_preflight` before
+`shared_server_attach`; pass `user_confirmed=true` only after the endpoint and
+Desktop connection are correct. The attach path requires one exact 6.4.0.*
+Server identity and one exact server-held model. It rejects starting/unready
+servers, multiple GUI clients, ambiguous models, PID reuse, mixed release
+families, and unclassified COMSOL/MPh processes without guessing.
+
+The Desktop lower-left `localhost:2036` cue is useful user evidence, but it does
+not replace process/listener identity checks. While MCP holds an
+`automation_exclusive` lock, COMSOL may display an occupied-model warning and
+disable GUI editing; this is expected. Unlock before detach. Detach preserves
+the user-owned Server, listener, Desktop, model, and result; MCP does not call
+`clear()` or shut down the external Server.
 
 ## 3. Claude Code (theoretical compatibility; not yet tested)
 
@@ -196,6 +226,13 @@ not compare against a tool count copied from this guide.
 Then call `solver_status` and `solver_preflight` before constructing a client.
 Keep one solver owner. Use durable jobs for long simulations instead of holding a
 single synchronous MCP call for the full wall time.
+
+For `desktop_shared`, verify that `capabilities` reports the shared profile and
+that shared-session tools are present only after the feature flag is enabled.
+Start and connect Desktop/Server first, then call `shared_server_preflight` and
+`shared_server_attach` with explicit user confirmation. Do not call
+`comsol_start` in this mode, and do not treat a successful attach as permission
+to run parallel model mutations.
 
 ## 8. Updating an installation
 

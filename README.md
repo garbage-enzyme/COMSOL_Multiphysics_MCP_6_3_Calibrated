@@ -4,7 +4,7 @@ English | [中文](README_CN.md)
 
 [![GitHub stars](https://img.shields.io/github/stars/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated?style=social)](https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated/stargazers)
 
-> A maintained fork of [wjc9011/COMSOL_Multiphysics_MCP](https://github.com/wjc9011/COMSOL_Multiphysics_MCP), calibrated for **COMSOL Multiphysics 6.4.0.293** and **MPh 1.3.1 standalone/clientapi**. Other COMSOL builds require their own licensed acceptance evidence.
+> A maintained fork of [wjc9011/COMSOL_Multiphysics_MCP](https://github.com/wjc9011/COMSOL_Multiphysics_MCP), accepted for the **COMSOL 6.4.0.∗** release line and **MPh 1.3.1 standalone/clientapi**. Licensed reference evidence uses COMSOL **6.4.0.293**; a third numeric component change is a separate release family and requires new acceptance.
 
 This server gives AI agents a safer, smaller interface for COMSOL inspection, controlled one-point validation, durable staged sweeps, and offline manual lookup. It is designed for the `model.java` clientapi object returned by `mph.Client()`, whose API differs materially from the direct `com.comsol.model.Model` API targeted by the upstream project.
 
@@ -49,9 +49,10 @@ surface.
 
 ## Highlights
 
-- **ClientAPI compatibility.** Geometry, physics, materials, meshes, studies, results, model cloning, and Unicode-safe `.mph` saving have licensed acceptance on COMSOL 6.4.0.293. Other builds remain unknown until independently accepted.
+- **ClientAPI compatibility.** Geometry, physics, materials, meshes, studies, results, model cloning, and Unicode-safe `.mph` saving have licensed acceptance on COMSOL 6.4.0.293; final build changes within 6.4.0.* inherit the release-line conclusion, while other release families remain unknown.
 - **Safe solver ownership.** An ASCII-path lease, process identity checks, external-client detection, status, and preflight checks prevent accidental competing COMSOL clients.
 - **Durable background work.** Staged sweeps and adaptive spectral characterization run in detached workers with immutable specifications, atomic state, fsync'd evidence rows, checkpoints, validated resume, and verified same-host cancellation.
+- **Shared Desktop collaboration (default-off).** The `desktop_shared` profile can attach to a manually started local COMSOL Server, adopt exactly one server-held model, enforce non-owning leases and revision locks, run durable attached jobs, and detach without shutting down the user's Server, Desktop, listener, or model.
 - **Wave Optics validation.** A focused profile provides read-only model preflight and a one-wavelength evidence audit for periodic metasurfaces.
 - **Bounded offline manuals.** SQLite FTS5/BM25 search and page retrieval run outside the COMSOL control process and return compact source/page citations.
 - **Honest optional semantic retrieval.** The isolated semantic profile is contained, but its baseline model did not meet quality and memory promotion gates. Lexical manual search remains the recommended default.
@@ -65,17 +66,20 @@ Set `COMSOL_MCP_PROFILE` before starting the server. A profile is fixed for the 
 | `core` (default) | Compact, mature control plane: status, ownership, session/model inspection, one-point solve/evaluation, and lexical manuals. |
 | `basic_fem` | `core` plus typed conventional FEM construction, derived-geometry edits, and bounded exports. |
 | `wave_optics` | Recommended for metasurfaces: `core` plus derived-geometry edits, material preview, locale-safe field discovery and bounded NPZ/manifest extraction, periodic-mesh audit/smoke, visual-review contracts, Wave Optics preflight, point/reference audits, and staged workflows. |
+| `desktop_shared` | Explicit opt-in shared Desktop/attached-Server workflow; requires `COMSOL_MCP_ENABLE_SHARED_SERVER=true`, a manually started local Server, per-call user confirmation, exact process/listener identity, and exact model adoption. It never starts or terminates the external Server. |
 | `semantic_docs` | `core` plus isolated experimental vector-assisted manual retrieval. |
 | `experimental` | Explicit opt-in generic creation, async, property escape hatches, and project helpers. |
 | `full` | Broad compatibility/discovery surface containing every tool across all profiles. |
 
 Call `capabilities` to discover the active profile, exact registered tools, target versions, disabled groups, and restart requirements without starting COMSOL. Its bounded `deployment_identity` reports source-tree versus installed-package loading plus frozen profile/schema and catalog hashes, so a host restart can detect same-version stale installs or source shadowing without exposing local paths.
 
-The current release does **not** provide a non-owning shared Desktop/attached-
-Server workflow. The legacy `comsol_connect` tool is restricted to experimental
-compatibility profiles and must not be treated as safe shared-model attachment;
-it does not provide explicit user opt-in, external-Server ownership protection,
-or model identity locking.
+The default `core` and `wave_optics` profiles do not expose shared-session tools.
+Shared Desktop/attached-Server work is isolated behind the default-off
+`desktop_shared` profile and the static `COMSOL_MCP_ENABLE_SHARED_SERVER=true`
+flag. The user must start COMSOL Server manually, connect Desktop to it, confirm
+the endpoint, and explicitly confirm each attach. The legacy `comsol_connect`
+tool remains an experimental compatibility surface and is not a substitute for
+the protected shared-session lifecycle.
 
 Control-plane responses from capabilities, solver ownership, durable jobs, and lexical manuals include a compact rolling `control_plane` block. It retains at most 256 samples per operation and reports success/busy/timeout/error counts plus p50/p95/max latency; full logs and unbounded telemetry are never returned inline.
 
@@ -177,7 +181,15 @@ The electrostatics helper can create `ChargeConservation` and a material node be
 
 ## Verification
 
-The current dependency/process-only gate is **956 passed, 13 deselected**. Unit tests are side-effect-free: collection does not start COMSOL, and integration probes run only when explicitly requested in fresh, sequential subprocesses with exact process-tree cleanup. Repository-only tests, release fixtures, gates, and provenance are documented in `development_kit/README.md`; ordinary wheel/sdist artifacts exclude that directory.
+The current source dependency/process-only gate is **1161 passed, 13 deselected**.
+The optimized-Python production guard, compileall, hash-locked isolated
+non-editable wheel/install gate, licensed attached sweep/cancellation/recovery,
+PID-reuse rejection, and final detach-preservation receipt all pass. Exact-head
+hosted CI run `29640775538` passed all five jobs. Unit tests are side-effect-free:
+collection does not start COMSOL, and integration probes run only when explicitly
+requested in fresh, sequential subprocesses with exact process-tree cleanup.
+Repository-only tests, release fixtures, gates, and provenance are documented in
+`development_kit/README.md`; ordinary wheel/sdist artifacts exclude that directory.
 
 ```bash
 python -m pytest -q
