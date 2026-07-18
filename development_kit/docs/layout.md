@@ -144,6 +144,7 @@ models are intentionally absent.
 - `development_kit/tests/test_environment_identity.py` — This module tests redacted solver-free environment identity.
 - `development_kit/tests/test_evidence_contracts.py` — This module tests physical evidence, policies, and immutable migration contracts.
 - `development_kit/tests/test_evidence_integrity_controls.py` — This module tests default-on settings, explicit per-check opt-out, and fail-closed disclosure.
+- `development_kit/tests/test_evidence_integrity_stdio.py` — This module discovers and invokes both evidence guard tools over real solver-free MCP stdio.
 - `development_kit/tests/test_evidence_integrity_verifier.py` — This module tests settings-aware formal evidence verification and resume identity checks.
 - `development_kit/tests/test_user_guides.py` — This module checks documented settings, tool names, warnings, and bilingual guide contracts.
 - `development_kit/tests/test_field_artifacts.py` — This module tests bounded durable scalar field serialization.

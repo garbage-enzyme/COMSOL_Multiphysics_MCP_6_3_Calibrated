@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+import re
 
 from src.evidence.integrity_controls import (
     DISABLED_CHECK_WARNING,
@@ -147,3 +149,21 @@ def test_embedded_guidance_no_longer_denies_the_shared_profile():
     assert "No current profile implements protected shared" not in combined
     assert "desktop_shared" in combined
     assert "shared_server_preflight" in combined
+
+
+def test_every_documented_json_example_is_machine_parseable():
+    guides = [
+        EVIDENCE_DOCS / "README.md",
+        EVIDENCE_DOCS / "README_CN.md",
+        INTERACTIVE_DOCS / "README.md",
+        INTERACTIVE_DOCS / "README_CN.md",
+    ]
+
+    for path in guides:
+        blocks = re.findall(
+            r"(?ms)^```json\s*\n(.*?)\n```$",
+            path.read_text(encoding="utf-8"),
+        )
+        assert blocks, path
+        for block in blocks:
+            assert isinstance(json.loads(block), dict), path
