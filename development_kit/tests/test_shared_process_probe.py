@@ -5,7 +5,10 @@ from __future__ import annotations
 import sys
 
 from src.shared_session.preflight import classify_shared_server_preflight
-from src.shared_session.process_probe import collect_shared_preflight_snapshot
+from src.shared_session.process_probe import (
+    _is_primary_desktop_window,
+    collect_shared_preflight_snapshot,
+)
 
 
 def _record(pid, parent, name, command, executable=None):
@@ -195,7 +198,7 @@ def test_comsol_64_ui_process_is_classified_as_desktop():
     snapshot = collect_shared_preflight_snapshot(
         process_provider=lambda: records,
         listener_provider=list,
-        window_provider=lambda: {10: {"window_count": 2, "responding": True}},
+        window_provider=lambda: {10: {"window_count": 1, "responding": True}},
         version_provider=lambda path: "6.4.0.293",
         clock=lambda: 1000.0,
     )
@@ -208,7 +211,30 @@ def test_comsol_64_ui_process_is_classified_as_desktop():
             "create_time": 10.0,
             "command_signature": snapshot["processes"][0]["command_signature"],
             "file_version": "6.4.0.293",
-            "window_count": 2,
+            "window_count": 1,
             "responding": True,
         }
     ]
+
+
+def test_comsol_64_window_filter_rejects_observed_auxiliary_windows():
+    assert _is_primary_desktop_window(
+        title="Untitled.mph - COMSOL Multiphysics",
+        class_name="HwndWrapper[ComsolUI.exe;;]",
+    )
+    assert not _is_primary_desktop_window(
+        title="",
+        class_name="ActiproWindowChromeShadow",
+    )
+    assert not _is_primary_desktop_window(
+        title="shadow helper",
+        class_name="ActiproWindowChromeShadow",
+    )
+    assert not _is_primary_desktop_window(
+        title="ActiproWindowChromeShadow",
+        class_name="HwndWrapper[ComsolUI.exe;;]",
+    )
+    assert not _is_primary_desktop_window(
+        title="",
+        class_name="PseudoConsoleWindow",
+    )

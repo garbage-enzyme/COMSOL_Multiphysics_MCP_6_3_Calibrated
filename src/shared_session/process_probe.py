@@ -25,6 +25,11 @@ _SERVER_EXECUTABLES = frozenset({
     "comsolmphserver.exe",
     "comsolserver.exe",
 })
+_AUXILIARY_WINDOW_CLASSES = frozenset({
+    "actiprowindowchromeshadow",
+    "pseudoconsolewindow",
+})
+_MAX_WINDOW_CLASS_CHARACTERS = 256
 
 
 def _command_signature(command_line: Iterable[Any]) -> str:
@@ -75,6 +80,14 @@ def _listener_records() -> list[dict[str, Any]]:
     return listeners
 
 
+def _is_primary_desktop_window(*, title: str, class_name: str) -> bool:
+    """Reject visible helper windows that do not represent a Desktop model view."""
+    normalized_title = title.strip().casefold()
+    return bool(normalized_title) and not (
+        {normalized_title, class_name.strip().casefold()} & _AUXILIARY_WINDOW_CLASSES
+    )
+
+
 def _window_state_by_pid() -> dict[int, dict[str, Any]]:
     if platform.system() != "Windows":
         return {}
@@ -85,6 +98,16 @@ def _window_state_by_pid() -> dict[int, dict[str, Any]]:
     @callback_type
     def visit(window, _parameter):
         if not user32.IsWindowVisible(window):
+            return True
+        title_length = user32.GetWindowTextLengthW(window)
+        title_buffer = ctypes.create_unicode_buffer(max(1, title_length + 1))
+        user32.GetWindowTextW(window, title_buffer, len(title_buffer))
+        class_buffer = ctypes.create_unicode_buffer(_MAX_WINDOW_CLASS_CHARACTERS)
+        user32.GetClassNameW(window, class_buffer, len(class_buffer))
+        if not _is_primary_desktop_window(
+            title=title_buffer.value,
+            class_name=class_buffer.value,
+        ):
             return True
         pid = wintypes.DWORD()
         user32.GetWindowThreadProcessId(window, ctypes.byref(pid))
