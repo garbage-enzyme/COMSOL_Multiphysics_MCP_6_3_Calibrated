@@ -10,6 +10,7 @@ from src.shared_session.contracts import SHARED_SERVER_FEATURE_ENV
 from src.shared_session.lifecycle import (
     SharedSessionManager,
     _default_model_inventory_reader,
+    _default_save_copy_writer,
 )
 from src.tools.ownership import _command_signature
 
@@ -94,6 +95,7 @@ class FakeJavaModel:
         self._tag = tag
         self._label = label
         self._path = path
+        self.save_calls = []
 
     def tag(self):
         return self._tag
@@ -103,6 +105,9 @@ class FakeJavaModel:
 
     def getFilePath(self):
         return self._path
+
+    def save(self, *args):
+        self.save_calls.append(args)
 
 
 class FakeMphModel:
@@ -132,6 +137,7 @@ def _manager(
     models=None,
     client_factory=None,
     revision_state=None,
+    snapshot_writer=None,
 ):
     values = iter(snapshots or [_snapshot() for _ in range(10)])
     ownership = FakeOwnership(tmp_path)
@@ -154,6 +160,10 @@ def _manager(
                 "process_create_time": 900.0,
                 "command_signature": "f" * 64,
             },
+            snapshot_target_factory=lambda tag: tmp_path / f"{tag}-snapshot.mph",
+            save_copy_writer=snapshot_writer or (
+                lambda value, tag, target: target.write_bytes(b"snapshot fixture")
+            ),
             clock=lambda: 1100.0,
         ),
         ownership,
@@ -180,6 +190,17 @@ def test_default_inventory_uses_raw_java_path_for_unsaved_models():
             "unsaved": False,
         },
     ]
+
+
+def test_default_snapshot_writer_uses_clientapi_save_copy_overload(tmp_path):
+    model = FakeMphModel("Model_1", "Shared", "")
+    target = tmp_path / "copy.mph"
+
+    _default_save_copy_writer(
+        InventoryClient([model]), "Model_1", target
+    )
+
+    assert model.java.save_calls == [(str(target), True)]
 
 
 def test_attached_inventory_is_bounded_sorted_and_keeps_duplicate_metadata(tmp_path):
@@ -430,6 +451,119 @@ def test_detach_refuses_while_model_lock_is_active(tmp_path):
     assert manager.unlock_model(
         expected_lock_sha256=lock["lock_sha256"], reason="Detach"
     )["success"] is True
+
+
+def test_save_copy_snapshot_commits_manifest_after_identity_verification(tmp_path):
+    manager, _ownership, _client = _manager(tmp_path)
+    lock = _attach_and_lock(manager)
+
+    result = manager.snapshot_model(
+        expected_lock_sha256=lock["lock_sha256"],
+        expected_revision_sha256=lock["revision"]["revision_sha256"],
+        max_snapshot_bytes=1024,
+    )
+    manifest = json.loads(Path(result["manifest_path"]).read_text(encoding="utf-8"))
+
+    assert result["success"] is True
+    assert result["state"] == "snapshot_complete"
+    assert result["identity_preserved"] is True
+    assert manifest["complete"] is True
+    assert manifest["save_copy_api"] == "Model.java.save(path, True)"
+    assert manifest["snapshot"]["sha256"] == result["snapshot_sha256"]
+    assert manifest["model"]["file_path"] is None
+
+
+def test_snapshot_rehashes_and_preserves_declared_immutable_source(tmp_path):
+    manager, _ownership, _client = _manager(tmp_path)
+    assert manager.attach(
+        _request(),
+        profile="desktop_shared",
+        environ={SHARED_SERVER_FEATURE_ENV: "true"},
+    )["success"] is True
+    source = tmp_path / "source.mph"
+    source.write_bytes(b"immutable source bytes")
+    source_sha256 = hashlib.sha256(source.read_bytes()).hexdigest()
+    locked = manager.lock_model(
+        collaboration_mode="interactive_inspection",
+        immutable_source={"path": str(source), "sha256": source_sha256},
+    )["model_lock"]
+
+    result = manager.snapshot_model(
+        expected_lock_sha256=locked["lock_sha256"],
+        expected_revision_sha256=locked["revision"]["revision_sha256"],
+        max_snapshot_bytes=1024,
+    )
+
+    assert result["success"] is True
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha256
+
+
+def test_snapshot_writer_failure_never_commits_complete_manifest(tmp_path):
+    def partial_failure(_client, _tag, target):
+        target.write_bytes(b"partial")
+        raise RuntimeError("simulated Save Copy failure")
+
+    manager, _ownership, _client = _manager(
+        tmp_path, snapshot_writer=partial_failure
+    )
+    lock = _attach_and_lock(manager)
+
+    result = manager.snapshot_model(
+        expected_lock_sha256=lock["lock_sha256"],
+        expected_revision_sha256=lock["revision"]["revision_sha256"],
+        max_snapshot_bytes=1024,
+    )
+
+    assert result["success"] is False
+    assert result["state"] == "snapshot_incomplete"
+    assert result["partial_snapshot_exists"] is True
+    assert result["complete_manifest_exists"] is False
+
+
+def test_snapshot_rejects_size_overrun_without_complete_manifest(tmp_path):
+    manager, _ownership, _client = _manager(tmp_path)
+    lock = _attach_and_lock(manager)
+
+    result = manager.snapshot_model(
+        expected_lock_sha256=lock["lock_sha256"],
+        expected_revision_sha256=lock["revision"]["revision_sha256"],
+        max_snapshot_bytes=4,
+    )
+
+    assert result["success"] is False
+    assert "byte limit" in result["error"]
+    assert result["partial_snapshot_exists"] is True
+    assert result["complete_manifest_exists"] is False
+
+
+def test_snapshot_detects_model_identity_change_during_save_copy(tmp_path):
+    models = [
+        {"tag": "Model_1", "label": "Shared", "file_path": None, "unsaved": True}
+    ]
+
+    def change_identity(_client, _tag, target):
+        target.write_bytes(b"snapshot fixture")
+        models[0] = {
+            "tag": "Model_1",
+            "label": "Changed during Save Copy",
+            "file_path": None,
+            "unsaved": True,
+        }
+
+    manager, _ownership, _client = _manager(
+        tmp_path, models=models, snapshot_writer=change_identity
+    )
+    lock = _attach_and_lock(manager)
+
+    result = manager.snapshot_model(
+        expected_lock_sha256=lock["lock_sha256"],
+        expected_revision_sha256=lock["revision"]["revision_sha256"],
+        max_snapshot_bytes=1024,
+    )
+
+    assert result["success"] is False
+    assert "identity or revision changed" in result["error"]
+    assert result["complete_manifest_exists"] is False
 
 
 def test_attach_and_detach_preserve_server_listener_and_model_inventory(tmp_path):

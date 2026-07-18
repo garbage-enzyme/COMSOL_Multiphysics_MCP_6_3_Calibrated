@@ -9,6 +9,7 @@ from pathlib import Path
 import threading
 import time
 from typing import Any, Callable, Mapping
+import uuid
 
 from .attach_request import normalize_shared_server_attach_request
 from .cleanup import evaluate_attached_detach
@@ -28,6 +29,7 @@ from .process_probe import collect_shared_preflight_snapshot
 MAX_SERVER_MODELS = 32
 MAX_UNLOCK_REASON_CHARACTERS = 512
 SOURCE_HASH_CHUNK_BYTES = 1024 * 1024
+MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024 * 1024
 
 
 def _canonical_sha256(value: Any) -> str:
@@ -140,6 +142,38 @@ def _verify_immutable_source(
     return dict(immutable_source)
 
 
+def _hash_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(SOURCE_HASH_CHUNK_BYTES):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _default_snapshot_target_factory(model_tag: str) -> Path:
+    from src.path_policy import PathPolicy
+
+    policy = PathPolicy.from_environment()
+    candidate = policy.shared_snapshot_root / f"{model_tag}-{uuid.uuid4().hex}.mph"
+    return policy.validate_shared_snapshot_write(str(candidate)).normalized_path
+
+
+def _default_save_copy_writer(client: Any, model_tag: str, target: Path) -> None:
+    matches = [
+        model for model in list(client.models())
+        if str(model.java.tag()) == model_tag
+    ]
+    if len(matches) != 1:
+        raise ValueError("adopted server model is no longer uniquely available")
+    matches[0].java.save(str(target), True)
+
+
+def _default_manifest_writer(path: Path, value: dict[str, Any]) -> None:
+    from src.jobs.store import atomic_write_json
+
+    atomic_write_json(path, value)
+
+
 class SharedSessionManager:
     """One process-local facade for an exact non-owned server connection."""
 
@@ -156,6 +190,13 @@ class SharedSessionManager:
         mcp_process_identity_provider: Callable[
             [], Mapping[str, Any]
         ] = _default_mcp_process_identity,
+        snapshot_target_factory: Callable[[str], Path] = _default_snapshot_target_factory,
+        save_copy_writer: Callable[
+            [Any, str, Path], None
+        ] = _default_save_copy_writer,
+        manifest_writer: Callable[
+            [Path, dict[str, Any]], None
+        ] = _default_manifest_writer,
         clock: Callable[[], float] = time.time,
     ):
         self._snapshot_provider = snapshot_provider
@@ -164,6 +205,9 @@ class SharedSessionManager:
         self._model_inventory_reader = model_inventory_reader
         self._model_revision_reader = model_revision_reader
         self._mcp_process_identity_provider = mcp_process_identity_provider
+        self._snapshot_target_factory = snapshot_target_factory
+        self._save_copy_writer = save_copy_writer
+        self._manifest_writer = manifest_writer
         self._clock = clock
         self._lock = threading.RLock()
         self._client = None
@@ -580,6 +624,106 @@ class SharedSessionManager:
                 "state": "attached_model_pending_lock",
                 "unlock_audit": audit,
             }
+
+    def snapshot_model(
+        self,
+        *,
+        expected_lock_sha256: str,
+        expected_revision_sha256: str,
+        max_snapshot_bytes: int,
+    ) -> dict[str, Any]:
+        """Create one contained Save Copy and commit a complete manifest last."""
+        with self._lock:
+            if (
+                isinstance(max_snapshot_bytes, bool)
+                or not isinstance(max_snapshot_bytes, int)
+                or max_snapshot_bytes <= 0
+                or max_snapshot_bytes > MAX_SNAPSHOT_BYTES
+            ):
+                return {"success": False, "state": "snapshot_size_limit_invalid"}
+            verified_before = self.verify_model_lock(
+                expected_lock_sha256=expected_lock_sha256,
+                expected_revision_sha256=expected_revision_sha256,
+            )
+            if not verified_before.get("success"):
+                return {
+                    "success": False,
+                    "state": "snapshot_precondition_failed",
+                    "model_lock_verification": verified_before,
+                }
+            target = None
+            manifest_path = None
+            try:
+                target = self._snapshot_target_factory(self._selected_model.tag)
+                if target.exists():
+                    raise FileExistsError("shared snapshot target already exists")
+                manifest_path = target.with_suffix(".manifest.json")
+                if manifest_path.exists():
+                    raise FileExistsError("shared snapshot manifest already exists")
+                self._save_copy_writer(
+                    self._client, self._selected_model.tag, target
+                )
+                if not target.is_file():
+                    raise RuntimeError("Save Copy did not create a snapshot file")
+                snapshot_size = target.stat().st_size
+                if snapshot_size <= 0:
+                    raise RuntimeError("Save Copy created an empty snapshot file")
+                if snapshot_size > max_snapshot_bytes:
+                    raise ValueError("Save Copy exceeds the caller-declared byte limit")
+                verified_after = self.verify_model_lock(
+                    expected_lock_sha256=expected_lock_sha256,
+                    expected_revision_sha256=expected_revision_sha256,
+                )
+                if not verified_after.get("success"):
+                    raise RuntimeError("model identity or revision changed during Save Copy")
+                source = _verify_immutable_source(
+                    self._model_lock.immutable_source
+                )
+                snapshot_sha256 = _hash_file(target)
+                body = {
+                    "schema_name": "comsol_mcp.shared_model_snapshot",
+                    "schema_version": "1.0.0",
+                    "snapshot_id": target.stem,
+                    "created_at_epoch": self._clock(),
+                    "save_copy_api": "Model.java.save(path, True)",
+                    "model": dict(self._model_lock.model),
+                    "lock_sha256": self._model_lock.lock_sha256,
+                    "revision_sha256": self._model_lock.revision["revision_sha256"],
+                    "immutable_source": source,
+                    "snapshot": {
+                        "file_name": target.name,
+                        "sha256": snapshot_sha256,
+                        "size_bytes": snapshot_size,
+                    },
+                    "identity_preserved": True,
+                    "complete": True,
+                }
+                self._manifest_writer(manifest_path, body)
+                manifest_sha256 = _hash_file(manifest_path)
+                return {
+                    "success": True,
+                    "state": "snapshot_complete",
+                    "snapshot_path": str(target),
+                    "snapshot_sha256": snapshot_sha256,
+                    "snapshot_size_bytes": snapshot_size,
+                    "manifest_path": str(manifest_path),
+                    "manifest_sha256": manifest_sha256,
+                    "model_lock_verification": verified_after,
+                    "identity_preserved": True,
+                }
+            except Exception as exc:
+                return {
+                    "success": False,
+                    "state": "snapshot_incomplete",
+                    "error": f"{type(exc).__name__}: {exc}",
+                    "snapshot_path": None if target is None else str(target),
+                    "partial_snapshot_exists": bool(
+                        target is not None and target.is_file()
+                    ),
+                    "complete_manifest_exists": bool(
+                        manifest_path is not None and manifest_path.is_file()
+                    ),
+                }
 
     def detach(self) -> dict[str, Any]:
         """Disconnect only the MCP client and prove external preservation."""
