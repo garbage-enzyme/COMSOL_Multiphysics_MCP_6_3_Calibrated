@@ -8,7 +8,7 @@ from pydantic import TypeAdapter, ValidationError
 import pytest
 
 from src.contracts import JobSubmissionSpec, structurally_guarded
-from src.contracts.job_submission import job_submission_dict
+from src.contracts.job_submission import job_submission_dict, validate_job_submission
 from src.jobs.manager import validate_staged_sweep_spec
 from src.server import create_server
 
@@ -76,6 +76,11 @@ def test_unknown_job_fields_fail_at_the_contract_boundary():
                 "unknown_field": True,
             }
         )
+
+
+def test_runtime_job_validator_uses_the_same_discriminated_contract():
+    with pytest.raises(ValidationError, match="union_tag_invalid"):
+        validate_job_submission({"job_type": "unsupported"})
 
 
 def test_every_full_profile_schema_node_has_a_structural_limit():

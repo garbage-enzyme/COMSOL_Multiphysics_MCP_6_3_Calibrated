@@ -6,7 +6,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from src.contracts import JobSubmissionSpec, job_submission_dict
+from src.contracts import JobSubmissionSpec, validate_job_submission
 from src.jobs.attached_backend import normalize_attached_execution_request
 from src.jobs.manager import JobManager, validate_staged_sweep_spec
 from src.tools.shared_session import shared_session_manager
@@ -41,7 +41,7 @@ def _submit_job(
     manager: JobManager = job_manager,
     session_manager=shared_session_manager,
 ) -> dict[str, Any]:
-    spec = job_submission_dict(spec)
+    spec = validate_job_submission(spec)
     execution_request = spec.get("execution_backend")
     if execution_request is None:
         return manager.submit(spec)

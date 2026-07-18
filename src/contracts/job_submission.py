@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 
 MAX_PUBLIC_TEXT = 4096
@@ -118,6 +118,7 @@ JobSubmissionSpec: TypeAlias = Annotated[
     | BranchContinuationCampaignInput,
     Field(discriminator="job_type"),
 ]
+_JOB_SUBMISSION_ADAPTER = TypeAdapter(JobSubmissionSpec)
 
 
 def job_submission_dict(value: JobSubmissionSpec | dict[str, Any]) -> dict[str, Any]:
@@ -129,6 +130,11 @@ def job_submission_dict(value: JobSubmissionSpec | dict[str, Any]) -> dict[str, 
     raise ValueError("Job specification must be an object")
 
 
+def validate_job_submission(value: object) -> dict[str, Any]:
+    """Validate and normalize caller fields through the discovery contract."""
+    return job_submission_dict(_JOB_SUBMISSION_ADAPTER.validate_python(value))
+
+
 __all__ = [
     "BranchContinuationCampaignInput",
     "ConvergenceCampaignInput",
@@ -137,4 +143,5 @@ __all__ = [
     "StagedSweepInput",
     "ValidationMatrixInput",
     "job_submission_dict",
+    "validate_job_submission",
 ]
