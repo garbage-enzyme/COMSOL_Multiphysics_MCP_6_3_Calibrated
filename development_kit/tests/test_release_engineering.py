@@ -155,6 +155,9 @@ def test_support_matrix_matches_frozen_profile_counts_and_declared_dependencies(
         "exact_version_evidence_required": True,
         "pid_and_lease_cleanup_required": True,
     }
+    profile_support = {item["name"]: item["support"] for item in matrix["profiles"]}
+    assert profile_support["wave_optics"] == "experimental"
+    assert all("v2_in_progress" not in support for support in profile_support.values())
     assert {item["name"]: item["tool_count"] for item in matrix["profiles"]} == {
         profile: len(tools) for profile, tools in names.items()
     }
