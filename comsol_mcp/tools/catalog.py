@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from types import MappingProxyType
-from collections.abc import Iterable
 from typing import Any, Mapping
-
 
 PROFILE_NAMES = (
     "core",
@@ -51,99 +50,166 @@ ToolMetadata = ToolSpec
 
 
 _TOOLS_BY_REGISTRAR = {
-    "comsol_mcp.tools.capabilities.register_capability_tools": (
-        "capabilities",
-    ),
+    "comsol_mcp.tools.capabilities.register_capability_tools": ("capabilities",),
     "comsol_mcp.tools.evidence_integrity.register_evidence_integrity_tools": (
-        "evidence_integrity_status", "evidence_integrity_verify",
+        "evidence_integrity_status",
+        "evidence_integrity_verify",
     ),
     "comsol_mcp.tools.ownership.register_ownership_tools": (
-        "solver_status", "solver_preflight", "solver_recover_stale_lease",
+        "solver_status",
+        "solver_preflight",
+        "solver_recover_stale_lease",
     ),
     "comsol_mcp.tools.jobs.register_job_tools": (
-        "job_submit", "job_status", "job_tail", "job_cancel", "job_resume",
+        "job_submit",
+        "job_status",
+        "job_tail",
+        "job_cancel",
+        "job_resume",
     ),
     "comsol_mcp.tools.session.register_session_tools": (
-        "comsol_start", "comsol_connect", "comsol_disconnect", "comsol_status",
-        "session_clear_models", "session_reset",
+        "comsol_start",
+        "comsol_connect",
+        "comsol_disconnect",
+        "comsol_status",
+        "session_clear_models",
+        "session_reset",
     ),
     "comsol_mcp.tools.model.register_model_tools": (
-        "model_load", "model_create", "model_create_component",
-        "model_list_components", "model_save", "model_save_version", "model_list",
-        "model_set_current", "model_clone", "model_remove", "model_inspect",
+        "model_load",
+        "model_create",
+        "model_create_component",
+        "model_list_components",
+        "model_save",
+        "model_save_version",
+        "model_list",
+        "model_set_current",
+        "model_clone",
+        "model_remove",
+        "model_inspect",
     ),
     "comsol_mcp.tools.parameters.register_parameter_tools": (
-        "param_get", "param_set", "param_list", "param_sweep_setup",
+        "param_get",
+        "param_set",
+        "param_list",
+        "param_sweep_setup",
         "param_description",
     ),
     "comsol_mcp.tools.geometry.register_geometry_tools": (
-        "geometry_list", "geometry_create", "geometry_add_feature",
-        "geometry_add_block", "geometry_add_cylinder", "geometry_add_sphere",
-        "geometry_add_rectangle", "geometry_add_circle", "geometry_boolean_union",
-        "geometry_boolean_difference", "geometry_import", "geometry_build",
+        "geometry_list",
+        "geometry_create",
+        "geometry_add_feature",
+        "geometry_add_block",
+        "geometry_add_cylinder",
+        "geometry_add_sphere",
+        "geometry_add_rectangle",
+        "geometry_add_circle",
+        "geometry_boolean_union",
+        "geometry_boolean_difference",
+        "geometry_import",
+        "geometry_build",
         "geometry_list_features",
     ),
     "comsol_mcp.tools.physics.register_physics_tools": (
-        "physics_list", "physics_get_available", "physics_add",
-        "physics_add_electrostatics", "physics_add_solid_mechanics",
-        "physics_add_heat_transfer", "physics_add_laminar_flow",
-        "physics_add_domain_feature", "physics_configure_boundary",
-        "physics_set_material", "multiphysics_add", "physics_list_features",
-        "physics_remove", "geometry_get_boundaries",
-        "physics_interactive_setup_flow", "physics_setup_flow_boundaries",
-        "physics_interactive_setup_heat", "physics_setup_heat_boundaries",
+        "physics_list",
+        "physics_get_available",
+        "physics_add",
+        "physics_add_electrostatics",
+        "physics_add_solid_mechanics",
+        "physics_add_heat_transfer",
+        "physics_add_laminar_flow",
+        "physics_add_domain_feature",
+        "physics_configure_boundary",
+        "physics_set_material",
+        "multiphysics_add",
+        "physics_list_features",
+        "physics_remove",
+        "geometry_get_boundaries",
+        "physics_interactive_setup_flow",
+        "physics_setup_flow_boundaries",
+        "physics_interactive_setup_heat",
+        "physics_setup_heat_boundaries",
         "physics_boundary_selection",
     ),
     "comsol_mcp.tools.mesh.register_mesh_tools": (
-        "mesh_list", "mesh_create", "mesh_sequence_create", "mesh_info",
+        "mesh_list",
+        "mesh_create",
+        "mesh_sequence_create",
+        "mesh_info",
     ),
     "comsol_mcp.tools.study.register_study_tools": (
-        "study_list", "study_create", "study_solve", "study_solve_async",
-        "study_get_progress", "study_cancel", "study_wait", "solutions_list",
+        "study_list",
+        "study_create",
+        "study_solve",
+        "study_solve_async",
+        "study_get_progress",
+        "study_cancel",
+        "study_wait",
+        "solutions_list",
         "datasets_list",
     ),
     "comsol_mcp.tools.results.register_results_tools": (
-        "results_evaluate", "results_global_evaluate", "results_inner_values",
-        "results_outer_values", "results_export_data", "results_export_image",
-        "results_exports_list", "results_plots_list",
+        "results_evaluate",
+        "results_global_evaluate",
+        "results_inner_values",
+        "results_outer_values",
+        "results_export_data",
+        "results_export_image",
+        "results_exports_list",
+        "results_plots_list",
     ),
     "comsol_mcp.tools.mim_patch.register_mim_patch_tools": (
-        "geometry_probe_domains", "mim_patch_build", "mim_evaluate_spectral",
+        "geometry_probe_domains",
+        "mim_patch_build",
+        "mim_evaluate_spectral",
     ),
     "comsol_mcp.tools.workflow.register_workflow_tools": (
-        "study_staged_parametric_sweep", "mesh_convergence_study",
+        "study_staged_parametric_sweep",
+        "mesh_convergence_study",
     ),
     "comsol_mcp.tools.properties.register_property_tools": (
-        "clientapi_property_get", "clientapi_property_set",
+        "clientapi_property_get",
+        "clientapi_property_set",
     ),
     "comsol_mcp.tools.wave_optics_preflight.register_wave_optics_preflight_tools": (
         "wave_optics_preflight",
     ),
     "comsol_mcp.tools.periodic_mesh_audit.register_periodic_mesh_audit_tools": (
-        "wave_optics_periodic_mesh_audit", "wave_optics_periodic_mesh_smoke",
+        "wave_optics_periodic_mesh_audit",
+        "wave_optics_periodic_mesh_smoke",
     ),
     "comsol_mcp.tools.derived_geometry.register_derived_geometry_tools": (
-        "geometry_derived_clone", "geometry_fin_preview", "geometry_fin_apply",
-        "geometry_blocks_preview", "geometry_blocks_apply",
+        "geometry_derived_clone",
+        "geometry_fin_preview",
+        "geometry_fin_apply",
+        "geometry_blocks_preview",
+        "geometry_blocks_apply",
     ),
     "comsol_mcp.tools.incidence_config.register_incidence_config_tools": (
-        "wave_optics_incidence_preview", "wave_optics_incidence_apply",
+        "wave_optics_incidence_preview",
+        "wave_optics_incidence_apply",
     ),
     "comsol_mcp.tools.wave_optics_audit.register_wave_optics_audit_tools": (
-        "wave_optics_point_audit", "wave_optics_reference_audit",
+        "wave_optics_point_audit",
+        "wave_optics_reference_audit",
     ),
     "comsol_mcp.tools.material_expressions.register_material_expression_tools": (
         "wave_optics_material_expression_preview",
     ),
     "comsol_mcp.tools.visual_review.register_visual_review_tools": (
-        "visual_review_capability_normalize", "visual_review_request_create",
-        "visual_review_receipt_create", "visual_review_dual_evaluate",
+        "visual_review_capability_normalize",
+        "visual_review_request_create",
+        "visual_review_receipt_create",
+        "visual_review_dual_evaluate",
     ),
     "comsol_mcp.tools.field_evidence.register_field_evidence_tools": (
-        "wave_optics_field_datasets", "wave_optics_field_extract",
+        "wave_optics_field_datasets",
+        "wave_optics_field_extract",
     ),
     "comsol_mcp.tools.semantic_docs.register_semantic_doc_tools": (
-        "semantic_search", "semantic_status", "semantic_worker_reset",
+        "semantic_search",
+        "semantic_status",
+        "semantic_worker_reset",
     ),
     "comsol_mcp.tools.spectral_characterization.register_spectral_characterization_tools": (
         "spectral_characterize",
@@ -155,18 +221,27 @@ _TOOLS_BY_REGISTRAR = {
         "branch_continuation_plan",
     ),
     "comsol_mcp.tools.shared_session.register_shared_session_tools": (
-        "shared_server_preflight", "shared_server_attach",
-        "shared_server_detach", "shared_server_status",
-        "shared_server_models", "shared_model_lock",
-        "shared_model_verify", "shared_model_unlock", "shared_model_snapshot",
+        "shared_server_preflight",
+        "shared_server_attach",
+        "shared_server_detach",
+        "shared_server_status",
+        "shared_server_models",
+        "shared_model_lock",
+        "shared_model_verify",
+        "shared_model_unlock",
+        "shared_model_snapshot",
         "shared_model_adopt",
     ),
     "comsol_mcp.knowledge.embedded.register_knowledge_tools": (
-        "docs_get", "docs_list", "physics_get_guide", "troubleshoot",
+        "docs_get",
+        "docs_list",
+        "physics_get_guide",
+        "troubleshoot",
         "modeling_best_practices",
     ),
     "comsol_mcp.knowledge.lexical_manual.register_lexical_manual_tools": (
-        "manual_search", "manual_read_pages",
+        "manual_search",
+        "manual_read_pages",
     ),
 }
 
@@ -203,43 +278,52 @@ _GROUP_BY_REGISTRAR = {
     "register_lexical_manual_tools": "manuals",
 }
 
-_EXPERIMENTAL_TOOLS = frozenset({
-    "comsol_connect",
-    "geometry_add_feature",
-    "physics_add",
-    "physics_add_domain_feature",
-    "multiphysics_add",
-    "physics_interactive_setup_flow",
-    "physics_setup_flow_boundaries",
-    "physics_interactive_setup_heat",
-    "physics_setup_heat_boundaries",
-    "physics_boundary_selection",
-    "study_solve_async",
-    "study_get_progress",
-    "study_cancel",
-    "study_wait",
-    "mim_patch_build",
-    "mim_evaluate_spectral",
-    "study_staged_parametric_sweep",
-    "mesh_convergence_study",
-    "clientapi_property_get",
-    "clientapi_property_set",
-    "wave_optics_preflight",
-    "wave_optics_periodic_mesh_audit",
-    "wave_optics_periodic_mesh_smoke",
-    "wave_optics_point_audit",
-    "wave_optics_reference_audit",
-    "wave_optics_incidence_preview",
-    "wave_optics_incidence_apply",
-    "wave_optics_field_datasets",
-    "wave_optics_field_extract",
-    "semantic_search", "semantic_status", "semantic_worker_reset",
-    "shared_server_preflight", "shared_server_attach",
-    "shared_server_detach", "shared_server_status",
-    "shared_server_models", "shared_model_lock",
-    "shared_model_verify", "shared_model_unlock", "shared_model_snapshot",
-    "shared_model_adopt",
-})
+_EXPERIMENTAL_TOOLS = frozenset(
+    {
+        "comsol_connect",
+        "geometry_add_feature",
+        "physics_add",
+        "physics_add_domain_feature",
+        "multiphysics_add",
+        "physics_interactive_setup_flow",
+        "physics_setup_flow_boundaries",
+        "physics_interactive_setup_heat",
+        "physics_setup_heat_boundaries",
+        "physics_boundary_selection",
+        "study_solve_async",
+        "study_get_progress",
+        "study_cancel",
+        "study_wait",
+        "mim_patch_build",
+        "mim_evaluate_spectral",
+        "study_staged_parametric_sweep",
+        "mesh_convergence_study",
+        "clientapi_property_get",
+        "clientapi_property_set",
+        "wave_optics_preflight",
+        "wave_optics_periodic_mesh_audit",
+        "wave_optics_periodic_mesh_smoke",
+        "wave_optics_point_audit",
+        "wave_optics_reference_audit",
+        "wave_optics_incidence_preview",
+        "wave_optics_incidence_apply",
+        "wave_optics_field_datasets",
+        "wave_optics_field_extract",
+        "semantic_search",
+        "semantic_status",
+        "semantic_worker_reset",
+        "shared_server_preflight",
+        "shared_server_attach",
+        "shared_server_detach",
+        "shared_server_status",
+        "shared_server_models",
+        "shared_model_lock",
+        "shared_model_verify",
+        "shared_model_unlock",
+        "shared_model_snapshot",
+        "shared_model_adopt",
+    }
+)
 
 _SIDE_EFFECTS = {
     "solver_recover_stale_lease": "ownership_control",
@@ -323,143 +407,299 @@ _SIDE_EFFECTS = {
     "shared_model_snapshot": "filesystem_write",
 }
 
-_STARTS_SOLVER = frozenset({
-    "job_submit", "job_resume", "comsol_start", "study_solve",
-    "study_solve_async", "study_staged_parametric_sweep", "mesh_convergence_study",
-    "wave_optics_point_audit", "wave_optics_reference_audit",
-})
+_STARTS_SOLVER = frozenset(
+    {
+        "job_submit",
+        "job_resume",
+        "comsol_start",
+        "study_solve",
+        "study_solve_async",
+        "study_staged_parametric_sweep",
+        "mesh_convergence_study",
+        "wave_optics_point_audit",
+        "wave_optics_reference_audit",
+    }
+)
 
-_CONTROL_PLANE_TOOLS = frozenset({
-    "capabilities", "evidence_integrity_status", "solver_status", "solver_preflight",
-    "solver_recover_stale_lease", "job_status", "job_tail", "job_cancel",
-    "comsol_status", "study_get_progress", "study_cancel", "study_wait",
-    "semantic_status", "semantic_worker_reset",
-    "shared_server_preflight", "shared_server_status",
-})
+_CONTROL_PLANE_TOOLS = frozenset(
+    {
+        "capabilities",
+        "evidence_integrity_status",
+        "solver_status",
+        "solver_preflight",
+        "solver_recover_stale_lease",
+        "job_status",
+        "job_tail",
+        "job_cancel",
+        "comsol_status",
+        "study_get_progress",
+        "study_cancel",
+        "study_wait",
+        "semantic_status",
+        "semantic_worker_reset",
+        "shared_server_preflight",
+        "shared_server_status",
+    }
+)
 
-_SOLVER_FREE_TOOLS = frozenset({
-    "evidence_integrity_verify", "manual_search", "manual_read_pages", "semantic_search",
-    "docs_get", "docs_list", "physics_get_guide", "troubleshoot",
-    "modeling_best_practices", "wave_optics_material_expression_preview",
-    "visual_review_capability_normalize", "visual_review_request_create",
-    "visual_review_receipt_create", "visual_review_dual_evaluate",
-    "spectral_characterize", "convergence_evaluate", "branch_continuation_plan",
-    "geometry_fin_preview", "geometry_blocks_preview",
-    "wave_optics_incidence_preview",
-})
+_SOLVER_FREE_TOOLS = frozenset(
+    {
+        "evidence_integrity_verify",
+        "manual_search",
+        "manual_read_pages",
+        "semantic_search",
+        "docs_get",
+        "docs_list",
+        "physics_get_guide",
+        "troubleshoot",
+        "modeling_best_practices",
+        "wave_optics_material_expression_preview",
+        "visual_review_capability_normalize",
+        "visual_review_request_create",
+        "visual_review_receipt_create",
+        "visual_review_dual_evaluate",
+        "spectral_characterize",
+        "convergence_evaluate",
+        "branch_continuation_plan",
+        "geometry_fin_preview",
+        "geometry_blocks_preview",
+        "wave_optics_incidence_preview",
+    }
+)
 
-_MODEL_REVISION_EXCLUSIONS = frozenset({
-    "job_submit", "job_resume", "comsol_start", "comsol_connect",
-    "comsol_disconnect", "session_clear_models", "session_reset",
-    "model_create", "model_load", "model_set_current",
-    "mim_patch_build",
-    "solver_recover_stale_lease", "semantic_worker_reset",
-})
+_MODEL_REVISION_EXCLUSIONS = frozenset(
+    {
+        "job_submit",
+        "job_resume",
+        "comsol_start",
+        "comsol_connect",
+        "comsol_disconnect",
+        "session_clear_models",
+        "session_reset",
+        "model_create",
+        "model_load",
+        "model_set_current",
+        "mim_patch_build",
+        "solver_recover_stale_lease",
+        "semantic_worker_reset",
+    }
+)
 
-_MODEL_REVISION_REQUIRED_CLASSES = frozenset({
-    "model_mutation", "destructive_session", "solver_execution",
-    "filesystem_write_model_mutation",
-})
+_MODEL_REVISION_REQUIRED_CLASSES = frozenset(
+    {
+        "model_mutation",
+        "destructive_session",
+        "solver_execution",
+        "filesystem_write_model_mutation",
+    }
+)
 
-_MODEL_REVISION_REQUIRED_ADDITIONS = frozenset({
-    "model_save", "model_save_version",
-})
+_MODEL_REVISION_REQUIRED_ADDITIONS = frozenset(
+    {
+        "model_save",
+        "model_save_version",
+    }
+)
 
-_MODEL_REVISION_NONADVANCING = frozenset({
-    "model_save", "model_save_version", "model_clone",
-    "model_remove",
-    "geometry_derived_clone", "wave_optics_periodic_mesh_smoke",
-    "wave_optics_point_audit", "wave_optics_reference_audit",
-})
+_MODEL_REVISION_NONADVANCING = frozenset(
+    {
+        "model_save",
+        "model_save_version",
+        "model_clone",
+        "model_remove",
+        "geometry_derived_clone",
+        "wave_optics_periodic_mesh_smoke",
+        "wave_optics_point_audit",
+        "wave_optics_reference_audit",
+    }
+)
 
-_CORE_TOOLS = frozenset({
-    "capabilities", "evidence_integrity_status", "evidence_integrity_verify",
-    "solver_status", "solver_preflight", "solver_recover_stale_lease",
-    "job_submit", "job_status", "job_tail", "job_cancel", "job_resume",
-    "comsol_start", "comsol_disconnect", "comsol_status", "session_reset",
-    "model_load", "model_list_components", "model_save", "model_list",
-    "model_set_current", "model_remove", "model_inspect",
-    "param_get", "param_set", "param_list",
-    "geometry_list", "geometry_list_features", "geometry_get_boundaries",
-    "geometry_probe_domains",
-    "physics_list", "physics_list_features",
-    "mesh_list", "mesh_info",
-    "study_list", "study_solve", "solutions_list", "datasets_list",
-    "results_global_evaluate", "manual_search", "manual_read_pages",
-    "spectral_characterize",
-    "convergence_evaluate",
-    "branch_continuation_plan",
-})
+_CORE_TOOLS = frozenset(
+    {
+        "capabilities",
+        "evidence_integrity_status",
+        "evidence_integrity_verify",
+        "solver_status",
+        "solver_preflight",
+        "solver_recover_stale_lease",
+        "job_submit",
+        "job_status",
+        "job_tail",
+        "job_cancel",
+        "job_resume",
+        "comsol_start",
+        "comsol_disconnect",
+        "comsol_status",
+        "session_reset",
+        "model_load",
+        "model_list_components",
+        "model_save",
+        "model_list",
+        "model_set_current",
+        "model_remove",
+        "model_inspect",
+        "param_get",
+        "param_set",
+        "param_list",
+        "geometry_list",
+        "geometry_list_features",
+        "geometry_get_boundaries",
+        "geometry_probe_domains",
+        "physics_list",
+        "physics_list_features",
+        "mesh_list",
+        "mesh_info",
+        "study_list",
+        "study_solve",
+        "solutions_list",
+        "datasets_list",
+        "results_global_evaluate",
+        "manual_search",
+        "manual_read_pages",
+        "spectral_characterize",
+        "convergence_evaluate",
+        "branch_continuation_plan",
+    }
+)
 
-_BASIC_FEM_ADDITIONS = frozenset({
-    "model_create", "model_create_component", "model_save_version", "model_clone",
-    "geometry_derived_clone", "geometry_fin_preview", "geometry_fin_apply",
-    "geometry_blocks_preview", "geometry_blocks_apply",
-    "param_description",
-    "geometry_create", "geometry_add_block", "geometry_add_cylinder",
-    "geometry_add_sphere", "geometry_add_rectangle", "geometry_add_circle",
-    "geometry_boolean_union", "geometry_boolean_difference", "geometry_import",
-    "geometry_build", "physics_get_available", "physics_add_electrostatics",
-    "physics_add_solid_mechanics", "physics_add_heat_transfer",
-    "physics_add_laminar_flow", "physics_configure_boundary",
-    "physics_set_material", "physics_remove", "mesh_create",
-    "mesh_sequence_create", "study_create", "results_evaluate",
-    "results_inner_values", "results_outer_values", "results_export_data",
-    "results_export_image", "results_exports_list", "results_plots_list",
-})
+_BASIC_FEM_ADDITIONS = frozenset(
+    {
+        "model_create",
+        "model_create_component",
+        "model_save_version",
+        "model_clone",
+        "geometry_derived_clone",
+        "geometry_fin_preview",
+        "geometry_fin_apply",
+        "geometry_blocks_preview",
+        "geometry_blocks_apply",
+        "param_description",
+        "geometry_create",
+        "geometry_add_block",
+        "geometry_add_cylinder",
+        "geometry_add_sphere",
+        "geometry_add_rectangle",
+        "geometry_add_circle",
+        "geometry_boolean_union",
+        "geometry_boolean_difference",
+        "geometry_import",
+        "geometry_build",
+        "physics_get_available",
+        "physics_add_electrostatics",
+        "physics_add_solid_mechanics",
+        "physics_add_heat_transfer",
+        "physics_add_laminar_flow",
+        "physics_configure_boundary",
+        "physics_set_material",
+        "physics_remove",
+        "mesh_create",
+        "mesh_sequence_create",
+        "study_create",
+        "results_evaluate",
+        "results_inner_values",
+        "results_outer_values",
+        "results_export_data",
+        "results_export_image",
+        "results_exports_list",
+        "results_plots_list",
+    }
+)
 
-_WAVE_OPTICS_ADDITIONS = frozenset({
-    "param_sweep_setup", "results_evaluate", "results_inner_values",
-    "results_outer_values", "mim_evaluate_spectral",
-    "wave_optics_preflight",
-    "wave_optics_periodic_mesh_audit",
-    "wave_optics_periodic_mesh_smoke",
-    "geometry_derived_clone", "geometry_fin_preview", "geometry_fin_apply",
-    "geometry_blocks_preview", "geometry_blocks_apply",
-    "wave_optics_incidence_preview",
-    "wave_optics_incidence_apply",
-    "wave_optics_point_audit",
-    "wave_optics_reference_audit",
-    "wave_optics_material_expression_preview",
-    "wave_optics_field_datasets",
-    "wave_optics_field_extract",
-    "visual_review_capability_normalize", "visual_review_request_create",
-    "visual_review_receipt_create", "visual_review_dual_evaluate",
-})
+_WAVE_OPTICS_ADDITIONS = frozenset(
+    {
+        "param_sweep_setup",
+        "results_evaluate",
+        "results_inner_values",
+        "results_outer_values",
+        "mim_evaluate_spectral",
+        "wave_optics_preflight",
+        "wave_optics_periodic_mesh_audit",
+        "wave_optics_periodic_mesh_smoke",
+        "geometry_derived_clone",
+        "geometry_fin_preview",
+        "geometry_fin_apply",
+        "geometry_blocks_preview",
+        "geometry_blocks_apply",
+        "wave_optics_incidence_preview",
+        "wave_optics_incidence_apply",
+        "wave_optics_point_audit",
+        "wave_optics_reference_audit",
+        "wave_optics_material_expression_preview",
+        "wave_optics_field_datasets",
+        "wave_optics_field_extract",
+        "visual_review_capability_normalize",
+        "visual_review_request_create",
+        "visual_review_receipt_create",
+        "visual_review_dual_evaluate",
+    }
+)
 
-_EXPERIMENTAL_ADDITIONS = frozenset({
-    "comsol_connect", "session_clear_models", "geometry_add_feature",
-    "physics_add", "physics_add_domain_feature", "multiphysics_add",
-    "physics_interactive_setup_flow", "physics_setup_flow_boundaries",
-    "physics_interactive_setup_heat", "physics_setup_heat_boundaries",
-    "physics_boundary_selection",
-    "study_solve_async", "study_get_progress", "study_cancel", "study_wait",
-    "mim_patch_build", "mim_evaluate_spectral", "study_staged_parametric_sweep",
-    "mesh_convergence_study", "docs_get", "docs_list", "physics_get_guide",
-    "troubleshoot", "modeling_best_practices",
-    "clientapi_property_get", "clientapi_property_set",
-})
+_EXPERIMENTAL_ADDITIONS = frozenset(
+    {
+        "comsol_connect",
+        "session_clear_models",
+        "geometry_add_feature",
+        "physics_add",
+        "physics_add_domain_feature",
+        "multiphysics_add",
+        "physics_interactive_setup_flow",
+        "physics_setup_flow_boundaries",
+        "physics_interactive_setup_heat",
+        "physics_setup_heat_boundaries",
+        "physics_boundary_selection",
+        "study_solve_async",
+        "study_get_progress",
+        "study_cancel",
+        "study_wait",
+        "mim_patch_build",
+        "mim_evaluate_spectral",
+        "study_staged_parametric_sweep",
+        "mesh_convergence_study",
+        "docs_get",
+        "docs_list",
+        "physics_get_guide",
+        "troubleshoot",
+        "modeling_best_practices",
+        "clientapi_property_get",
+        "clientapi_property_set",
+    }
+)
 
-_SEMANTIC_DOCS_ADDITIONS = frozenset({
-    "semantic_search", "semantic_status", "semantic_worker_reset",
-})
+_SEMANTIC_DOCS_ADDITIONS = frozenset(
+    {
+        "semantic_search",
+        "semantic_status",
+        "semantic_worker_reset",
+    }
+)
 
-_DESKTOP_SHARED_FOUNDATION = frozenset({
-    "capabilities", "evidence_integrity_status", "evidence_integrity_verify",
-    "solver_status", "job_submit", "job_status", "job_tail",
-    "job_cancel", "job_resume",
-    "shared_server_preflight", "shared_server_attach",
-    "shared_server_detach", "shared_server_status",
-    "shared_server_models", "shared_model_lock",
-    "shared_model_verify", "shared_model_unlock", "shared_model_snapshot",
-    "shared_model_adopt",
-})
+_DESKTOP_SHARED_FOUNDATION = frozenset(
+    {
+        "capabilities",
+        "evidence_integrity_status",
+        "evidence_integrity_verify",
+        "solver_status",
+        "job_submit",
+        "job_status",
+        "job_tail",
+        "job_cancel",
+        "job_resume",
+        "shared_server_preflight",
+        "shared_server_attach",
+        "shared_server_detach",
+        "shared_server_status",
+        "shared_server_models",
+        "shared_model_lock",
+        "shared_model_verify",
+        "shared_model_unlock",
+        "shared_model_snapshot",
+        "shared_model_adopt",
+    }
+)
 
 
 def _build_registry() -> dict[str, ToolMetadata]:
-    all_names = {
-        name for names in _TOOLS_BY_REGISTRAR.values() for name in names
-    }
+    all_names = {name for names in _TOOLS_BY_REGISTRAR.values() for name in names}
     profile_tools = {
         "core": _CORE_TOOLS,
         "basic_fem": _CORE_TOOLS | _BASIC_FEM_ADDITIONS,
@@ -497,7 +737,9 @@ def _build_registry() -> dict[str, ToolMetadata]:
                 ),
                 starts_solver=name in _STARTS_SOLVER,
                 intended_profiles=tuple(
-                    profile for profile in PROFILE_NAMES if name in profile_tools[profile]
+                    profile
+                    for profile in PROFILE_NAMES
+                    if name in profile_tools[profile]
                 ),
                 input_contract=f"tool-input/{name}/1",
                 output_contract=f"tool-output/{name}/1",
@@ -507,9 +749,10 @@ def _build_registry() -> dict[str, ToolMetadata]:
                 ),
                 artifact_path_classes=(
                     "owned_artifact"
-                    if side_effect_class in {"filesystem_write", "filesystem_write_model_mutation"}
-                    else "none"
-                ,),
+                    if side_effect_class
+                    in {"filesystem_write", "filesystem_write_model_mutation"}
+                    else "none",
+                ),
                 required_features=("comsol",) if name in _STARTS_SOLVER else (),
                 replacement_tool=(
                     "job_submit" if name == "study_staged_parametric_sweep" else None
@@ -518,7 +761,9 @@ def _build_registry() -> dict[str, ToolMetadata]:
                     "next_major" if name == "study_staged_parametric_sweep" else None
                 ),
                 deprecation_state=(
-                    "deprecated" if name == "study_staged_parametric_sweep" else "active"
+                    "deprecated"
+                    if name == "study_staged_parametric_sweep"
+                    else "active"
                 ),
             )
     return registry
@@ -569,7 +814,9 @@ def validate_tool_specs(
             "solver_execution",
             "process_lifecycle",
         }:
-            raise ValueError(f"solver-starting ToolSpec has impossible effects: {name!r}")
+            raise ValueError(
+                f"solver-starting ToolSpec has impossible effects: {name!r}"
+            )
         if spec.maturity == "experimental" and {
             "core",
             "basic_fem",

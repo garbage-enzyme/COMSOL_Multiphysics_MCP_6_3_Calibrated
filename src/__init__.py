@@ -7,14 +7,15 @@ objects instead of creating a second singleton graph.
 
 from __future__ import annotations
 
+import sys
+from collections.abc import Sequence
 from importlib import import_module
 from importlib.abc import Loader, MetaPathFinder
+from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
-import sys
-from types import ModuleType
+from types import CodeType, ModuleType
 
 from comsol_mcp import __version__
-
 
 _CANONICAL_PREFIX = "comsol_mcp"
 _LEGACY_PREFIX = __name__
@@ -25,7 +26,7 @@ class _CanonicalAliasLoader(Loader):
         self.legacy_name = legacy_name
         self.canonical_name = canonical_name
 
-    def create_module(self, spec):
+    def create_module(self, spec: ModuleSpec) -> ModuleType:
         module = import_module(self.canonical_name)
         sys.modules[self.legacy_name] = module
         return module
@@ -34,8 +35,6 @@ class _CanonicalAliasLoader(Loader):
         # Importlib initializes the returned canonical object with the legacy
         # alias spec. Restore canonical metadata so relative imports and
         # introspection never observe a split package identity.
-        from importlib.machinery import ModuleSpec
-
         is_package = hasattr(module, "__path__")
         canonical_spec = ModuleSpec(
             self.canonical_name,
@@ -52,7 +51,7 @@ class _CanonicalAliasLoader(Loader):
             else self.canonical_name.rpartition(".")[0]
         )
 
-    def get_code(self, fullname: str):
+    def get_code(self, fullname: str) -> CodeType | None:
         """Let legacy ``python -m`` commands execute the canonical module."""
         if fullname != self.legacy_name:
             return None
@@ -64,7 +63,12 @@ class _CanonicalAliasLoader(Loader):
 
 
 class _CanonicalAliasFinder(MetaPathFinder):
-    def find_spec(self, fullname: str, path=None, target=None):
+    def find_spec(
+        self,
+        fullname: str,
+        path: Sequence[str] | None = None,
+        target: ModuleType | None = None,
+    ) -> ModuleSpec | None:
         del path, target
         if not fullname.startswith(_LEGACY_PREFIX + "."):
             return None
@@ -73,8 +77,6 @@ class _CanonicalAliasFinder(MetaPathFinder):
         if canonical_spec is None:
             return None
         is_package = canonical_spec.submodule_search_locations is not None
-        from importlib.machinery import ModuleSpec
-
         return ModuleSpec(
             fullname,
             _CanonicalAliasLoader(fullname, canonical_name),

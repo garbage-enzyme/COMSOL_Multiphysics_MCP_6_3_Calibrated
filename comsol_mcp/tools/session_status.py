@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from threading import Lock
 
-
 _LOCK = Lock()
 _STATUS = {"connected": False, "starting": False}
 

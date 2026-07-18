@@ -8,8 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-
-_CHILD_PROBE = r'''
+_CHILD_PROBE = r"""
 import json
 import os
 import psutil
@@ -51,7 +50,7 @@ print(json.dumps({
     "new_external_processes": new_external_processes,
     "tool_count": len(server._tool_manager._tools),
 }))
-'''
+"""
 
 
 def _run_probe() -> dict:
@@ -82,12 +81,16 @@ def test_cold_core_discovery_budget_has_seven_raw_samples(capsys):
     create_times = [sample["create_seconds"] for sample in samples]
     registration_rss = [sample["rss_from_server_import_mib"] for sample in samples]
 
-    print(json.dumps({
-        "runtime": sys.version,
-        "samples": samples,
-        "median_create_seconds": statistics.median(create_times),
-        "median_registration_rss_mib": statistics.median(registration_rss),
-    }))
+    print(
+        json.dumps(
+            {
+                "runtime": sys.version,
+                "samples": samples,
+                "median_create_seconds": statistics.median(create_times),
+                "median_registration_rss_mib": statistics.median(registration_rss),
+            }
+        )
+    )
     captured = capsys.readouterr()
     assert "median_create_seconds" in captured.out
     assert statistics.median(create_times) <= 0.75

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
-from pydantic import TypeAdapter, ValidationError
 import pytest
-
+from pydantic import TypeAdapter, ValidationError
 from src.contracts import JobSubmissionSpec, structurally_guarded
 from src.contracts.job_submission import job_submission_dict, validate_job_submission
 from src.jobs.manager import validate_staged_sweep_spec
@@ -59,8 +58,9 @@ def test_legacy_job_fields_reach_the_existing_normalizer_byte_identically(tmp_pa
     transported = job_submission_dict(parsed)
 
     assert transported == raw
-    assert validate_staged_sweep_spec(transported)["spec_fingerprint"] == (
-        validate_staged_sweep_spec(raw)["spec_fingerprint"]
+    assert (
+        validate_staged_sweep_spec(transported)["spec_fingerprint"]
+        == (validate_staged_sweep_spec(raw)["spec_fingerprint"])
     )
 
 

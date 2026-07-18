@@ -7,13 +7,12 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path
 import time
-from typing import Any, Callable, Sequence
 import uuid
+from pathlib import Path
+from typing import Any, Callable, Sequence
 
 from .canonical import validate_finite_json
-
 
 DEFAULT_REPLACE_RETRY_SECONDS = 1.0
 DEFAULT_MAX_JSONL_BYTES = 256 * 1024 * 1024
@@ -46,7 +45,11 @@ def sha256_file_bounded(
     candidate = Path(path)
     if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 0:
         raise ValueError("max_bytes must be a non-negative integer")
-    if isinstance(chunk_bytes, bool) or not isinstance(chunk_bytes, int) or chunk_bytes < 1:
+    if (
+        isinstance(chunk_bytes, bool)
+        or not isinstance(chunk_bytes, int)
+        or chunk_bytes < 1
+    ):
         raise ValueError("chunk_bytes must be a positive integer")
     stat = candidate.stat()
     if not candidate.is_file():
@@ -70,7 +73,14 @@ def atomic_write_bytes(
     *,
     retry_seconds: float = DEFAULT_REPLACE_RETRY_SECONDS,
     stage_hook: WriteStageHook | None = None,
-    replace_fn: Callable[[str | bytes | os.PathLike[str] | os.PathLike[bytes], str | bytes | os.PathLike[str] | os.PathLike[bytes]], None] | None = None,
+    replace_fn: Callable[
+        [
+            str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        ],
+        None,
+    ]
+    | None = None,
     compact_temporary: bool = False,
 ) -> None:
     """Durably replace one file with complete same-directory temporary bytes."""
@@ -133,7 +143,14 @@ def atomic_write_json(
     value: Any,
     *,
     stage_hook: WriteStageHook | None = None,
-    replace_fn: Callable[[str | bytes | os.PathLike[str] | os.PathLike[bytes], str | bytes | os.PathLike[str] | os.PathLike[bytes]], None] | None = None,
+    replace_fn: Callable[
+        [
+            str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        ],
+        None,
+    ]
+    | None = None,
     compact_temporary: bool = False,
 ) -> None:
     """Write one finite pretty JSON document through atomic replacement."""

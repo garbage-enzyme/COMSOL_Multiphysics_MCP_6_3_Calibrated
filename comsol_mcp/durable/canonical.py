@@ -7,7 +7,6 @@ import json
 import math
 from typing import Any
 
-
 MAX_CANONICAL_DEPTH = 64
 MAX_CANONICAL_NODES = 1_000_000
 _DOMAIN_PREFIX = b"comsol-mcp.identity\x00v2\x00"

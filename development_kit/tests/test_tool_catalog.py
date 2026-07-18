@@ -3,29 +3,27 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import replace
 import json
-from pathlib import Path
 import subprocess
 import sys
+from dataclasses import replace
+from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
 import pytest
-
+from mcp.server.fastmcp import FastMCP
 from src.knowledge.embedded import register_knowledge_tools
 from src.knowledge.lexical_manual import register_lexical_manual_tools
 from src.server import create_server
 from src.tools import TOOL_REGISTRARS
 from src.tools.catalog import (
     PROFILE_NAMES,
-    TOOL_SPECS,
     TOOL_METADATA,
+    TOOL_SPECS,
     get_tool_metadata,
     registrars_for_profile,
     snapshot_tool_schemas,
     validate_tool_specs,
 )
-
 
 SNAPSHOT_PATH = Path(__file__).parent / "snapshots" / "full_tool_schemas.json"
 BASELINE_SNAPSHOT_PATH = (
@@ -73,7 +71,9 @@ def test_every_registered_tool_has_complete_canonical_metadata():
         assert metadata.maturity in {"verified", "experimental"}
         assert metadata.side_effect_class
         assert metadata.concurrency_class in {
-            "control_plane", "solver_free", "comsol_bound",
+            "control_plane",
+            "solver_free",
+            "comsol_bound",
         }
         assert isinstance(metadata.requires_model_revision, bool)
         assert isinstance(metadata.advances_model_revision, bool)
@@ -103,7 +103,10 @@ def test_profile_registrar_selection_is_derived_from_tool_specs():
     full = registrars_for_profile("full")
     assert core
     assert len(core) < len(full)
-    assert "comsol_mcp.tools.wave_optics_audit.register_wave_optics_audit_tools" not in core
+    assert (
+        "comsol_mcp.tools.wave_optics_audit.register_wave_optics_audit_tools"
+        not in core
+    )
     assert "comsol_mcp.tools.wave_optics_audit.register_wave_optics_audit_tools" in full
 
 
@@ -124,16 +127,22 @@ def test_tool_spec_validation_rejects_conflicting_declarations_import_free():
     read_only = TOOL_SPECS["capabilities"]
     with pytest.raises(ValueError, match="read-only ToolSpec"):
         validate_tool_specs(
-            {**TOOL_SPECS, read_only.name: replace(read_only, requires_model_revision=True)}
+            {
+                **TOOL_SPECS,
+                read_only.name: replace(read_only, requires_model_revision=True),
+            }
         )
 
     experimental = TOOL_SPECS["semantic_search"]
     with pytest.raises(ValueError, match="stable profile contains experimental"):
         validate_tool_specs(
-            {**TOOL_SPECS, experimental.name: replace(
-                experimental,
-                intended_profiles=("core", "full"),
-            )}
+            {
+                **TOOL_SPECS,
+                experimental.name: replace(
+                    experimental,
+                    intended_profiles=("core", "full"),
+                ),
+            }
         )
 
     duplicated_profile = replace(
@@ -154,14 +163,19 @@ def test_unknown_tool_metadata_fails_closed():
 
 
 def test_metadata_registrars_match_actual_registration():
-    registrars = (*TOOL_REGISTRARS, register_knowledge_tools, register_lexical_manual_tools)
+    registrars = (
+        *TOOL_REGISTRARS,
+        register_knowledge_tools,
+        register_lexical_manual_tools,
+    )
 
     for registrar in registrars:
         server = FastMCP(f"metadata-{registrar.__name__}")
         registrar(server)
         registrar_name = f"{registrar.__module__}.{registrar.__name__}"
         expected = {
-            name for name, metadata in TOOL_METADATA.items()
+            name
+            for name, metadata in TOOL_METADATA.items()
             if metadata.registrar == registrar_name
         }
         assert set(server._tool_manager._tools) == expected

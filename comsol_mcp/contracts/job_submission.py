@@ -6,7 +6,6 @@ from typing import Annotated, Any, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-
 MAX_PUBLIC_TEXT = 4096
 MAX_PUBLIC_PATH = 1024
 MAX_JOB_COLLECTION = 2048
@@ -118,7 +117,7 @@ JobSubmissionSpec: TypeAlias = Annotated[
     | BranchContinuationCampaignInput,
     Field(discriminator="job_type"),
 ]
-_JOB_SUBMISSION_ADAPTER = TypeAdapter(JobSubmissionSpec)
+_JOB_SUBMISSION_ADAPTER: TypeAdapter[JobSubmissionSpec] = TypeAdapter(JobSubmissionSpec)
 
 
 def job_submission_dict(value: JobSubmissionSpec | dict[str, Any]) -> dict[str, Any]:

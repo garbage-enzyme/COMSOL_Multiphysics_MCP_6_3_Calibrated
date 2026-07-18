@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import importlib
-from pathlib import Path
 import re
 import tomllib
-
+from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 
@@ -63,7 +62,9 @@ def test_canonical_driver_writers_and_legacy_readers_agree():
 
 
 def test_new_driver_identities_are_canonical():
-    from comsol_mcp.jobs.spectral_characterization import current_spectral_driver_identity
+    from comsol_mcp.jobs.spectral_characterization import (
+        current_spectral_driver_identity,
+    )
 
     identity = current_spectral_driver_identity()
 
@@ -93,6 +94,5 @@ def test_packaging_declares_canonical_implementation_and_one_shim():
         "src",
     ]
     assert [
-        path.relative_to(ROOT).as_posix()
-        for path in (ROOT / "src").rglob("*.py")
+        path.relative_to(ROOT).as_posix() for path in (ROOT / "src").rglob("*.py")
     ] == ["src/__init__.py"]

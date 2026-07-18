@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from copy import deepcopy
 from functools import wraps
-import math
 from typing import Any, Callable
-
 
 MAX_PUBLIC_STRING_LENGTH = 16_384
 MAX_PUBLIC_COLLECTION_ITEMS = 2_048
@@ -45,7 +44,9 @@ def bounded_public_schema(value: dict[str, Any]) -> dict[str, Any]:
     return schema
 
 
-def validate_public_structure(value: Any, *, path: str = "arguments", depth: int = 0) -> None:
+def validate_public_structure(
+    value: Any, *, path: str = "arguments", depth: int = 0
+) -> None:
     """Apply the same generic structural limits before any tool side effect."""
     if depth > MAX_PUBLIC_NESTING_DEPTH:
         raise ValueError(f"{path} exceeds the public nesting limit")

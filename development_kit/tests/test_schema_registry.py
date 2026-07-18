@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import ast
+import re
 from copy import deepcopy
 from pathlib import Path
-import re
 
-from src import __version__
 from src.schema_registry import check_schema_support, get_schema_registry
 from src.tools.capabilities import get_capabilities
 from src.tools.profiles import ProfileSelection
 
+from src import __version__
 
 ROOT = Path(__file__).parents[2]
 
@@ -63,7 +63,10 @@ def test_every_entry_declares_read_write_and_non_mutating_migration_policy():
         assert entry["producer_version"] == __version__
         assert entry["readable_versions"]
         assert len(entry["readable_versions"]) == len(set(entry["readable_versions"]))
-        assert entry["writable_version"] is None or entry["writable_version"] in entry["readable_versions"]
+        assert (
+            entry["writable_version"] is None
+            or entry["writable_version"] in entry["readable_versions"]
+        )
         assert entry["migration"]["rewrites_source_in_place"] is False
         assert entry["migration"]["available"] == bool(
             entry["migration"]["source_schema_names"]

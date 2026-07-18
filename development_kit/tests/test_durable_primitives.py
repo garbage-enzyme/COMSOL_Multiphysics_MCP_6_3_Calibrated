@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 
 import pytest
-
 from src.durable import (
     append_csv_row,
     append_jsonl_record,
