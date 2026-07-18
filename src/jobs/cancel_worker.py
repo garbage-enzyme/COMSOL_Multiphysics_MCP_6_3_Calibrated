@@ -192,11 +192,58 @@ def _verify_solver_cleanup(store: JobStore, job_id: str) -> dict[str, Any]:
     Bare historical server PIDs are intentionally insufficient: an durable cancellation terminal
     cancellation must remain blocked rather than risk acting after PID reuse.
     """
+    def with_attached_preservation(result: dict[str, Any]) -> dict[str, Any]:
+        spec = store.read_spec(job_id)
+        backend = spec.get("execution_backend")
+        if backend is None:
+            return result
+        from src.jobs.attached_runtime import (
+            normalize_attached_execution_target,
+            verify_attached_process_preservation,
+        )
+        from src.shared_session.process_probe import (
+            collect_shared_preflight_snapshot,
+        )
+
+        target = normalize_attached_execution_target(backend)
+        preservation = verify_attached_process_preservation(
+            target,
+            first_probe=collect_shared_preflight_snapshot(),
+            second_probe=collect_shared_preflight_snapshot(),
+        )
+        state = store.read_state(job_id)
+        cleanup = state.get("attached_cleanup")
+        model_status = (
+            "verified_before_cooperative_disconnect"
+            if isinstance(cleanup, dict)
+            and cleanup.get("success")
+            and cleanup.get("model_identity_preserved")
+            else "not_automatically_rechecked_after_worker_exit"
+        )
+        attached = {
+            **preservation,
+            "model_preservation_status": model_status,
+            "model_clear_attempted": False,
+            "external_server_termination_attempted": False,
+        }
+        return {
+            **result,
+            "ok": bool(result.get("ok") and preservation.get("success")),
+            "attached_external_resources": attached,
+        }
+
     # This common path is intentionally dependency-free: most workers release
     # their lease before exiting, and a coordinator must not import the complete
     # MCP tool package merely to confirm its absence.
     if not (store.root.parent / "solver_owner.json").is_file():
-        return {"ok": True, "lease_state": "absent", "lease_recovered": False, "recorded_port_closed": True}
+        return with_attached_preservation(
+            {
+                "ok": True,
+                "lease_state": "absent",
+                "lease_recovered": False,
+                "recorded_port_closed": True,
+            }
+        )
 
     from src.tools.ownership import SolverOwnership
 
@@ -204,7 +251,14 @@ def _verify_solver_cleanup(store: JobStore, job_id: str) -> dict[str, Any]:
     status = ownership.status()
     lease_status = status["lease"]
     if lease_status["state"] == "absent":
-        return {"ok": True, "lease_state": "absent", "lease_recovered": False, "recorded_port_closed": True}
+        return with_attached_preservation(
+            {
+                "ok": True,
+                "lease_state": "absent",
+                "lease_recovered": False,
+                "recorded_port_closed": True,
+            }
+        )
     lease = lease_status.get("lease")
     if not isinstance(lease, dict) or lease.get("owner") != f"job:{job_id}":
         return {"ok": False, "reason": "target job does not exclusively own the recorded solver lease", "lease_state": lease_status["state"]}
@@ -234,13 +288,15 @@ def _verify_solver_cleanup(store: JobStore, job_id: str) -> dict[str, Any]:
     recovered = ownership.recover_stale()
     if not recovered.get("success"):
         return {"ok": False, "reason": f"stale lease recovery refused: {recovered}", "lease_state": lease_status["state"]}
-    return {
-        "ok": True,
-        "lease_state": "recovered",
-        "lease_recovered": bool(recovered.get("recovered")),
-        "recorded_port_closed": True,
-        "servers": server_verification,
-    }
+    return with_attached_preservation(
+        {
+            "ok": True,
+            "lease_state": "recovered",
+            "lease_recovered": bool(recovered.get("recovered")),
+            "recorded_port_closed": True,
+            "servers": server_verification,
+        }
+    )
 
 
 def _verified_cancel(store: JobStore, job_id: str, worker_verification: dict[str, Any]) -> dict[str, Any]:

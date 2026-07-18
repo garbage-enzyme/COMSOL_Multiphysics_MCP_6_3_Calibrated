@@ -28,6 +28,7 @@ from src.jobs.attached_runtime import (
 from src.jobs.manager import JobManager, validate_staged_sweep_spec
 from src.jobs.store import JobStore, process_identity
 import src.jobs.worker as production_worker
+from src.jobs import cancel_worker
 from src.tools.jobs import _submit_job
 from src.shared_session.identity import normalize_attached_server_identity
 from src.shared_session.locking import (
@@ -665,3 +666,59 @@ def test_public_job_submit_does_not_launch_after_handoff_failure(ascii_job_root)
             "detach_state": None,
         },
     }
+
+
+def test_attached_cancel_cleanup_requires_external_server_preservation(
+    ascii_job_root, monkeypatch
+):
+    import src.shared_session.process_probe as process_probe
+
+    source = ascii_job_root / "immutable-source.mph"
+    source.write_bytes(b"immutable source")
+    spec = validate_staged_sweep_spec(
+        {
+            "job_type": "staged_sweep",
+            "source_model_path": str(source),
+            "parameter_name": "gap",
+            "parameter_values": [10.0],
+            "expressions": ["A"],
+            "execution_backend": _backend(),
+        }
+    )
+    store = JobStore(ascii_job_root / "runtime" / "jobs")
+    state = {
+        "schema_version": "1",
+        "status": "cancelling",
+        "attempt": 1,
+        "progress": {"completed": 0, "total": 1},
+        "attached_cleanup": {
+            "success": True,
+            "model_identity_preserved": True,
+        },
+    }
+    job_id = store.create(spec, state)
+    monkeypatch.setattr(
+        process_probe,
+        "collect_shared_preflight_snapshot",
+        lambda: _attached_process_snapshot(),
+    )
+
+    preserved = cancel_worker._verify_solver_cleanup(store, job_id)
+    monkeypatch.setattr(
+        process_probe,
+        "collect_shared_preflight_snapshot",
+        lambda: _attached_process_snapshot(server_pid=4300),
+    )
+    changed = cancel_worker._verify_solver_cleanup(store, job_id)
+
+    assert preserved["ok"] is True
+    assert preserved["lease_state"] == "absent"
+    assert preserved["attached_external_resources"]["success"] is True
+    assert preserved["attached_external_resources"]["model_preservation_status"] == (
+        "verified_before_cooperative_disconnect"
+    )
+    assert preserved["attached_external_resources"][
+        "external_server_termination_attempted"
+    ] is False
+    assert changed["ok"] is False
+    assert changed["attached_external_resources"]["success"] is False
