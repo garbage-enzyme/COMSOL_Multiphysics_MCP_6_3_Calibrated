@@ -240,7 +240,9 @@
   "desktop_shared": [
     "capabilities",
     "job_cancel",
+    "job_resume",
     "job_status",
+    "job_submit",
     "job_tail",
     "shared_model_adopt",
     "shared_model_lock",

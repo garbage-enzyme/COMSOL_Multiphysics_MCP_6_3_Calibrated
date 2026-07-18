@@ -32,9 +32,23 @@ def test_shared_profile_capabilities_and_tools_are_explicit(monkeypatch):
         "server_ownership": "external_user_owned",
         "can_start_comsol": False,
         "model_scope": "one_exact_server_model",
+        "durable_execution": {
+            "available": True,
+            "execution_backend": "attached_shared_server",
+            "job_types": ["staged_sweep"],
+            "control_tools": [
+                "job_submit", "job_status", "job_tail", "job_cancel", "job_resume"
+            ],
+            "requires_automation_exclusive_handoff": True,
+            "requires_immutable_source": True,
+            "checkpoint_save_copy": True,
+            "exact_durable_revision_resume": True,
+            "external_server_is_termination_target": False,
+            "terminal_completion_requires_preservation_receipt": True,
+        },
         "restart_required_after_change": True,
     }
-    assert capabilities["tool_count"] == 15
+    assert capabilities["tool_count"] == 17
 
 
 def test_shared_attach_public_schema_requires_confirmation(monkeypatch):

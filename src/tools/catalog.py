@@ -431,7 +431,8 @@ _SEMANTIC_DOCS_ADDITIONS = frozenset({
 })
 
 _DESKTOP_SHARED_FOUNDATION = frozenset({
-    "capabilities", "solver_status", "job_status", "job_tail", "job_cancel",
+    "capabilities", "solver_status", "job_submit", "job_status", "job_tail",
+    "job_cancel", "job_resume",
     "shared_server_preflight", "shared_server_attach",
     "shared_server_detach", "shared_server_status",
     "shared_server_models", "shared_model_lock",

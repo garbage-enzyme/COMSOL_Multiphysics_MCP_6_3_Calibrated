@@ -407,6 +407,27 @@ def get_capabilities(selection: ProfileSelection | None = None) -> dict:
             "server_ownership": "external_user_owned",
             "can_start_comsol": False,
             "model_scope": "one_exact_server_model",
+            "durable_execution": {
+                "available": bool(
+                    active_selection.name == SHARED_SERVER_PROFILE
+                    and shared_gate.gate_open
+                ),
+                "execution_backend": "attached_shared_server",
+                "job_types": ["staged_sweep"],
+                "control_tools": [
+                    "job_submit",
+                    "job_status",
+                    "job_tail",
+                    "job_cancel",
+                    "job_resume",
+                ],
+                "requires_automation_exclusive_handoff": True,
+                "requires_immutable_source": True,
+                "checkpoint_save_copy": True,
+                "exact_durable_revision_resume": True,
+                "external_server_is_termination_target": False,
+                "terminal_completion_requires_preservation_receipt": True,
+            },
             "restart_required_after_change": True,
         },
     }

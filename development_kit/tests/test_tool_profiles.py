@@ -111,7 +111,8 @@ def test_desktop_shared_profile_is_static_default_off_and_minimal(monkeypatch):
     names = set(_tool_names(server))
 
     assert names == {
-        "capabilities", "solver_status", "job_status", "job_tail", "job_cancel",
+        "capabilities", "solver_status", "job_submit", "job_status", "job_tail",
+        "job_cancel", "job_resume",
         "shared_server_preflight", "shared_server_attach",
         "shared_server_detach", "shared_server_status",
         "shared_server_models", "shared_model_lock",
@@ -136,7 +137,8 @@ def test_validated_shared_startup_selection_is_not_reresolved(monkeypatch):
 
     assert server._tool_manager._tools["capabilities"].fn()["active_profile"] == selection.name
     assert set(_tool_names(server)) == {
-        "capabilities", "solver_status", "job_status", "job_tail", "job_cancel",
+        "capabilities", "solver_status", "job_submit", "job_status", "job_tail",
+        "job_cancel", "job_resume",
         "shared_server_preflight", "shared_server_attach",
         "shared_server_detach", "shared_server_status",
         "shared_server_models", "shared_model_lock",
