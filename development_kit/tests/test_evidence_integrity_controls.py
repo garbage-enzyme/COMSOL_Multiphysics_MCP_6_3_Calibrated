@@ -20,6 +20,7 @@ from src.evidence.integrity_controls import (
 )
 from src.tools.capabilities import get_capabilities
 from src.tools.profiles import ProfileSelection
+from src.operation_arbiter import guard_tool_call
 
 
 def _selection() -> ProfileSelection:
@@ -131,3 +132,54 @@ def test_capabilities_report_effective_checks_without_exposing_settings_path(tmp
     assert capability["settings_path_included"] is False
     assert str(path) not in json.dumps(capability)
     assert capability["hashes_prove_physical_correctness"] is False
+
+
+def test_disabled_check_warning_propagates_to_affected_tool_responses(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "evidence-settings.json"
+    _write_settings(path, {"artifact_chain_verification": False})
+    monkeypatch.setenv(EVIDENCE_SETTINGS_ENV, str(path))
+
+    def exploratory_summary() -> dict:
+        return {"success": True, "summary": {"peak": 1.0}}
+
+    guarded = guard_tool_call(
+        exploratory_summary,
+        tool_name="spectral_characterize",
+        side_effect_class="read_only",
+        concurrency_class="solver_free",
+        profile_name="core",
+    )
+    result = guarded()
+
+    assert result["success"] is True
+    assert result["strictly_verified"] is False
+    assert result["disabled_evidence_checks"] == ["artifact_chain_verification"]
+    assert result["evidence_integrity_warning_codes"] == [
+        DISABLED_CHECK_WARNING_CODE
+    ]
+    assert result["evidence_integrity_warnings"] == [DISABLED_CHECK_WARNING]
+    assert result["path_policy"]["accepted"] is True
+
+
+def test_capabilities_and_status_keep_their_structured_discovery_contract(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "evidence-settings.json"
+    _write_settings(path, {"artifact_chain_verification": False})
+    monkeypatch.setenv(EVIDENCE_SETTINGS_ENV, str(path))
+
+    guarded = guard_tool_call(
+        lambda: get_capabilities(_selection()),
+        tool_name="capabilities",
+        side_effect_class="read_only",
+        concurrency_class="control_plane",
+        profile_name="core",
+    )
+    result = guarded()
+
+    assert result["evidence_integrity"]["disabled_checks"] == [
+        "artifact_chain_verification"
+    ]
+    assert "disabled_evidence_checks" not in result

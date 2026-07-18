@@ -292,7 +292,11 @@ def guard_tool_call(
     """Wrap one registered tool with fail-fast COMSOL operation arbitration."""
     @functools.wraps(function)
     def guarded(*args: Any, **kwargs: Any) -> Any:
+        from src.evidence.integrity_controls import annotate_tool_response
         from src.path_policy import validate_tool_paths
+
+        def finalize(value: Any) -> Any:
+            return annotate_tool_response(tool_name, value)
 
         expected_model_revision = kwargs.pop("expected_model_revision", None)
 
@@ -305,7 +309,7 @@ def guard_tool_call(
                 profile_name=profile_name,
             )
         except (OSError, TypeError, ValueError) as exc:
-            return {
+            return finalize({
                 "success": False,
                 "error": str(exc),
                 "path_policy": {
@@ -315,25 +319,25 @@ def guard_tool_call(
                     "accepted": False,
                     "error_type": type(exc).__name__,
                 },
-            }
+            })
         if concurrency_class != "comsol_bound":
             result = function(*normalized_args, **normalized_kwargs)
             if isinstance(result, dict):
                 result = dict(result)
                 result["path_policy"] = {**path_evidence, "accepted": True}
-            return result
+            return finalize(result)
         arbiter = get_operation_arbiter()
         claim, acquisition = arbiter.try_acquire(
             tool_name=tool_name,
             side_effect_class=side_effect_class,
         )
         if claim is None:
-            return {
+            return finalize({
                 "success": False,
                 "error": "Another COMSOL-bound operation owns the runtime.",
                 "operation_gate": acquisition,
                 "path_policy": {**path_evidence, "accepted": True},
-            }
+            })
         result: Any
         try:
             revision_evidence = None
@@ -395,7 +399,7 @@ def guard_tool_call(
             if not release["verified"]:
                 result["success"] = False
                 result["error"] = "Operation completed but lock release could not be verified."
-        return result
+        return finalize(result)
 
     if requires_model_revision:
         signature = inspect.signature(function)
