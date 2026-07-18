@@ -32,6 +32,7 @@ models are intentionally absent.
 - `docs/evidence_integrity/default_settings.json` — This file is the tested all-checks-enabled evidence-integrity settings example.
 - `docs/evidence_integrity/exploration_settings.json` — This file is the tested single-check opt-out exploration example.
 - `docs/interactive_shared_session/README.md` — This file is the complete English interactive Desktop/Server collaboration guide.
+- `docs/interactive_shared_session/README_CN.md` — This file is the complete Chinese interactive Desktop/Server collaboration guide.
 
 ## Standalone recipes
 
