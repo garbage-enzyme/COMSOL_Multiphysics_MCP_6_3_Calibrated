@@ -34,7 +34,52 @@ Test-Path "D:\path\to\python-env\Scripts\comsol-mcp.exe"
 Do not depend on a repository-relative `python -m src.server` command for a
 portable deployment. Configure the absolute installed console entry point.
 
-## 2. Select a profile
+## 2. Configure the shared settings file
+
+Edit the checked-in project-root [`settings.json`](settings.json) before starting
+any client. It is the single source for profile, runtime/job roots, model and
+artifact containment, shared-server enablement, evidence checks, semantic-doc
+paths, ownership label, and optional COMSOL Java paths. Keep the same file for
+every agent. JSON has no standard comment syntax, so the file stores English
+comments in `_comment` and `_comment_*` fields.
+
+The template contains every setting and its default. Removing a field restores
+that field's safe default. An illegal value restores only that field's default
+and is reported in `settings_errors`; malformed JSON restores the complete safe
+default document. Call `capabilities` or `evidence_integrity_status` after
+startup and inspect `project_settings.configuration_state` and
+`project_settings.settings_errors`.
+
+For example, edit only the relevant grouped entries for a Wave Optics deployment:
+
+```json
+{
+  "profile": { "name": "wave_optics" },
+  "runtime": { "directory": "D:/comsol_runtime" },
+  "paths": {
+    "model_read_roots": ["D:/comsol_models"],
+    "artifact_write_root": "D:/comsol_runtime/owned_artifacts"
+  },
+  "java": {
+    "java_home": "D:/COMSOL64/Multiphysics/java/win64/jre",
+    "jdk_home": "D:/COMSOL64/Multiphysics/java/win64/jre"
+  }
+}
+```
+
+The snippet is a partial edit, not a replacement document: keep the schema fields
+and comments from the repository template. If a client does not preserve the
+project path, pass one absolute locator variable and no per-setting variables:
+
+```text
+COMSOL_MCP_SETTINGS_PATH=D:\path\to\COMSOL_Multiphysics_MCP\settings.json
+```
+
+The old individual `COMSOL_MCP_*`, `COMSOL_SEMANTIC_*`, and Java variables remain
+one-release compatibility overrides, but are not needed for a normal deployment
+and are omitted from the checked-in examples.
+
+## 3. Select a profile
 
 | Profile | Intended use |
 | --- | --- |
@@ -46,14 +91,14 @@ portable deployment. Configure the absolute installed console entry point.
 | `experimental` | Explicit opt-in generic and escape-hatch tools. |
 | `full` | Broad compatibility surface; not recommended by default. |
 
-Set `COMSOL_MCP_PROFILE` in the client's server environment. Omitting it selects
-`core`. The profile is frozen when the stdio process starts; changing it requires
-a client/MCP-host restart. An invalid profile fails startup instead of silently
-falling back.
+Set `profile.name` in `settings.json`. Omitting the entry selects `core`. The
+profile is frozen when the stdio process starts; changing it requires a
+client/MCP-host restart. An invalid profile keeps `core` and is reported in
+`settings_errors` instead of silently selecting another profile.
 
 The default `core` and `wave_optics` profiles do not expose shared-session tools.
 Enable the protected workflow only with the explicit `desktop_shared` profile and
-the static feature flag below. The legacy `comsol_connect` compatibility tool
+`shared_server.enabled=true` in `settings.json`. The legacy `comsol_connect` compatibility tool
 remains experimental and is not a substitute for this lifecycle.
 
 ### Optional shared Desktop/attached-Server mode
@@ -61,12 +106,14 @@ remains experimental and is not a substitute for this lifecycle.
 The shared profile never starts, stops, or terminates the user's COMSOL Server.
 Start COMSOL Multiphysics Server 6.4 manually with its persistent multi-client
 option, record the local endpoint (normally port 2036), and connect the Desktop
-client to that Server. Then configure the MCP host with:
+client to that Server. Then edit the MCP settings with:
 
-```text
-COMSOL_MCP_PROFILE=desktop_shared
-COMSOL_MCP_ENABLE_SHARED_SERVER=true
-COMSOL_MCP_RUNTIME_DIR=D:\comsol_mcp_runtime
+```json
+{
+  "profile": { "name": "desktop_shared" },
+  "shared_server": { "enabled": true },
+  "runtime": { "directory": "D:/comsol_mcp_runtime" }
+}
 ```
 
 After restarting the MCP host, call `capabilities` and verify the live
@@ -84,7 +131,7 @@ disable GUI editing; this is expected. Unlock before detach. Detach preserves
 the user-owned Server, listener, Desktop, model, and result; MCP does not call
 `clear()` or shut down the external Server.
 
-## 3. Claude Code (theoretical compatibility; not yet tested)
+## 4. Claude Code (theoretical compatibility; not yet tested)
 
 Claude Code officially supports local stdio MCP servers through `claude mcp
 add`, user/local configuration in `~/.claude.json`, or a project-scoped
@@ -105,10 +152,7 @@ For a private user-scoped configuration instead of `.mcp.json`:
 
 ```powershell
 claude mcp add --transport stdio --scope user `
-  --env COMSOL_MCP_PROFILE=wave_optics `
-  --env COMSOL_MCP_RUNTIME_DIR=D:\comsol_mcp_runtime `
-  --env JAVA_HOME=D:\COMSOL64\Multiphysics\java\win64\jre `
-  --env JDK_HOME=D:\COMSOL64\Multiphysics\java\win64\jre `
+  --env COMSOL_MCP_SETTINGS_PATH=D:\path\to\COMSOL_Multiphysics_MCP\settings.json `
   comsol -- 'D:\path\to\python-env\Scripts\comsol-mcp.exe'
 ```
 
@@ -129,7 +173,7 @@ but remains untested with the real Claude Code client. Please submit a PR with a
 sanitized `initialize`, `list_tools`, `capabilities`, status, and cleanup receipt
 if you validate it.
 
-## 4. Hermes Agent (theoretical compatibility; not yet tested)
+## 5. Hermes Agent (theoretical compatibility; not yet tested)
 
 Native Windows Hermes stores its default configuration at
 `%LOCALAPPDATA%\hermes\config.yaml`. Linux and WSL use
@@ -141,10 +185,7 @@ mcp_servers:
     command: "D:/path/to/python-env/Scripts/comsol-mcp.exe"
     args: []
     env:
-      COMSOL_MCP_PROFILE: "wave_optics"
-      COMSOL_MCP_RUNTIME_DIR: "D:/comsol_mcp_runtime"
-      JAVA_HOME: "D:/COMSOL64/Multiphysics/java/win64/jre"
-      JDK_HOME: "D:/COMSOL64/Multiphysics/java/win64/jre"
+      COMSOL_MCP_SETTINGS_PATH: "D:/path/to/COMSOL_Multiphysics_MCP/settings.json"
     connect_timeout: 120
     timeout: 3600
     supports_parallel_tool_calls: false
@@ -162,7 +203,7 @@ sanitized discovery and cleanup receipts are welcome.
 
 Complete template: `config/hermes-mcp.example.yaml`.
 
-## 5. Codex CLI
+## 6. Codex CLI
 
 Windows configuration: `%USERPROFILE%\.codex\config.toml`.
 POSIX configuration: `~/.codex/config.toml`.
@@ -173,15 +214,12 @@ command = 'D:\path\to\python-env\Scripts\comsol-mcp.exe'
 args = []
 
 [mcp_servers.comsol.env]
-COMSOL_MCP_PROFILE = "wave_optics"
-COMSOL_MCP_RUNTIME_DIR = 'D:\comsol_mcp_runtime'
-JAVA_HOME = 'D:\COMSOL64\Multiphysics\java\win64\jre'
-JDK_HOME = 'D:\COMSOL64\Multiphysics\java\win64\jre'
+COMSOL_MCP_SETTINGS_PATH = 'D:\path\to\COMSOL_Multiphysics_MCP\settings.json'
 ```
 
 Complete template: `config/codex-mcp.example.toml`.
 
-## 6. opencode
+## 7. opencode
 
 Use a project `opencode.json`, or merge the entry into
 `~/.config/opencode/opencode.json`.
@@ -194,10 +232,7 @@ Use a project `opencode.json`, or merge the entry into
       "type": "local",
       "command": ["D:\\path\\to\\python-env\\Scripts\\comsol-mcp.exe"],
       "environment": {
-        "COMSOL_MCP_PROFILE": "wave_optics",
-        "COMSOL_MCP_RUNTIME_DIR": "D:\\comsol_mcp_runtime",
-        "JAVA_HOME": "D:\\COMSOL64\\Multiphysics\\java\\win64\\jre",
-        "JDK_HOME": "D:\\COMSOL64\\Multiphysics\\java\\win64\\jre"
+        "COMSOL_MCP_SETTINGS_PATH": "D:\\path\\to\\COMSOL_Multiphysics_MCP\\settings.json"
       }
     }
   }
@@ -206,7 +241,7 @@ Use a project `opencode.json`, or merge the entry into
 
 Complete template: `config/opencode-mcp.example.json`.
 
-## 7. Restart and verify
+## 8. Restart and verify
 
 Restart Claude Code, Hermes, Codex, or opencode after changing the profile,
 executable path, or installed package. Existing stdio hosts do not hot-load
@@ -234,7 +269,7 @@ Start and connect Desktop/Server first, then call `shared_server_preflight` and
 `comsol_start` in this mode, and do not treat a successful attach as permission
 to run parallel model mutations.
 
-## 8. Updating an installation
+## 9. Updating an installation
 
 After source changes:
 

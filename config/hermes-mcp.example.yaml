@@ -6,13 +6,8 @@ mcp_servers:
     command: "D:/path/to/python-env/Scripts/comsol-mcp.exe"
     args: []
     env:
-      # Omit for the compact core profile.
-      COMSOL_MCP_PROFILE: "wave_optics"
-      # Use an ASCII-only durable runtime root.
-      COMSOL_MCP_RUNTIME_DIR: "D:/comsol_mcp_runtime"
-      # Set these to the COMSOL-bundled Java runtime when required locally.
-      JAVA_HOME: "D:/COMSOL64/Multiphysics/java/win64/jre"
-      JDK_HOME: "D:/COMSOL64/Multiphysics/java/win64/jre"
+      # Edit the one shared project-root settings.json before starting the host.
+      COMSOL_MCP_SETTINGS_PATH: "D:/path/to/COMSOL_Multiphysics_MCP/settings.json"
     connect_timeout: 120
     timeout: 3600
     # COMSOL ownership and model mutation are serialized.

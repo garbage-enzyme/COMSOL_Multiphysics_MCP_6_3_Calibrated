@@ -17,11 +17,11 @@ has a different default: it is disabled until explicitly enabled.
 
 ## One-page quick start
 
-1. Keep formal artifacts under the configured owned artifact root, normally the
-   `owned_artifacts` directory beneath `COMSOL_MCP_RUNTIME_DIR`. If you set
-   `COMSOL_MCP_ARTIFACT_WRITE_ROOT`, use one absolute ASCII-only directory.
-2. With no evidence settings file, call `evidence_integrity_status`. All four
-   checks should report `enabled: true`, `source: default`, and
+1. Keep formal artifacts under the configured `paths.artifact_write_root`,
+   normally the `owned_artifacts` directory beneath `runtime.directory`. Use an
+   absolute ASCII-only directory when overriding the template value.
+2. With the project-root `settings.json`, call `evidence_integrity_status`. All
+   four checks should report `enabled: true`, `source: project_settings`, and
    `strict_verification_active: true`.
 3. Run exploratory work normally. Preserve raw and diagnostic rows; do not
    delete a failed or partial point to make a later summary look cleaner.
@@ -80,7 +80,7 @@ descendant, port, and lease cleanup proof.
 | A caller escapes a root or overwrites evidence | Path and overwrite containment | Configured read/owned-write roots reject traversal, device/reserved names, links/junctions, aliases, and caller-selected overwrite | Redacted path-policy decision and stable root IDs |
 | A screenshot or label is treated as physics proof | Physical and visual evidence gates | Applicable tools retain raw R/T/A, closure, synchronization, mesh/material/field evidence and calibrated visual-review contracts | `measured`, `unknown`, `diagnostic`, or policy result instead of a guessed claim |
 | A user disables protection but the warning disappears | Effective-settings and warning propagation | Capabilities and public guarded responses carry the effective fingerprint; disabled checks force `strictly_verified: false` | Disabled-check list and stable warning code in responses and formal receipts |
-| Invalid input triggers a guessed fallback | Bounded machine-readable failure | Unknown fields, wrong types, duplicate keys, malformed JSON, missing artifacts, stale revisions, and unsupported schemas fail closed | Bounded reason code and error; no silent default-off behavior |
+| Invalid settings trigger a guessed fallback | Bounded settings fallback and machine-readable error | Missing settings use defaults; an invalid setting uses only its own default; malformed JSON uses the complete safe default; artifact/identity mismatches still fail closed | `project_settings.settings_errors`, bounded reason code, and no silent default-off behavior |
 
 These checks are deterministic code checks. Some facts come from COMSOL/clientapi
 readback, such as model and revision state. Other facts are caller declarations,
@@ -91,57 +91,38 @@ that it was truthful.
 
 ## Default-on settings and explicit opt-out
 
-The settings path is selected by `COMSOL_MCP_EVIDENCE_SETTINGS_PATH`. The MCP
-never returns that private path. It reports only the environment-variable name,
-effective per-check state, source (`default` or `explicit_settings`), and a
-canonical settings fingerprint.
-
-No settings file is required. Absence of the environment variable means all
-checks are enabled. If a settings file is used, start from
-[`default_settings.json`](default_settings.json):
+The project-root `settings.json` is the canonical settings file. Its
+`evidence_integrity.checks` object contains all four checks and their defaults:
 
 ```json
 {
-  "schema_name": "comsol_mcp.evidence_integrity_settings",
-  "schema_version": "1.0.0",
-  "checks": {
-    "outcome_contract_validation": true,
-    "artifact_chain_verification": true,
-    "summary_claim_verification": true,
-    "producer_driver_compatibility": true
+  "evidence_integrity": {
+    "checks": {
+      "outcome_contract_validation": true,
+      "artifact_chain_verification": true,
+      "summary_claim_verification": true,
+      "producer_driver_compatibility": true
+    }
   }
 }
 ```
 
-Example PowerShell configuration:
+Only an explicit JSON boolean `false` disables a check. A deleted check returns
+to `true`. For exploration, change only the relevant value in the shared file,
+for example set `summary_claim_verification` to `false`; affected responses
+carry `strictly_verified: false` and the stable warning. Evidence-only changes
+are read on each status or guarded call, but restoring a check still requires a
+**fresh verification against unchanged artifacts** and never relabels an old
+receipt.
 
-```powershell
-$env:COMSOL_MCP_EVIDENCE_SETTINGS_PATH = 'D:\comsol_mcp_config\evidence_integrity.json'
-$env:COMSOL_MCP_ARTIFACT_WRITE_ROOT = 'D:\comsol_runtime\owned_artifacts'
-```
-
-Only an explicit JSON boolean `false` disables a check. An absent key remains
-enabled. For example, [`exploration_settings.json`](exploration_settings.json)
-disables only exact summary-claim verification:
-
-```json
-{
-  "schema_name": "comsol_mcp.evidence_integrity_settings",
-  "schema_version": "1.0.0",
-  "checks": {
-    "summary_claim_verification": false
-  }
-}
-```
-
-The loader reads the current file on each status or guarded tool call, so a
-settings-only change does not require an MCP host restart. However, restoring a
-check requires a **fresh verification against unchanged artifacts**. It does
-not relabel an earlier unverified receipt.
-
-Unknown fields, duplicate JSON keys, malformed JSON, wrong types, an unreadable
-file, or an unsupported schema block formal verification. They never turn a
-check off silently.
+When a setting has an illegal character, wrong type, or unsupported value, only
+that setting uses its documented default and `project_settings.settings_errors`
+reports the key and reason code. If the JSON is malformed or unreadable, the
+complete safe default document is used and the error is reported. This is
+different from an artifact or identity mismatch: those verification inputs still
+fail closed. The old `COMSOL_MCP_EVIDENCE_SETTINGS_PATH` file and the checked-in
+`default_settings.json`/`exploration_settings.json` remain one-release
+compatibility fixtures, not the normal multi-agent configuration source.
 
 Representative capability output:
 
@@ -151,14 +132,14 @@ Representative capability output:
     "configuration_state": "valid",
     "default_enabled": true,
     "strict_verification_active": true,
-    "settings_source": "default",
+    "settings_source": "project_settings",
     "settings_fingerprint_sha256": "<64 lowercase hexadecimal characters>",
     "settings_path_included": false,
     "checks": {
-      "outcome_contract_validation": {"enabled": true, "source": "default"},
-      "artifact_chain_verification": {"enabled": true, "source": "default"},
-      "summary_claim_verification": {"enabled": true, "source": "default"},
-      "producer_driver_compatibility": {"enabled": true, "source": "default"}
+      "outcome_contract_validation": {"enabled": true, "source": "project_settings"},
+      "artifact_chain_verification": {"enabled": true, "source": "project_settings"},
+      "summary_claim_verification": {"enabled": true, "source": "project_settings"},
+      "producer_driver_compatibility": {"enabled": true, "source": "project_settings"}
     },
     "tools": ["evidence_integrity_status", "evidence_integrity_verify"]
   }
@@ -289,7 +270,7 @@ producer/driver identity, or summary claim changes.
 
 | Observation | Meaning | Safe next action |
 | --- | --- | --- |
-| `configuration_state: invalid` | Settings are malformed, ambiguous, unreadable, or unsupported | Correct the file; do not bypass the error with another config source |
+| `configuration_state: degraded` | One or more settings used safe defaults after validation reported an error | Correct the file, inspect `settings_errors`, and restart if a static setting changed; do not add a competing config source |
 | `outcome_contract_validation: failed` | Execution/evidence/scientific states or hash are inconsistent | Repair the contract from retained raw state; do not invent cleanup or acceptance |
 | `artifact_chain_verification: failed` | A manifest, dependency, byte count, schema, or hash differs | Preserve both versions, restore exact intended bytes, or create a new chain identity |
 | `summary_claim_verification: failed` | A claim is absent at the cited hash and JSON Pointer | Correct the summary or citation and verify again |

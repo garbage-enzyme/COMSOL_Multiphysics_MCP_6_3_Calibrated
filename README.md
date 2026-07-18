@@ -4,7 +4,7 @@ English | [中文](README_CN.md)
 
 [![CI](https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated/actions/workflows/ci.yml)
 [![Python 3.14](https://img.shields.io/badge/python-3.14-blue)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-1193%20passed-brightgreen)](https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-1199%20passed-brightgreen)](https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-red)
 [![GitHub stars](https://img.shields.io/github/stars/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated?style=social)](https://github.com/garbage-enzyme/COMSOL_Multiphysics_MCP_6_4_Calibrated/stargazers)
@@ -51,9 +51,9 @@ verification:
 - [部署指南（中文）](DEPLOYMENT_CN.md)
 
 The essential rules are: perform a non-editable install, configure the absolute
-installed `comsol-mcp` executable, set `COMSOL_MCP_PROFILE` before the stdio host
-starts, restart the client after changing the profile or package, and keep COMSOL
-tool calls serialized. Call `capabilities` to verify the deployed profile without
+installed `comsol-mcp` executable, edit the shared project-root [`settings.json`](settings.json),
+restart the client after changing the profile or package, and keep COMSOL tool
+calls serialized. Call `capabilities` to verify the deployed profile without
 starting COMSOL.
 
 The untested client configurations were derived from the official
@@ -76,16 +76,42 @@ surface.
 - **Bounded offline manuals.** SQLite FTS5/BM25 search and page retrieval run outside the COMSOL control process and return compact source/page citations.
 - **Honest optional semantic retrieval.** The isolated semantic profile is contained, but its baseline model did not meet quality and memory promotion gates. Lexical manual search remains the recommended default.
 
+## Shared project settings
+
+All startup settings are grouped in the project-root [`settings.json`](settings.json).
+Use the same file for Codex, opencode, Claude Code, and Hermes so that agents do
+not silently receive different profiles, paths, Java runtimes, or evidence rules.
+The file uses valid JSON `_comment`/`_comment_*` fields because standard JSON has
+no comment syntax. Missing entries use their documented safe defaults. An invalid
+entry keeps only that entry at its default and is reported by `capabilities` and
+`evidence_integrity_status`; malformed JSON falls back to the complete safe default
+document and reports the error. Do not create a second agent-owned settings file.
+
+Normally no settings environment variable is needed when running from the source
+tree or a wheel containing the bundled file. If a client does not preserve the
+project path, pass only the one absolute locator variable:
+
+```text
+COMSOL_MCP_SETTINGS_PATH=D:\path\to\COMSOL_Multiphysics_MCP\settings.json
+```
+
+The old individual `COMSOL_MCP_*`, `COMSOL_SEMANTIC_*`, and Java variables remain
+one-release compatibility overrides, but they are intentionally absent from the
+checked-in client examples. Change `settings.json`, restart the MCP host for
+profile/shared-server/Java changes, then call `capabilities` and inspect the
+`project_settings` status.
+
 ## Profiles
 
-Set `COMSOL_MCP_PROFILE` before starting the server. A profile is fixed for the lifetime of that server process; restart after changing it.
+Set `profile.name` in `settings.json` before starting the server. A profile is
+fixed for the lifetime of that server process; restart after changing it.
 
 | Profile | Intended use |
 | --- | --- |
 | `core` (default) | Compact, mature control plane: status, ownership, session/model inspection, one-point solve/evaluation, and lexical manuals. |
 | `basic_fem` | `core` plus typed conventional FEM construction, derived-geometry edits, and bounded exports. |
 | `wave_optics` | Recommended for metasurfaces: `core` plus derived-geometry edits, material preview, locale-safe field discovery and bounded NPZ/manifest extraction, periodic-mesh audit/smoke, visual-review contracts, Wave Optics preflight, point/reference audits, and staged workflows. |
-| `desktop_shared` | Explicit opt-in shared Desktop/attached-Server workflow; requires `COMSOL_MCP_ENABLE_SHARED_SERVER=true`, a manually started local Server, per-call user confirmation, exact process/listener identity, and exact model adoption. It never starts or terminates the external Server. |
+| `desktop_shared` | Explicit opt-in shared Desktop/attached-Server workflow; requires `profile.name=desktop_shared` and `shared_server.enabled=true`, a manually started local Server, per-call user confirmation, exact process/listener identity, and exact model adoption. It never starts or terminates the external Server. |
 | `semantic_docs` | `core` plus isolated experimental vector-assisted manual retrieval. |
 | `experimental` | Explicit opt-in generic creation, async, property escape hatches, and project helpers. |
 | `full` | Broad compatibility/discovery surface containing every tool across all profiles. |
@@ -94,8 +120,8 @@ Call `capabilities` to discover the active profile, exact registered tools, targ
 
 The default `core` and `wave_optics` profiles do not expose shared-session tools.
 Shared Desktop/attached-Server work is isolated behind the default-off
-`desktop_shared` profile and the static `COMSOL_MCP_ENABLE_SHARED_SERVER=true`
-flag. The user must start COMSOL Server manually, connect Desktop to it, confirm
+`desktop_shared` profile and `shared_server.enabled=true` in `settings.json`.
+The user must start COMSOL Server manually, connect Desktop to it, confirm
 the endpoint, and explicitly confirm each attach. The legacy `comsol_connect`
 tool remains an experimental compatibility surface and is not a substitute for
 the protected shared-session lifecycle.
@@ -295,9 +321,11 @@ For optional isolated semantic retrieval (sentence-transformers, not ChromaDB):
 
 ```powershell
 python -m pip install ".[semantic-docs]"
-$env:COMSOL_MCP_PROFILE = "semantic_docs"
-$env:COMSOL_SEMANTIC_ROOT = "D:\comsol_semantic"
-$env:COMSOL_SEMANTIC_LEXICAL_INDEX = "D:\comsol_docs_fts\manuals.sqlite3"
+# Edit settings.json:
+#   profile.name = "semantic_docs"
+#   semantic_docs.root = "D:/comsol_semantic"
+#   semantic_docs.lexical_index = "D:/comsol_docs_fts/manuals.sqlite3"
+#   semantic_docs.model_path = "D:/comsol_semantic/models/<model>/<revision>"
 ```
 
 On Windows accounts whose user path contains non-ASCII characters, avoid editable installs. Run `python -m pip install . --no-deps` after source changes, then restart the MCP host; the server does not hot-reload `src/tools/`.
@@ -311,13 +339,15 @@ Configure an MCP client, for example:
     "comsol": {
       "type": "local",
       "command": ["D:\\path\\to\\python-env\\Scripts\\comsol-mcp.exe"],
-      "environment": { "COMSOL_MCP_PROFILE": "wave_optics" }
+      "environment": {
+        "COMSOL_MCP_SETTINGS_PATH": "D:\\path\\to\\COMSOL_Multiphysics_MCP\\settings.json"
+      }
     }
   }
 }
 ```
 
-Omit `COMSOL_MCP_PROFILE` for `core`. Client examples are available at
+Set `profile.name` to `core` in `settings.json` for the compact default. Client examples are available at
 `config/claude-code-mcp.example.json`, `config/codex-mcp.example.toml`,
 `config/hermes-mcp.example.yaml`, and `config/opencode-mcp.example.json`.
 

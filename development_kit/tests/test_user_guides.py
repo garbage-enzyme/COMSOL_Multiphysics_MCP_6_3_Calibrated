@@ -68,8 +68,9 @@ def test_english_interactive_guide_matches_the_shared_public_surface():
 
     assert "Ching-Chiang/comsol-mcp" in guide
     assert "did not copy, adapt, translate, cherry-pick, or mechanically rewrite" in guide
-    assert "COMSOL_MCP_PROFILE = 'desktop_shared'" in guide
-    assert "COMSOL_MCP_ENABLE_SHARED_SERVER = 'true'" in guide
+    assert '"profile": { "name": "desktop_shared" }' in guide
+    assert '"shared_server": { "enabled": true }' in guide
+    assert "COMSOL_MCP_SETTINGS_PATH=" in guide
     assert "6.4.0.*" in guide
     assert "6.4.0.293" in guide
     assert "localhost:<port>" in guide
@@ -95,8 +96,9 @@ def test_chinese_interactive_guide_is_complete_and_contract_equivalent():
 
     assert "Ching-Chiang/comsol-mcp" in guide
     assert "没有复制、改写、翻译、cherry-pick 或机械重写" in guide
-    assert "COMSOL_MCP_PROFILE = 'desktop_shared'" in guide
-    assert "COMSOL_MCP_ENABLE_SHARED_SERVER = 'true'" in guide
+    assert '"profile": { "name": "desktop_shared" }' in guide
+    assert '"shared_server": { "enabled": true }' in guide
+    assert "COMSOL_MCP_SETTINGS_PATH=" in guide
     assert "6.4.0.*" in guide
     assert "6.4.0.293" in guide
     assert "localhost:<port>" in guide
@@ -135,6 +137,16 @@ def test_root_readmes_expose_two_separate_feature_entry_points():
     assert "default-off" in english
     assert "默认开启" in chinese
     assert "默认关闭" in chinese
+
+
+def test_deployment_guides_explain_the_shared_settings_file_and_fallbacks():
+    english = (ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8")
+    chinese = (ROOT / "DEPLOYMENT_CN.md").read_text(encoding="utf-8")
+    for guide in (english, chinese):
+        assert "settings.json" in guide
+        assert "COMSOL_MCP_SETTINGS_PATH" in guide
+        assert "settings_errors" in guide
+        assert "shared_server" in guide
 
 
 def test_embedded_guidance_no_longer_denies_the_shared_profile():

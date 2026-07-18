@@ -43,7 +43,7 @@ simultaneous co-editing and not an unrestricted remote console.
 - the exact licensed reference build is `6.4.0.293`;
 - a configured immutable model-read root for saved formal work and an ASCII
   owned artifact root for snapshots/jobs;
-- an MCP host restart after changing profile or feature-flag environment variables.
+- an MCP host restart after changing `settings.json` profile or shared-server settings.
 
 Only the final build component may differ inside `6.4.0.*`. For example, an
 automatic-update change from `6.4.0.293` to another `6.4.0` build is admitted
@@ -58,19 +58,26 @@ listener more broadly; see [Security and limitations](#security-and-limitations)
 
 ### 1. Enable the default-off MCP profile
 
-Set these environment variables in the process that launches the MCP host:
+Edit the shared project-root `settings.json` before starting the MCP host:
 
-```powershell
-$env:COMSOL_MCP_PROFILE = 'desktop_shared'
-$env:COMSOL_MCP_ENABLE_SHARED_SERVER = 'true'
+```json
+{
+  "profile": { "name": "desktop_shared" },
+  "shared_server": { "enabled": true },
+  "runtime": { "directory": "D:/comsol_runtime" },
+  "paths": {
+    "model_read_roots": ["D:/comsol_models"],
+    "artifact_write_root": "D:/comsol_runtime/owned_artifacts"
+  }
+}
 ```
 
-For saved formal work, also configure roots. These are neutral examples, not
-required private paths:
+These are partial edits; keep the English `_comment_*` fields and all other
+settings from the project template. If the host does not preserve the project
+path, pass only the one locator variable:
 
-```powershell
-$env:COMSOL_MCP_MODEL_READ_ROOTS = 'D:\comsol_models'
-$env:COMSOL_MCP_ARTIFACT_WRITE_ROOT = 'D:\comsol_runtime\owned_artifacts'
+```text
+COMSOL_MCP_SETTINGS_PATH=D:\path\to\COMSOL_Multiphysics_MCP\settings.json
 ```
 
 Restart the MCP host. Profile changes are static and are not hot-reloaded. Call
@@ -80,6 +87,10 @@ Restart the MCP host. Profile changes are static and are not hot-reloaded. Call
 - `shared_session.profile_active` and `shared_session.gate_open` are `true`;
 - shared-session tools are listed;
 - evidence-integrity checks remain independently default-on.
+
+If a setting is deleted it uses its default. If a setting contains an illegal
+value, the safe default remains active and `project_settings.settings_errors`
+reports the setting path and reason code.
 
 Do not proceed if capabilities still show an old profile. Restart the actual
 host process rather than assuming that changing a terminal variable updated an

@@ -20,9 +20,10 @@ solver_preflight
   client or submitting substantial work.
 - Keep one solver owner and serialize COMSOL operations.
 
-For a user-owned shared Desktop workflow, select `desktop_shared` before the MCP
-host starts, set `COMSOL_MCP_ENABLE_SHARED_SERVER=true`, restart the host, and
-follow `shared_server_preflight` -> explicit `shared_server_attach` -> exact
+For a user-owned shared Desktop workflow, set `profile.name` to `desktop_shared`
+and `shared_server.enabled` to `true` in the shared project `settings.json`
+before the MCP host starts, restart the host, and follow
+`shared_server_preflight` -> explicit `shared_server_attach` -> exact
 `shared_server_models`/`shared_model_adopt` -> `shared_model_lock`. The profile
 is local-only, default-off, non-owning, and never terminates the external Server.
 The experimental `comsol_connect` tool is legacy compatibility and does not

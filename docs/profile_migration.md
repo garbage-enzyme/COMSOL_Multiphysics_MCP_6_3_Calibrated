@@ -14,9 +14,10 @@ workflow before the MCP process starts.
 | Generic or risky legacy helpers | `experimental` | Experimental |
 | Maximum legacy discovery compatibility | `full` | Compatibility only |
 
-Set `COMSOL_MCP_PROFILE` in the MCP host configuration, reinstall non-editably
-after source changes, and restart the host. Profiles are immutable for a server
-process. An invalid name fails startup; there is no silent fallback.
+Set `profile.name` in the shared project-root `settings.json`, reinstall
+non-editably after source changes, and restart the host. Profiles are immutable
+for a server process. A deleted entry uses `core`; an invalid value remains at
+`core` and is reported through `project_settings.settings_errors`.
 
 Migration sequence:
 
@@ -35,9 +36,10 @@ unavailable claims, and the real-integration policy. Live `capabilities` and
 tool discovery remain authoritative for an installed process.
 
 The `desktop_shared` profile implements the protected non-owning local
-Desktop/attached-Server lifecycle. Enable it with
-`COMSOL_MCP_ENABLE_SHARED_SERVER=true`, restart the MCP host, start the Server
-manually, connect Desktop, run `shared_server_preflight`, and provide explicit
-confirmation to `shared_server_attach`. It never replaces or terminates the
-user's Server. The experimental `comsol_connect` tool remains legacy
-compatibility and is not a substitute for this lifecycle.
+Desktop/attached-Server lifecycle. Set `profile.name` to `desktop_shared` and
+`shared_server.enabled` to `true` in the same `settings.json`, restart the MCP
+host, start the Server manually, connect Desktop, run
+`shared_server_preflight`, and provide explicit confirmation to
+`shared_server_attach`. It never replaces or terminates the user's Server. The
+experimental `comsol_connect` tool remains legacy compatibility and is not a
+substitute for this lifecycle.
