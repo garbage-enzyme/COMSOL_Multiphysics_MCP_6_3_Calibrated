@@ -192,6 +192,7 @@ models are intentionally absent.
 - `development_kit/tests/test_process_inventory_stress.py` — This module stress-tests host inventory under PID churn without COMSOL.
 - `development_kit/tests/test_property_transport.py` — This module tests bounded JSON transport for clientapi properties.
 - `development_kit/tests/test_public_input_contracts.py` — This module tests bounded discovery schemas and matching pre-side-effect runtime limits.
+- `development_kit/tests/test_quality_properties.py` — This module provides seeded property tests and exhaustive safety-decision branch cases for foundation contracts.
 - `development_kit/tests/test_real_fixture_contract.py` — This module tests portable contracts for controlled licensed fixtures.
 - `development_kit/tests/test_recipe_paths.py` — This module tests standalone recipe output path policy.
 - `development_kit/tests/test_reference_power_acceptance.py` — This module tests reference-power acceptance contracts and preflight.
