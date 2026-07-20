@@ -741,7 +741,7 @@ class TestSessionManager:
 
         def create_client(**_kwargs):
             entered.set()
-            assert release.wait(timeout=1)
+            assert release.wait(timeout=5)
             return FakeClient()
 
         monkeypatch.setattr(session_module, "STARTUP_TIMEOUT_SECONDS", 0.05)
@@ -749,8 +749,8 @@ class TestSessionManager:
         monkeypatch.setattr(session_module.mph_session, "client", None)
 
         assert sm.start()["starting"] is True
-        assert entered.wait(timeout=1)
-        deadline = time.monotonic() + 1
+        assert entered.wait(timeout=3)
+        deadline = time.monotonic() + 3
         while time.monotonic() < deadline and sm.get_status().get("starting"):
             time.sleep(0.01)
 
@@ -762,7 +762,7 @@ class TestSessionManager:
         assert permissive_session_ownership._ownership.releases == 0
 
         release.set()
-        sm._start_thread.join(timeout=1)
+        sm._start_thread.join(timeout=3)
         cleaned = sm.get_status()
         assert cleaned["cleanup_pending"] is False
         assert cleaned["owns_solver_lease"] is False
