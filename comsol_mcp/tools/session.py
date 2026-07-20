@@ -502,11 +502,17 @@ class SessionManager:
 
             mph_module, mph_session_module = _load_mph()
             with self._start_lock:
-                self._record_startup_phase_locked(
-                    "mph_loaded",
-                    state="initializing_client",
-                    details={"reusing_process_client": client is not None},
-                )
+                cancelled = self._start_cancel_requested
+                if cancelled:
+                    self._start_cleanup_pending = True
+                else:
+                    self._record_startup_phase_locked(
+                        "mph_loaded",
+                        state="initializing_client",
+                        details={"reusing_process_client": client is not None},
+                    )
+            if cancelled:
+                return
 
             if client is None:
                 try:
@@ -515,10 +521,16 @@ class SessionManager:
                     client = None
             if client is None:
                 with self._start_lock:
-                    self._record_startup_phase_locked(
-                        "client_initialization_started",
-                        state="initializing_client",
-                    )
+                    cancelled = self._start_cancel_requested
+                    if cancelled:
+                        self._start_cleanup_pending = True
+                    else:
+                        self._record_startup_phase_locked(
+                            "client_initialization_started",
+                            state="initializing_client",
+                        )
+                if cancelled:
+                    return
                 client = mph_module.Client(**kwargs)
 
             with self._start_lock:

@@ -826,3 +826,39 @@ class TestSessionManager:
         assert "external solver detected" in status["error"]
         assert status["owns_solver_lease"] is False
         assert called is False
+
+    def test_timeout_during_mph_load_is_not_overwritten(
+        self, monkeypatch, permissive_session_ownership
+    ):
+        import src.tools.session as session_module
+
+        sm = session_module.SessionManager()
+        client_called = False
+
+        def load_mph_and_timeout():
+            sm._mark_start_timeout(sm._start_attempt_id)
+            return session_module.mph, session_module.mph_session
+
+        def create_client(**_kwargs):
+            nonlocal client_called
+            client_called = True
+            raise AssertionError("timed-out startup must not create a client")
+
+        monkeypatch.setattr(session_module, "STARTUP_TIMEOUT_SECONDS", 60.0)
+        monkeypatch.setattr(session_module, "_load_mph", load_mph_and_timeout)
+        monkeypatch.setattr(session_module.mph, "Client", create_client)
+        monkeypatch.setattr(session_module.mph_session, "client", None)
+
+        assert sm.start()["starting"] is True
+        sm._start_thread.join(timeout=3)
+
+        status = sm.get_status()
+        assert client_called is False
+        assert status["starting"] is False
+        assert status["cleanup_pending"] is False
+        assert status["owns_solver_lease"] is False
+        assert status["startup"]["state"] == "timed_out"
+        assert all(
+            phase["phase"] not in {"mph_loaded", "client_initialization_started"}
+            for phase in status["startup"]["phases"]
+        )
