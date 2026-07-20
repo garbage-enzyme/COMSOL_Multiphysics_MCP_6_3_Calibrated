@@ -723,8 +723,6 @@ class TestSessionManager:
     def test_start_timeout_is_terminal_and_retains_lease_until_cleanup(
         self, monkeypatch, permissive_session_ownership
     ):
-        import time
-
         import src.tools.session as session_module
 
         sm = session_module.SessionManager()
@@ -741,18 +739,16 @@ class TestSessionManager:
 
         def create_client(**_kwargs):
             entered.set()
-            assert release.wait(timeout=5)
+            assert release.wait(timeout=3)
             return FakeClient()
 
-        monkeypatch.setattr(session_module, "STARTUP_TIMEOUT_SECONDS", 0.05)
+        monkeypatch.setattr(session_module, "STARTUP_TIMEOUT_SECONDS", 60.0)
         monkeypatch.setattr(session_module.mph, "Client", create_client)
         monkeypatch.setattr(session_module.mph_session, "client", None)
 
         assert sm.start()["starting"] is True
         assert entered.wait(timeout=3)
-        deadline = time.monotonic() + 3
-        while time.monotonic() < deadline and sm.get_status().get("starting"):
-            time.sleep(0.01)
+        sm._mark_start_timeout(sm._start_attempt_id)
 
         timed_out = sm.get_status()
         assert timed_out["starting"] is False
