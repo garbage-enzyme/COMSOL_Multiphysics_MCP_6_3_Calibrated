@@ -5,11 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from pathlib import Path
 import sys
 import time
-from typing import Any
 from datetime import timedelta
+from pathlib import Path
+from typing import Any
 
 import anyio
 from mcp import ClientSession
@@ -20,7 +20,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.evidence.real_fixture import controlled_fixture_from_environment
-
 
 PYTHON = Path(sys.executable)
 RUNTIME = Path(os.environ.get("COMSOL_MCP_RUNTIME_DIR", "D:/comsol_runtime"))
@@ -33,6 +32,7 @@ PROFILE_COUNTS = {
     "experimental": 69,
     "full": 135,
 }
+COLD_START_RESPONSE_LIMIT_SECONDS = 5.0
 
 
 def _controlled_cases() -> tuple[dict[str, Any], ...]:
@@ -173,8 +173,38 @@ async def _live_three_call_matrix() -> dict[str, Any]:
             await session.initialize()
             start_result, start_timing = await _call(session, "comsol_start", {"cores": 8, "version": "6.4"})
             assert start_result.get("success"), start_result
+            assert start_timing["elapsed_seconds"] <= COLD_START_RESPONSE_LIMIT_SECONDS, start_timing
             output["setup"]["comsol_start"] = {"result": start_result, **start_timing}
             output["setup"]["status_polls"] = await _wait_for_comsol(session)
+
+            first_disconnect, first_disconnect_timing = await _call(
+                session, "comsol_disconnect", {}
+            )
+            assert first_disconnect.get("success"), first_disconnect
+            assert first_disconnect.get("client_reusable") is True, first_disconnect
+            between_status, between_status_timing = await _call(
+                session, "solver_status", {}
+            )
+            assert between_status.get("lease", {}).get("state") == "absent", between_status
+            restart_result, restart_timing = await _call(
+                session, "comsol_start", {"cores": 8, "version": "6.4"}
+            )
+            assert restart_result.get("success"), restart_result
+            assert restart_timing["elapsed_seconds"] <= COLD_START_RESPONSE_LIMIT_SECONDS, restart_timing
+            restart_polls = await _wait_for_comsol(session)
+            output["setup"]["same_host_start_disconnect_start"] = {
+                "response_limit_seconds": COLD_START_RESPONSE_LIMIT_SECONDS,
+                "first_disconnect": {
+                    "result": first_disconnect,
+                    **first_disconnect_timing,
+                },
+                "between_status": {
+                    "result": between_status,
+                    **between_status_timing,
+                },
+                "restart": {"result": restart_result, **restart_timing},
+                "restart_status_polls": restart_polls,
+            }
 
             try:
                 for case in cases:

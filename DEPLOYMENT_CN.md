@@ -238,6 +238,18 @@ active_profile = wave_optics
 然后在构造 client 前调用 `solver_status` 和 `solver_preflight`。保持单一 solver
 owner。长仿真使用 durable jobs，不要让单个同步 MCP call 持续占用全部 wall time。
 
+对于本地 stand-alone session，`comsol_start` 会先返回 accepted 响应，再执行 solver
+preflight、MPh import 和 JPype JVM 初始化。随后轮询 `comsol_status`；它会返回有界启动
+阶段，同一状态也持久化在配置的 runtime root 下。JVM 可能嵌入 MCP Python 进程，
+因此没有单独的 COMSOL child process 本身不代表启动失败。
+
+MPh 每个 Python 进程只允许一个 client wrapper。因此 `comsol_disconnect` 会清除
+模型并释放 solver lease，但保留同一个 stand-alone wrapper，供同一 host 后续
+`comsol_start` 复用；绝不创建第二个 client。启动超过 180 秒后，对调用方进入终态。
+若 native constructor 仍被阻塞，状态会报告 `cleanup_pending=true`，并继续持有 owned
+lease，直到该调用返回且清理得到验证。cleanup pending 时不要重试 start，也不要重启
+MCP host。
+
 如果使用 `desktop_shared`，还要确认 `capabilities` 报告 shared profile，并且只有在
 feature flag 开启后才出现 shared-session 工具。先启动并连接 Desktop/Server，再调用
 `shared_server_preflight` 和带显式用户确认的 `shared_server_attach`。此模式不要调用

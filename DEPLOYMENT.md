@@ -262,6 +262,21 @@ Then call `solver_status` and `solver_preflight` before constructing a client.
 Keep one solver owner. Use durable jobs for long simulations instead of holding a
 single synchronous MCP call for the full wall time.
 
+For a local stand-alone session, `comsol_start` returns an accepted response
+before solver preflight, MPh import, or JPype JVM initialization. Poll
+`comsol_status`; it exposes the bounded startup phases also persisted under the
+configured runtime root.
+The JVM may remain embedded in the MCP Python process, so the absence of a
+separate COMSOL child process is not by itself a startup failure.
+
+MPh permits only one client wrapper per Python process. Therefore
+`comsol_disconnect` clears models and releases the solver lease but retains the
+exact stand-alone wrapper for a later same-host `comsol_start`; it never creates
+a second client. A 180-second startup timeout is terminal to callers. If the
+native constructor is still blocked, status reports `cleanup_pending=true` and
+the owned lease remains held until that call returns and cleanup is verified.
+Do not retry start or restart the MCP host while cleanup is pending.
+
 For `desktop_shared`, verify that `capabilities` reports the shared profile and
 that shared-session tools are present only after the feature flag is enabled.
 Start and connect Desktop/Server first, then call `shared_server_preflight` and

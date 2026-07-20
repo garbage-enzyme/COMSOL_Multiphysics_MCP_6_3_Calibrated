@@ -1,33 +1,69 @@
 """Basic tests for COMSOL MCP Server."""
 
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-import threading
 
 import pytest
 
 
 @pytest.fixture()
-def permissive_session_ownership(monkeypatch):
+def permissive_session_ownership(monkeypatch, tmp_path):
     """Keep session lifecycle tests independent of host-wide solver state."""
     import src.tools.session as session_module
 
     class PermissiveOwnership:
+        runtime_dir = tmp_path
+
+        def __init__(self):
+            self.releases = 0
+
         def preflight(self, **_kwargs):
             return {"ready": True, "blockers": []}
 
         def acquire(self, **_kwargs):
-            return {"success": True}
+            return {
+                "success": True,
+                "lease": {"acquisition_id": "test-acquisition"},
+            }
 
         def heartbeat(self, **_kwargs):
             return {"success": True}
 
         def release(self):
+            self.releases += 1
             return {"success": True, "released": True}
 
     manager = session_module.SessionManager()
-    monkeypatch.setattr(manager, "_ownership", PermissiveOwnership())
-    return manager
+    monkeypatch.setattr(session_module, "STARTUP_RESPONSE_GRACE_SECONDS", 0.01)
+    monkeypatch.setattr(session_module, "STARTUP_TIMEOUT_SECONDS", 2.0)
+    ownership = PermissiveOwnership()
+    monkeypatch.setattr(manager, "_ownership", ownership)
+    manager._client = None
+    manager._reusable_client = None
+    manager._reusable_client_kind = None
+    manager._models = {}
+    manager._model_paths = {}
+    manager._model_revisions = {}
+    manager._model_cleanup_paths = {}
+    manager._current_model = None
+    manager._starting = False
+    manager._start_error = None
+    manager._start_message = ""
+    manager._start_cancel_requested = False
+    manager._start_cleanup_pending = False
+    manager._start_timed_out = False
+    manager._host_restart_required = False
+    manager._start_attempt_id = None
+    manager._startup_record = None
+    manager._start_thread = None
+    manager._start_watchdog = None
+    manager._owns_solver_lease = False
+    yield manager
+    if manager._start_thread is not None:
+        manager._start_thread.cancel()
+    if manager._start_watchdog is not None:
+        manager._start_watchdog.cancel()
 
 
 class TestVersioning:
@@ -502,6 +538,237 @@ class TestSessionManager:
         assert reset["success"] is True
         assert sm.get_status()["connected"] is False
 
+    def test_start_response_precedes_client_initialization(
+        self, monkeypatch, permissive_session_ownership
+    ):
+        import json
+        import time
+
+        import src.tools.session as session_module
+
+        sm = session_module.SessionManager()
+        entered = threading.Event()
+
+        class FakeClient:
+            version = "6.4"
+            cores = 2
+            standalone = True
+
+            def clear(self):
+                return None
+
+        def create_client(**_kwargs):
+            entered.set()
+            return FakeClient()
+
+        monkeypatch.setattr(session_module, "STARTUP_RESPONSE_GRACE_SECONDS", 0.25)
+        monkeypatch.setattr(session_module.mph, "Client", create_client)
+        monkeypatch.setattr(session_module.mph_session, "client", None)
+
+        started_at = time.perf_counter()
+        result = sm.start(cores=2)
+        elapsed = time.perf_counter() - started_at
+
+        assert result["starting"] is True
+        assert elapsed < 0.2
+        assert not entered.is_set()
+        assert entered.wait(timeout=1)
+        sm._start_thread.join(timeout=1)
+
+        receipt = json.loads(sm._startup_path().read_text(encoding="utf-8"))
+        phases = [item["phase"] for item in receipt["phases"]]
+        assert phases[:4] == [
+            "request_accepted",
+            "response_ready",
+            "worker_entered",
+            "preflight_completed",
+        ]
+        response_ready = next(
+            item for item in receipt["phases"] if item["phase"] == "response_ready"
+        )
+        worker_entered = next(
+            item for item in receipt["phases"] if item["phase"] == "worker_entered"
+        )
+        assert worker_entered["elapsed_seconds"] - response_ready["elapsed_seconds"] >= 0.2
+        sm.disconnect()
+
+    def test_start_response_does_not_wait_for_blocking_preflight(
+        self, monkeypatch, permissive_session_ownership
+    ):
+        import time
+
+        import src.tools.session as session_module
+
+        sm = session_module.SessionManager()
+        delegate = sm._ownership
+        entered = threading.Event()
+        release = threading.Event()
+
+        class BlockingPreflightOwnership:
+            runtime_dir = delegate.runtime_dir
+
+            def preflight(self, **kwargs):
+                entered.set()
+                assert release.wait(timeout=1)
+                return delegate.preflight(**kwargs)
+
+            def acquire(self, **kwargs):
+                return delegate.acquire(**kwargs)
+
+            def heartbeat(self, **kwargs):
+                return delegate.heartbeat(**kwargs)
+
+            def release(self):
+                return delegate.release()
+
+        class FakeClient:
+            version = "6.4"
+            cores = 2
+            standalone = True
+
+            def clear(self):
+                return None
+
+        sm._ownership = BlockingPreflightOwnership()
+        monkeypatch.setattr(session_module.mph, "Client", lambda **_kwargs: FakeClient())
+        monkeypatch.setattr(session_module.mph_session, "client", None)
+
+        started_at = time.perf_counter()
+        result = sm.start(cores=2)
+        response_elapsed = time.perf_counter() - started_at
+        assert result["starting"] is True
+        assert response_elapsed < 0.2
+        assert entered.wait(timeout=1)
+        status = sm.get_status()
+        assert status["starting"] is True
+        assert status["owns_solver_lease"] is False
+
+        release.set()
+        sm._start_thread.join(timeout=1)
+        assert sm.get_status()["connected"] is True
+        sm.disconnect()
+
+    def test_standalone_start_disconnect_start_reuses_exact_client(
+        self, monkeypatch, permissive_session_ownership
+    ):
+        import src.tools.session as session_module
+
+        sm = session_module.SessionManager()
+        clients = []
+
+        class FakeClient:
+            version = "6.4"
+            cores = 2
+            standalone = True
+
+            def __init__(self):
+                self.clear_calls = 0
+
+            def clear(self):
+                self.clear_calls += 1
+
+        def create_client(**_kwargs):
+            client = FakeClient()
+            clients.append(client)
+            return client
+
+        monkeypatch.setattr(session_module.mph, "Client", create_client)
+        monkeypatch.setattr(session_module.mph_session, "client", None)
+
+        assert sm.start(cores=2)["starting"] is True
+        sm._start_thread.join(timeout=1)
+        first_client = sm.client
+        assert first_client is clients[0]
+
+        first_disconnect = sm.disconnect()
+        assert first_disconnect["success"] is True
+        assert first_disconnect["client_reusable"] is True
+        assert sm.client is None
+
+        assert sm.start(cores=2)["starting"] is True
+        sm._start_thread.join(timeout=1)
+        assert sm.client is first_client
+        assert len(clients) == 1
+        sm.disconnect()
+
+    def test_start_failure_atomically_releases_lease_and_persists_terminal_state(
+        self, monkeypatch, permissive_session_ownership
+    ):
+        import json
+
+        import src.tools.session as session_module
+
+        sm = session_module.SessionManager()
+
+        def fail_client(**_kwargs):
+            raise RuntimeError("injected startup failure")
+
+        monkeypatch.setattr(session_module.mph, "Client", fail_client)
+        monkeypatch.setattr(session_module.mph_session, "client", None)
+
+        assert sm.start()["starting"] is True
+        sm._start_thread.join(timeout=1)
+
+        status = sm.get_status()
+        assert status["connected"] is False
+        assert status["starting"] is False
+        assert status["cleanup_pending"] is False
+        assert status["owns_solver_lease"] is False
+        assert permissive_session_ownership._ownership.releases == 1
+        receipt = json.loads(sm._startup_path().read_text(encoding="utf-8"))
+        assert receipt["state"] == "failed"
+        assert receipt["terminal"] is True
+        assert receipt["owns_solver_lease"] is False
+
+    def test_start_timeout_is_terminal_and_retains_lease_until_cleanup(
+        self, monkeypatch, permissive_session_ownership
+    ):
+        import time
+
+        import src.tools.session as session_module
+
+        sm = session_module.SessionManager()
+        entered = threading.Event()
+        release = threading.Event()
+
+        class FakeClient:
+            version = "6.4"
+            cores = 2
+            standalone = True
+
+            def clear(self):
+                return None
+
+        def create_client(**_kwargs):
+            entered.set()
+            assert release.wait(timeout=1)
+            return FakeClient()
+
+        monkeypatch.setattr(session_module, "STARTUP_TIMEOUT_SECONDS", 0.05)
+        monkeypatch.setattr(session_module.mph, "Client", create_client)
+        monkeypatch.setattr(session_module.mph_session, "client", None)
+
+        assert sm.start()["starting"] is True
+        assert entered.wait(timeout=1)
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline and sm.get_status().get("starting"):
+            time.sleep(0.01)
+
+        timed_out = sm.get_status()
+        assert timed_out["starting"] is False
+        assert timed_out["cleanup_pending"] is True
+        assert timed_out["owns_solver_lease"] is True
+        assert timed_out["startup"]["state"] == "timed_out_cleanup_pending"
+        assert permissive_session_ownership._ownership.releases == 0
+
+        release.set()
+        sm._start_thread.join(timeout=1)
+        cleaned = sm.get_status()
+        assert cleaned["cleanup_pending"] is False
+        assert cleaned["owns_solver_lease"] is False
+        assert cleaned["startup"]["state"] == "timed_out"
+        assert permissive_session_ownership._ownership.releases == 1
+
     def test_connect_rejects_in_flight_local_start(self, monkeypatch):
         import src.tools.session as session_module
 
@@ -525,30 +792,37 @@ class TestSessionManager:
         assert "still starting" in result["error"]
         assert called is False
 
-    def test_start_preflight_refusal_never_calls_mph_client(self, monkeypatch):
+    def test_start_preflight_refusal_is_terminal_without_mph_client(
+        self, monkeypatch, permissive_session_ownership
+    ):
         import src.tools.session as session_module
 
         sm = session_module.SessionManager()
-        sm._client = None
         called = False
 
         class RefusingOwnership:
+            runtime_dir = permissive_session_ownership._ownership.runtime_dir
+
             def preflight(self, **kwargs):
                 return {"ready": False, "blockers": ["external solver detected"]}
+
+            def release(self):
+                raise AssertionError("No lease was acquired")
 
         def create_client(**kwargs):
             nonlocal called
             called = True
             raise AssertionError("mph.Client must not be called after failed preflight")
 
-        previous = sm._ownership
         sm._ownership = RefusingOwnership()
         monkeypatch.setattr(session_module.mph, "Client", create_client)
-        try:
-            result = sm.start(cores=2)
-        finally:
-            sm._ownership = previous
+        result = sm.start(cores=2)
+        sm._start_thread.join(timeout=1)
 
-        assert result["success"] is False
-        assert result["preflight"]["blockers"] == ["external solver detected"]
+        assert result["success"] is True
+        assert result["starting"] is True
+        status = sm.get_status()
+        assert status["starting"] is False
+        assert "external solver detected" in status["error"]
+        assert status["owns_solver_lease"] is False
         assert called is False
