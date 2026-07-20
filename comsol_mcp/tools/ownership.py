@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import importlib.metadata
 import json
 import os
 import platform
+import re
+import subprocess
 import sys
 import threading
 import time
@@ -17,9 +21,8 @@ import psutil
 from mcp.server.fastmcp import FastMCP
 
 from comsol_mcp.settings import settings_environment
-from comsol_mcp.utils.runtime_paths import default_runtime_dir as _shared_default_runtime_dir
 from comsol_mcp.utils.control_plane import measured_call
-
+from comsol_mcp.utils.runtime_paths import default_runtime_dir as _shared_default_runtime_dir
 
 LEASE_SCHEMA_VERSION = "3"
 CREATE_TIME_TOLERANCE_SECONDS = 0.05
@@ -28,6 +31,173 @@ LEASE_IO_POLL_SECONDS = 0.02
 PROCESS_INVENTORY_STATUS_TIMEOUT_SECONDS = 0.5
 PROCESS_INVENTORY_MUTATION_TIMEOUT_SECONDS = 10.0
 PROCESS_INVENTORY_CACHE_SECONDS = 2.0
+JOB_STATUS_MAX_BYTES = 1024 * 1024
+DURABLE_ACTIVE_STATES = frozenset(
+    {
+        "submitted",
+        "starting",
+        "smoke_running",
+        "smoke_validated",
+        "running",
+        "cancel_requested",
+        "cancelling",
+    }
+)
+
+def _comsol_jvm_from_ini(path: Path) -> Optional[Path]:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for index, line in enumerate(lines[:-1]):
+        if line.strip() == "-vm":
+            candidate = (path.parent / lines[index + 1].strip()).resolve()
+            return candidate if candidate.is_file() else None
+    return None
+
+
+def _parse_comsol_version(value: str) -> Optional[str]:
+    match = re.search(r"(?i)Comsol.*?(\d+(?:\.\d+)*)", value)
+    if match is None:
+        return None
+    parts = match.group(1).split(".")
+    try:
+        numbers = [int(part) for part in parts]
+    except ValueError:
+        return None
+    if len(numbers) > 4:
+        return None
+    numbers.extend([0] * (4 - len(numbers)))
+    major, minor, patch, _build = numbers
+    return f"{major}.{minor}" + (chr(ord("a") + patch - 1) if patch > 0 else "")
+
+
+def _discover_comsol_backends_without_mph() -> tuple[Optional[str], list[dict[str, str]], Optional[str]]:
+    """Mirror MPh's Windows discovery without importing MPh/NumPy/JPype."""
+    try:
+        mph_version = importlib.metadata.version("MPh")
+    except importlib.metadata.PackageNotFoundError:
+        mph_version = None
+    if platform.system() != "Windows":
+        return mph_version, [], None
+    if platform.machine() != "AMD64" or platform.architecture()[0] != "64bit":
+        return mph_version, [], "COMSOL backend discovery requires 64-bit AMD64 Windows"
+
+    import winreg
+
+    roots = []
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Comsol") as main_node:
+            index = 0
+            while len(roots) < 64:
+                try:
+                    node_name = winreg.EnumKey(main_node, index)
+                except OSError:
+                    break
+                index += 1
+                if re.fullmatch(r"(?i)Comsol\d+[a-z]?", node_name) is None:
+                    continue
+                try:
+                    with winreg.OpenKey(main_node, node_name) as node:
+                        value, _kind = winreg.QueryValueEx(node, "COMSOLROOT")
+                except OSError:
+                    continue
+                if isinstance(value, str):
+                    roots.append(Path(value))
+    except OSError:
+        return mph_version, [], None
+
+    backends = []
+    names = set()
+    for root in roots:
+        binary = root / "bin" / "win64"
+        comsol = binary / "comsol.exe"
+        server = binary / "comsolmphserver.exe"
+        ini = binary / "comsol.ini"
+        jvm = _comsol_jvm_from_ini(ini)
+        if not comsol.is_file() or not server.is_file() or jvm is None:
+            continue
+        if not (root / "plugins").is_dir() or not (root / "apiplugins").is_dir():
+            continue
+        try:
+            completed = subprocess.run(
+                [str(server), "--version"],
+                capture_output=True,
+                text=True,
+                encoding="ascii",
+                errors="ignore",
+                timeout=15.0,
+                check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        name = _parse_comsol_version(completed.stdout) if completed.returncode == 0 else None
+        if name is None or name in names:
+            continue
+        names.add(name)
+        backends.append({"name": name, "root": str(root), "jvm": str(jvm)})
+    return mph_version, backends, None
+
+
+def _lightweight_job_summaries(root: Path, limit: int = 20) -> dict[str, Any]:
+    """Read bounded shallow job state without importing solver/campaign modules."""
+    if not root.is_dir():
+        return {
+            "available": True,
+            "root": str(root),
+            "count_returned": 0,
+            "active_count": 0,
+            "active": [],
+            "recent": [],
+        }
+    count = max(1, min(int(limit), 100))
+    directories = sorted(
+        (
+            path
+            for path in root.iterdir()
+            if path.is_dir() and (path / "state.json").is_file()
+        ),
+        key=lambda path: path.stat().st_mtime_ns,
+        reverse=True,
+    )[:count]
+    jobs = []
+    for directory in directories:
+        try:
+            raw = _read_bytes_retry(directory / "state.json")
+            if len(raw) > JOB_STATUS_MAX_BYTES:
+                raise RuntimeError("state.json exceeds the bounded status limit")
+            state = json.loads(raw.decode("utf-8"))
+            if not isinstance(state, dict) or not isinstance(state.get("status"), str):
+                raise RuntimeError("state.json is not a valid job state object")
+            jobs.append(
+                {
+                    "job_id": directory.name,
+                    "status": state["status"],
+                    "attempt": state.get("attempt"),
+                    "progress": state.get("progress"),
+                    "worker_pid": state.get("worker_pid"),
+                    "updated_at_epoch": state.get("updated_at_epoch"),
+                    "last_error": state.get("last_error"),
+                }
+            )
+        except Exception as exc:
+            jobs.append(
+                {
+                    "job_id": directory.name,
+                    "status": "unreadable",
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+    active = [job for job in jobs if job["status"] in DURABLE_ACTIVE_STATES]
+    return {
+        "available": True,
+        "root": str(root),
+        "count_returned": len(jobs),
+        "active_count": len(active),
+        "active": active,
+        "recent": jobs,
+    }
 
 
 def _lease_io_deadline() -> float:
@@ -587,9 +757,7 @@ class SolverOwnership:
             ),
         }
         try:
-            from comsol_mcp.jobs.manager import JobManager
-
-            durable_jobs = JobManager(self.runtime_dir / "jobs", reconcile_on_start=False).summaries()
+            durable_jobs = _lightweight_job_summaries(self.runtime_dir / "jobs")
         except Exception as exc:
             durable_jobs = {
                 "available": False,
@@ -619,8 +787,6 @@ class SolverOwnership:
         requested_version: Optional[str] = None,
         minimum_free_gb: float = 2.0,
     ) -> dict[str, Any]:
-        import mph
-
         ownership = self.status(
             session_state=session_state,
             require_fresh_inventory=True,
@@ -644,19 +810,9 @@ class SolverOwnership:
             blockers.append("COMSOL requires a 64-bit Python architecture")
         effective_environment = settings_environment()
         java_home = effective_environment.get("JAVA_HOME") or effective_environment.get("JDK_HOME")
-        try:
-            backends = mph.discovery.find_backends()
-        except Exception as exc:
-            backends = []
-            warnings.append(f"COMSOL backend discovery failed: {exc}")
-        detected_backends = [
-            {
-                "name": str(item.get("name")),
-                "root": str(item.get("root")),
-                "jvm": str(item.get("jvm")),
-            }
-            for item in backends
-        ]
+        mph_version, detected_backends, discovery_error = _discover_comsol_backends_without_mph()
+        if discovery_error:
+            warnings.append(f"COMSOL backend discovery failed: {discovery_error}")
         usable_jre = bool(java_home and Path(java_home).exists()) or any(
             Path(item["jvm"]).is_file() for item in detected_backends
         )
@@ -693,7 +849,7 @@ class SolverOwnership:
                 "machine": platform.machine(),
                 "pointer_bits": pointer_bits,
                 "python": sys.executable,
-                "mph_version": getattr(mph, "__version__", None),
+                "mph_version": mph_version,
                 "java_home": java_home,
                 "detected_comsol_backends": detected_backends,
                 "requested_comsol_version": requested_version,
@@ -1030,25 +1186,29 @@ def register_ownership_tools(mcp: FastMCP) -> None:
         )
 
     @mcp.tool()
-    def solver_preflight(
+    async def solver_preflight(
         model_path: Optional[str] = None,
         output_path: Optional[str] = None,
         requested_version: Optional[str] = None,
         minimum_free_gb: float = 2.0,
     ) -> dict:
         """Validate architecture, JRE, memory, paths, and ownership without starting COMSOL."""
-        from .session import session_manager
 
-        return measured_call(
-            "solver_preflight",
-            lambda: ownership_manager.preflight(
-                session_state=session_manager.get_status(),
-                model_path=model_path,
-                output_path=output_path,
-                requested_version=requested_version,
-                minimum_free_gb=minimum_free_gb,
-            ),
-        )
+        def run_preflight() -> dict:
+            from .session import session_manager
+
+            return measured_call(
+                "solver_preflight",
+                lambda: ownership_manager.preflight(
+                    session_state=session_manager.get_status(),
+                    model_path=model_path,
+                    output_path=output_path,
+                    requested_version=requested_version,
+                    minimum_free_gb=minimum_free_gb,
+                ),
+            )
+
+        return await asyncio.to_thread(run_preflight)
 
     @mcp.tool()
     def solver_recover_stale_lease() -> dict:

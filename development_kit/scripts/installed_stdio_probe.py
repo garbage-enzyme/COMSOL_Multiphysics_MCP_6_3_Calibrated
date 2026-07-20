@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from datetime import timedelta
 import hashlib
 import json
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -82,6 +82,14 @@ async def _probe(command: Path, workdir: Path, stderr_path: Path) -> dict[str, A
                 initialized = await session.initialize()
                 listed = await session.list_tools()
                 tool_names = sorted(tool.name for tool in listed.tools)
+                preflight_result = await session.call_tool(
+                    "solver_preflight",
+                    {},
+                    read_timeout_seconds=timedelta(seconds=15),
+                )
+                if getattr(preflight_result, "isError", False):
+                    raise RuntimeError("installed cold solver_preflight call returned a tool error")
+                preflight = _tool_payload(preflight_result)
                 capabilities_result = await session.call_tool(
                     "capabilities",
                     {},
@@ -114,6 +122,8 @@ async def _probe(command: Path, workdir: Path, stderr_path: Path) -> dict[str, A
         raise RuntimeError(f"malformed request matrix did not fail closed: {malformed}")
     if capabilities.get("profile") != "core":
         raise RuntimeError("installed stdio probe did not activate the core profile")
+    if preflight.get("control_plane", {}).get("operation") != "solver_preflight":
+        raise RuntimeError("installed cold solver_preflight call omitted timing evidence")
     session_state = capabilities.get("session", {})
     if session_state.get("connected") or session_state.get("starting"):
         raise RuntimeError("installed stdio probe unexpectedly started COMSOL")
@@ -135,6 +145,12 @@ async def _probe(command: Path, workdir: Path, stderr_path: Path) -> dict[str, A
             "build_identity_sha256": capabilities["deployment_identity"]["build_identity"]["build_identity_sha256"],
             "schema_registry_sha256": capabilities["schema_registry"]["registry_sha256"],
             "catalog_contract_sha256": capabilities["deployment_identity"]["catalog_contract_sha256"],
+        },
+        "cold_solver_preflight": {
+            "ready": preflight.get("ready"),
+            "blocker_count": len(preflight.get("blockers", [])),
+            "latency_seconds": preflight["control_plane"]["latency_seconds"],
+            "outcome": preflight["control_plane"]["outcome"],
         },
         "malformed_request_matrix": malformed,
         "comsol_client_started": False,

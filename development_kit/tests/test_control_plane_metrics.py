@@ -2,23 +2,27 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+import asyncio
+import inspect
 import json
-from pathlib import Path
 import shutil
+import subprocess
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
 import pytest
-
-from src.jobs.store import JOB_SCHEMA_VERSION, JobStore
 import src.knowledge.lexical_manual as lexical_module
 import src.tools.jobs as jobs_module
 import src.tools.ownership as ownership_module
+from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
+from src.jobs.store import JOB_SCHEMA_VERSION, JobStore
 from src.tools.capabilities import get_capabilities
 from src.tools.ownership import SolverOwnership
+from src.tools.profiles import ProfileSelection, register_profiled
 from src.utils.control_plane import ControlPlaneMetrics, control_plane_metrics
 
 
@@ -239,3 +243,188 @@ def test_concurrent_wrappers_record_bounded_latency_and_overload_outcomes(
         len(json.dumps(response["control_plane"], ensure_ascii=False))
         for response in responses
     ) < 1000
+
+
+def _profiled_preflight_server() -> FastMCP:
+    server = FastMCP("control-plane-preflight")
+    register_profiled(
+        server,
+        ownership_module.register_ownership_tools,
+        frozenset({"solver_preflight"}),
+        ProfileSelection(
+            name="core",
+            environment_variable="COMSOL_MCP_SETTINGS_PATH",
+            default_used=False,
+            source="test",
+        ),
+    )
+    return server
+
+
+def test_public_solver_preflight_runs_entire_callback_off_event_loop(monkeypatch):
+    import src.tools.session as session_module
+
+    entered = threading.Event()
+    release = threading.Event()
+    worker_threads = {}
+
+    class OwnershipStub:
+        def preflight(self, **kwargs):
+            worker_threads["preflight"] = threading.get_ident()
+            worker_threads["session_state"] = kwargs["session_state"]
+            entered.set()
+            assert release.wait(timeout=2.0)
+            return {"ready": True, "blockers": []}
+
+    def get_status():
+        worker_threads["session"] = threading.get_ident()
+        return {"connected": False, "starting": False}
+
+    monkeypatch.setattr(ownership_module, "ownership_manager", OwnershipStub())
+    monkeypatch.setattr(session_module.session_manager, "get_status", get_status)
+    server = _profiled_preflight_server()
+    tool = server._tool_manager._tools["solver_preflight"]
+
+    async def exercise():
+        event_loop_thread = threading.get_ident()
+        task = asyncio.create_task(tool.run({}))
+        assert await asyncio.to_thread(entered.wait, 1.0)
+        event_loop_progress_thread = threading.get_ident()
+        release.set()
+        result = await asyncio.wait_for(task, timeout=2.0)
+        return event_loop_thread, event_loop_progress_thread, result
+
+    event_loop_thread, progress_thread, result = asyncio.run(exercise())
+
+    assert tool.is_async is True
+    assert inspect.iscoroutinefunction(tool.fn)
+    assert progress_thread == event_loop_thread
+    assert worker_threads["preflight"] != event_loop_thread
+    assert worker_threads["session"] == worker_threads["preflight"]
+    assert worker_threads["session_state"] == {
+        "connected": False,
+        "starting": False,
+    }
+    assert result["ready"] is True
+    assert result["control_plane"]["operation"] == "solver_preflight"
+    assert result["control_plane"]["outcome"] == "success"
+    assert result["path_policy"]["accepted"] is True
+
+
+def test_public_solver_preflight_worker_exception_is_transported(monkeypatch):
+    class OwnershipStub:
+        def preflight(self, **_kwargs):
+            raise RuntimeError("bounded preflight failure")
+
+    monkeypatch.setattr(ownership_module, "ownership_manager", OwnershipStub())
+    tool = _profiled_preflight_server()._tool_manager._tools["solver_preflight"]
+
+    async def exercise():
+        with pytest.raises(ToolError, match="bounded preflight failure"):
+            await asyncio.wait_for(tool.run({}), timeout=2.0)
+
+    asyncio.run(exercise())
+
+
+def test_lightweight_job_summaries_avoid_campaign_imports(tmp_path):
+    jobs_root = tmp_path / "jobs"
+    assert ownership_module._lightweight_job_summaries(jobs_root) == {
+        "available": True,
+        "root": str(jobs_root),
+        "count_returned": 0,
+        "active_count": 0,
+        "active": [],
+        "recent": [],
+    }
+
+    active = jobs_root / "active-job"
+    active.mkdir(parents=True)
+    (active / "state.json").write_text(
+        json.dumps(
+            {
+                "status": "running",
+                "attempt": 2,
+                "progress": {"completed": 3},
+                "worker_pid": 123,
+                "updated_at_epoch": 5.0,
+                "last_error": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    malformed = jobs_root / "malformed-job"
+    malformed.mkdir()
+    (malformed / "state.json").write_text("not-json", encoding="utf-8")
+
+    result = ownership_module._lightweight_job_summaries(jobs_root)
+
+    assert result["count_returned"] == 2
+    assert result["active_count"] == 1
+    assert result["active"][0]["job_id"] == "active-job"
+    unreadable = next(item for item in result["recent"] if item["status"] == "unreadable")
+    assert unreadable["job_id"] == "malformed-job"
+    assert unreadable["error"].startswith("JSONDecodeError:")
+
+
+def test_standard_library_comsol_discovery_matches_mph_windows_shape(
+    tmp_path, monkeypatch
+):
+    import winreg
+
+    root = tmp_path / "Multiphysics"
+    binary = root / "bin" / "win64"
+    jvm = root / "java" / "win64" / "jre" / "bin" / "server" / "jvm.dll"
+    binary.mkdir(parents=True)
+    jvm.parent.mkdir(parents=True)
+    for path in (binary / "comsol.exe", binary / "comsolmphserver.exe", jvm):
+        path.touch()
+    (root / "plugins").mkdir()
+    (root / "apiplugins").mkdir()
+    (binary / "comsol.ini").write_text(
+        "-vm\n../../java/win64/jre/bin/server/jvm.dll\n",
+        encoding="utf-8",
+    )
+
+    class Key:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    main_key = Key()
+    child_key = Key()
+
+    def open_key(parent, name):
+        if parent == winreg.HKEY_LOCAL_MACHINE:
+            assert name == r"SOFTWARE\Comsol"
+            return main_key
+        assert parent is main_key and name == "Comsol64"
+        return child_key
+
+    def enum_key(key, index):
+        assert key is main_key
+        if index == 0:
+            return "Comsol64"
+        raise OSError("end")
+
+    monkeypatch.setattr(winreg, "OpenKey", open_key)
+    monkeypatch.setattr(winreg, "EnumKey", enum_key)
+    monkeypatch.setattr(winreg, "QueryValueEx", lambda key, name: (str(root), 1))
+    monkeypatch.setattr(ownership_module.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(ownership_module.platform, "machine", lambda: "AMD64")
+    monkeypatch.setattr(ownership_module.platform, "architecture", lambda: ("64bit", "WindowsPE"))
+    monkeypatch.setattr(ownership_module.importlib.metadata, "version", lambda _name: "1.3.1")
+    monkeypatch.setattr(
+        ownership_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="COMSOL Multiphysics 6.4.0.293\n", stderr=""
+        ),
+    )
+
+    version, backends, error = ownership_module._discover_comsol_backends_without_mph()
+
+    assert version == "1.3.1"
+    assert error is None
+    assert backends == [{"name": "6.4", "root": str(root), "jvm": str(jvm)}]

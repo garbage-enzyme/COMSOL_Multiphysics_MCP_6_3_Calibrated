@@ -2,21 +2,20 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import functools
 import inspect
 import json
 import os
-from pathlib import Path
 import threading
 import time
-from typing import Any, Callable, get_type_hints
 import uuid
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Callable, get_type_hints
 
 import psutil
 
 from comsol_mcp.utils.runtime_paths import default_runtime_dir
-
 
 OPERATION_LOCK_SCHEMA = "comsol_mcp.operation_lock"
 OPERATION_LOCK_VERSION = "1.0.0"
@@ -290,6 +289,16 @@ def guard_tool_call(
     advances_model_revision: bool = False,
 ) -> Callable[..., Any]:
     """Wrap one registered tool with fail-fast COMSOL operation arbitration."""
+
+    if inspect.iscoroutinefunction(function):
+        return _guard_async_tool_call(
+            function,
+            tool_name=tool_name,
+            concurrency_class=concurrency_class,
+            profile_name=profile_name,
+            requires_model_revision=requires_model_revision,
+        )
+
     @functools.wraps(function)
     def guarded(*args: Any, **kwargs: Any) -> Any:
         from comsol_mcp.evidence.integrity_controls import annotate_tool_response
@@ -420,6 +429,56 @@ def guard_tool_call(
             parameters=parameters,
             return_annotation=hints.get("return", signature.return_annotation),
         )
+    return guarded
+
+
+def _guard_async_tool_call(
+    function: Callable[..., Any],
+    *,
+    tool_name: str,
+    concurrency_class: str,
+    profile_name: str,
+    requires_model_revision: bool,
+) -> Callable[..., Any]:
+    """Preserve coroutine dispatch for solver-free and control-plane tools."""
+
+    if concurrency_class == "comsol_bound" or requires_model_revision:
+        raise TypeError("async COMSOL-bound tools require an explicit arbitration design")
+
+    @functools.wraps(function)
+    async def guarded(*args: Any, **kwargs: Any) -> Any:
+        from comsol_mcp.evidence.integrity_controls import annotate_tool_response
+        from comsol_mcp.path_policy import validate_tool_paths
+
+        def finalize(value: Any) -> Any:
+            return annotate_tool_response(tool_name, value)
+
+        try:
+            normalized_args, normalized_kwargs, path_evidence = validate_tool_paths(
+                function,
+                args,
+                kwargs,
+                tool_name=tool_name,
+                profile_name=profile_name,
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            return finalize({
+                "success": False,
+                "error": str(exc),
+                "path_policy": {
+                    "schema_name": "comsol_mcp.path_policy",
+                    "schema_version": "1.0.0",
+                    "enforced": profile_name != "full",
+                    "accepted": False,
+                    "error_type": type(exc).__name__,
+                },
+            })
+        result = await function(*normalized_args, **normalized_kwargs)
+        if isinstance(result, dict):
+            result = dict(result)
+            result["path_policy"] = {**path_evidence, "accepted": True}
+        return finalize(result)
+
     return guarded
 
 

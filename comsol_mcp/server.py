@@ -71,13 +71,30 @@ def create_server(
     return server
 
 
+def _preload_native_runtime() -> dict[str, str]:
+    """Load MPh/NumPy on the main thread before MCP event-loop dispatch."""
+    import jpype
+    import mph
+    import numpy
+
+    if jpype.isJVMStarted():
+        raise RuntimeError("Import-only MCP runtime preload unexpectedly started the JVM")
+    return {
+        "mph": str(mph.__version__),
+        "numpy": str(numpy.__version__),
+        "jpype": str(jpype.__version__),
+    }
+
+
 def main() -> None:
     """Run the MCP server."""
     apply_java_settings()
+    native_runtime = _preload_native_runtime()
     selection = resolve_profile()
     from .tools.capabilities import startup_capability_summary
 
     logger.info("Starting COMSOL MCP Server...")
+    logger.info("Preloaded native runtime on main thread: %s", native_runtime)
     logger.info("Capabilities: %s", startup_capability_summary(selection))
     
     register_all_tools(profile=selection)

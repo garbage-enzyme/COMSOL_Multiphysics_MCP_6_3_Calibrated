@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import math
 from copy import deepcopy
 from functools import wraps
@@ -78,6 +79,16 @@ def validate_public_structure(value: Any, *, path: str = "arguments", depth: int
 
 def structurally_guarded(function: Callable[..., Any]) -> Callable[..., Any]:
     """Validate all supplied arguments before entering a public tool function."""
+
+    if inspect.iscoroutinefunction(function):
+
+        @wraps(function)
+        async def async_wrapped(*args: Any, **kwargs: Any) -> Any:
+            validate_public_structure(args, path="arguments.positional")
+            validate_public_structure(kwargs, path="arguments.named")
+            return await function(*args, **kwargs)
+
+        return async_wrapped
 
     @wraps(function)
     def wrapped(*args: Any, **kwargs: Any) -> Any:
