@@ -26,6 +26,7 @@ LINT_TARGETS = (
     "comsol_mcp/compatibility.py",
     "comsol_mcp/contracts",
     "comsol_mcp/durable",
+    "comsol_mcp/native_runtime.py",
     "comsol_mcp/schema_registry.py",
     "comsol_mcp/tools/catalog.py",
     "comsol_mcp/tools/session_status.py",
@@ -37,6 +38,7 @@ LINT_TARGETS = (
     "development_kit/tests/test_dependency_license_gate.py",
     "development_kit/tests/test_durable_primitives.py",
     "development_kit/tests/test_namespace_compatibility.py",
+    "development_kit/tests/test_native_runtime.py",
     "development_kit/tests/test_public_input_contracts.py",
     "development_kit/tests/test_quality_gate.py",
     "development_kit/tests/test_quality_properties.py",
@@ -58,6 +60,7 @@ MYPY_GROUPS = (
         "comsol_mcp/schema_registry.py",
         "comsol_mcp/compatibility.py",
         "comsol_mcp/tools/session_status.py",
+        "comsol_mcp/native_runtime.py",
         "src/__init__.py",
     ),
 )

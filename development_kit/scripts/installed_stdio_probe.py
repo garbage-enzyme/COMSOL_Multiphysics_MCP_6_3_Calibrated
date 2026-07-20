@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import time
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,68 @@ def _tool_payload(result: Any) -> dict[str, Any]:
             if isinstance(value, dict):
                 return value
     raise RuntimeError("tool result does not contain one JSON object")
+
+
+def _spectral_arguments() -> dict[str, Any]:
+    configuration_sha256 = "a" * 64
+    absorptions = (0.1, 0.5, 0.9, 0.5, 0.1)
+    rows = []
+    for index, absorption in enumerate(absorptions):
+        wavelength = 4.8e-6 + index * 0.1e-6
+        rows.append(
+            {
+                "row_id": f"point-{index:03d}",
+                "raw_row_sha256": hashlib.sha256(
+                    f"installed-stdio-native-{index}".encode()
+                ).hexdigest(),
+                "configuration_sha256": configuration_sha256,
+                "requested_wavelength_m": wavelength,
+                "evaluated_wavelength_m": wavelength,
+                "frequency_wavelength_m": wavelength,
+                "R": 0.95 - absorption,
+                "T": 0.05,
+                "A": absorption,
+            }
+        )
+    return {
+        "bundle_spec": {
+            "bundle_id": "installed-stdio-native-matrix",
+            "source_model": {
+                "relative_identity": "fixtures/solver-free.mph",
+                "sha256": "b" * 64,
+            },
+            "configuration_sha256": configuration_sha256,
+            "parameter_state": {"probe": "native-runtime"},
+            "wavelength_convention": {
+                "unit": "m",
+                "requested_field": "requested_wavelength_m",
+                "evaluated_field": "evaluated_wavelength_m",
+                "frequency_derived_field": "frequency_wavelength_m",
+                "frequency_relation": "c_const/frequency",
+            },
+            "expressions": {"R": "R", "T": "T", "A": "1-R-T"},
+            "rows": rows,
+        },
+        "analysis_policy": {
+            "response_quantity": "A",
+            "candidate_polarity": "maximum",
+            "passivity_abs_tolerance": 1.0e-12,
+            "closure_abs_tolerance": 1.0e-12,
+            "wavelength_sync_abs_m": 1.0e-15,
+            "flat_response_abs_tolerance": 1.0e-12,
+            "minimum_point_count": 5,
+        },
+        "measurement_configuration": {
+            "peak_method": "measured_grid",
+            "baseline_rule": "local_prominence",
+            "baseline_response_value": None,
+            "fwhm_definition": "half_prominence",
+            "fit_support_points": None,
+            "fit_support_sensitivity_points": [],
+            "local_polynomial_degree": None,
+            "fit_max_evaluations": None,
+        },
+    }
 
 
 async def _expect_rejection(
@@ -82,14 +145,32 @@ async def _probe(command: Path, workdir: Path, stderr_path: Path) -> dict[str, A
                 initialized = await session.initialize()
                 listed = await session.list_tools()
                 tool_names = sorted(tool.name for tool in listed.tools)
+                preflight_started = time.perf_counter()
                 preflight_result = await session.call_tool(
                     "solver_preflight",
                     {},
                     read_timeout_seconds=timedelta(seconds=15),
                 )
+                preflight_wall = time.perf_counter() - preflight_started
                 if getattr(preflight_result, "isError", False):
                     raise RuntimeError("installed cold solver_preflight call returned a tool error")
                 preflight = _tool_payload(preflight_result)
+                spectral_started = time.perf_counter()
+                spectral_result = await session.call_tool(
+                    "spectral_characterize",
+                    _spectral_arguments(),
+                    read_timeout_seconds=timedelta(seconds=15),
+                )
+                spectral_wall = time.perf_counter() - spectral_started
+                if getattr(spectral_result, "isError", False):
+                    raise RuntimeError(
+                        "installed cold spectral_characterize call returned a tool error"
+                    )
+                spectral = _tool_payload(spectral_result)
+                if spectral.get("success") is not True:
+                    raise RuntimeError(
+                        f"installed cold spectral_characterize call failed safely: {spectral}"
+                    )
                 capabilities_result = await session.call_tool(
                     "capabilities",
                     {},
@@ -130,7 +211,7 @@ async def _probe(command: Path, workdir: Path, stderr_path: Path) -> dict[str, A
     names_payload = json.dumps(tool_names, separators=(",", ":")).encode("utf-8")
     return {
         "schema_name": "comsol_mcp.installed_stdio_probe",
-        "schema_version": "1.0.0",
+        "schema_version": "1.1.0",
         "transport": "stdio",
         "initialize": {
             "protocol_version": initialized.protocolVersion,
@@ -142,15 +223,29 @@ async def _probe(command: Path, workdir: Path, stderr_path: Path) -> dict[str, A
         "capabilities": {
             "profile": capabilities["profile"],
             "package_version": capabilities["deployment_identity"]["package_version"],
-            "build_identity_sha256": capabilities["deployment_identity"]["build_identity"]["build_identity_sha256"],
+            "build_identity_sha256": capabilities["deployment_identity"]["build_identity"][
+                "build_identity_sha256"
+            ],
             "schema_registry_sha256": capabilities["schema_registry"]["registry_sha256"],
-            "catalog_contract_sha256": capabilities["deployment_identity"]["catalog_contract_sha256"],
+            "catalog_contract_sha256": capabilities["deployment_identity"][
+                "catalog_contract_sha256"
+            ],
         },
         "cold_solver_preflight": {
             "ready": preflight.get("ready"),
             "blocker_count": len(preflight.get("blockers", [])),
             "latency_seconds": preflight["control_plane"]["latency_seconds"],
+            "transport_wall_seconds": preflight_wall,
             "outcome": preflight["control_plane"]["outcome"],
+        },
+        "cold_native_tool_matrix": {
+            "spectral_characterize": {
+                "success": spectral["success"],
+                "classification": spectral["classification"],
+                "transport_wall_seconds": spectral_wall,
+                "solver_started": spectral["solver_started"],
+                "filesystem_modified": spectral["filesystem_modified"],
+            },
         },
         "malformed_request_matrix": malformed,
         "comsol_client_started": False,

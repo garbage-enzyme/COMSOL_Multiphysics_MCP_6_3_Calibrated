@@ -6,8 +6,14 @@ from weakref import WeakKeyDictionary, WeakSet
 
 from mcp.server.fastmcp import FastMCP
 
+from .native_runtime import preload_mcp_native_runtime
 from .settings import apply_java_settings
-from .tools.profiles import ProfileSelection, register_profiled, resolve_profile, tool_names_for_profile
+from .tools.profiles import (
+    ProfileSelection,
+    register_profiled,
+    resolve_profile,
+    tool_names_for_profile,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,9 +41,9 @@ def register_all_tools(
         return existing
     selection = profile if isinstance(profile, ProfileSelection) else resolve_profile(profile)
     enabled_names = tool_names_for_profile(selection.name)
-    from .tools import register_tool_modules
     from .knowledge.embedded import register_knowledge_tools
     from .knowledge.lexical_manual import register_lexical_manual_tools
+    from .tools import register_tool_modules
 
     register_tool_modules(target, selection)
     register_profiled(target, register_knowledge_tools, enabled_names, selection)
@@ -72,18 +78,8 @@ def create_server(
 
 
 def _preload_native_runtime() -> dict[str, str]:
-    """Load MPh/NumPy on the main thread before MCP event-loop dispatch."""
-    import jpype
-    import mph
-    import numpy
-
-    if jpype.isJVMStarted():
-        raise RuntimeError("Import-only MCP runtime preload unexpectedly started the JVM")
-    return {
-        "mph": str(mph.__version__),
-        "numpy": str(numpy.__version__),
-        "jpype": str(jpype.__version__),
-    }
+    """Compatibility wrapper for the auditable native-runtime manifest."""
+    return preload_mcp_native_runtime()
 
 
 def main() -> None:
@@ -96,10 +92,10 @@ def main() -> None:
     logger.info("Starting COMSOL MCP Server...")
     logger.info("Preloaded native runtime on main thread: %s", native_runtime)
     logger.info("Capabilities: %s", startup_capability_summary(selection))
-    
+
     register_all_tools(profile=selection)
     register_all_resources()
-    
+
     mcp.run()
 
 
