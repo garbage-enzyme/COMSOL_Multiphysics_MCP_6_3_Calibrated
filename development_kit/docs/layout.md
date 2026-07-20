@@ -186,6 +186,7 @@ models are intentionally absent.
 - `development_kit/tests/test_operation_arbiter.py` — This module tests durable serialization and responsive control-plane operation classes.
 - `development_kit/tests/test_native_cancel_probe.py` — This module tests native cancellation discovery and allowlisting without COMSOL.
 - `development_kit/tests/test_namespace_compatibility.py` — This module tests canonical package identity and the bounded legacy import interval.
+- `development_kit/tests/test_native_runtime.py` — This module tests the native-runtime manifest, main-thread preload, and representative lazy native calls.
 - `development_kit/tests/test_ownership.py` — This module tests solver ownership, leases, and collision detection.
 - `development_kit/tests/test_parameters.py` — This module tests parameter tools without a COMSOL client.
 - `development_kit/tests/test_path_policy.py` — This module tests configured model-read and owned-artifact path containment.
@@ -274,6 +275,7 @@ models are intentionally absent.
 - `comsol_mcp/operation_arbiter.py` — This module serializes COMSOL-bound calls with a durable exact-process lock.
 - `comsol_mcp/path_policy.py` — This module enforces configured model-read and owned ASCII artifact roots.
 - `comsol_mcp/schema_registry.py` — This module registers named artifact schema producers and readable and writable versions.
+- `comsol_mcp/native_runtime.py` — This module classifies native-backed imports and preloads every main-process runtime before event-loop dispatch.
 - `comsol_mcp/server.py` — This module creates the profiled MCP server and console entry point.
 - `comsol_mcp/settings.py` — This module loads grouped project settings and reports bounded fallback errors.
 
