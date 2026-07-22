@@ -8,6 +8,8 @@ models are intentionally absent.
 
 - `.gitattributes` — This file defines repository text and line-ending attributes.
 - `.gitignore` — This file excludes generated, local, and sensitive artifacts from Git.
+- `AGENTS.md` — This file provides repository development, testing, and safety guidance for coding agents.
+- `CLAUDE.md` — This file provides repository development, testing, and safety guidance for Claude Code.
 - `.github/workflows/ci.yml` — This workflow runs the blocking Python build and test gates.
 - `.github/workflows/dependency_report.yml` — This workflow produces the scheduled information-only dependency report.
 - `LICENSE` — This file contains the repository MIT license.
