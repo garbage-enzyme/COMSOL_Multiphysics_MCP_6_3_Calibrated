@@ -45,6 +45,10 @@ durable artifacts, prefer ASCII-only paths.
 
 An accepted path value is not proof that a later tool may use it: containment,
 existence, link/junction, overwrite, and operation-specific checks still apply.
+For a first model load, set `paths.model_read_roots` to the absolute parent
+directory of the source `.mph`; its default `[]` deliberately rejects every
+model input. Leaving `paths.artifact_write_root` at `null` selects the owned-
+artifact directory beneath the effective runtime root.
 
 ## Shared Desktop/Server mode
 

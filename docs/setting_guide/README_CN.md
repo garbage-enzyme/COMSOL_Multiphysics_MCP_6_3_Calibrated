@@ -38,6 +38,9 @@ COMSOL Server。`semantic_docs` 需要相应检索资产可用。没有明确需
 
 路径值通过此设置验证并不表示后续 tool 一定可用：containment、存在性、link/junction、
 覆盖和具体操作的检查仍会执行。
+首次加载模型前，必须把 `paths.model_read_roots` 设为源 `.mph` 所在的绝对父目录；其默认
+值 `[]` 会有意拒绝所有模型输入。`paths.artifact_write_root` 保持 `null` 时，输出会使用
+实际 runtime root 下的 owned-artifact 目录。
 
 ## Shared Desktop/Server 模式
 

@@ -34,4 +34,9 @@ def test_recipe_preserves_the_baseline_and_requires_explicit_output_replacement(
     assert "if sha256_file(baseline) != baseline_sha256:" in source
     assert "if output.exists() and not args.overwrite_output:" in source
     assert "java_model.save(str(output))" in source
-    assert "client.disconnect()" in source
+    assert "client.remove(model)" in source
+    assert "tag.startswith(" not in source
+    assert 'study.feature().create("freq", "Frequency")' in source
+    assert 'ampere_air.set("mur", "1")' in source
+    assert 'ampere_air.set("epsilonr", "1")' in source
+    assert "LangevinFunction" not in source

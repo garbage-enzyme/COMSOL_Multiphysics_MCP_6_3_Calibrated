@@ -4,8 +4,13 @@ The differential-coil topology is an upstream example model. This file is an
 independently maintained, parameterized derivation recipe; it does not claim
 the upstream model or implementation as original work.
 
+The upstream `.mph` is only a ClientAPI-compatible baseline for the required
+AC/DC physics interface. This recipe replaces its mutable model content and
+does not treat upstream material values, nonlinear laws, or numerical results
+as physically validated.
+
 The baseline must contain a 2D component named ``comp1``, a geometry named
-``geom1``, an Induction Currents physics interface tagged ``mf``, and its
+``geom1``, an AC/DC magnetic physics interface tagged ``mf``, and its
 default ``fsp1``, ``mi1``, and ``init1`` features. This recipe edits only the
 loaded in-memory model and saves a distinct output model. It does not overwrite
 the baseline.
@@ -71,7 +76,7 @@ def require_baseline_contract(model: mph.Model) -> tuple[object, object, object]
 def replace_geometry(geometry: object) -> None:
     """Replace mutable geometry features with the two coils and an air domain."""
     for tag in list(geometry.feature().tags()):
-        if tag != "fin":
+        if str(tag) != "fin":
             geometry.feature().remove(tag)
 
     rectangles = (
@@ -98,25 +103,20 @@ def named_selection(feature: object, name: str) -> None:
 
 
 def replace_physics(component: object, frequency_khz: float) -> None:
-    """Configure differential copper coils and an air-domain Ampere law."""
+    """Configure differential copper coils and a linear-air Ampere law."""
     physics = component.physics().get("mf")
     for tag in list(physics.feature().tags()):
-        if tag.startswith("coil") or tag == "ampere_air":
+        if str(tag).startswith("coil") or str(tag) == "ampere_air":
             physics.feature().remove(tag)
 
     physics.feature().get("fsp1").set("f_typ", f"{frequency_khz}[kHz]")
 
     ampere_air = physics.feature().create("ampere_air", "AmperesLaw", 2)
     named_selection(ampere_air, "air")
-    ampere_air.set("MagnetizationModel", "LangevinFunction")
-    ampere_air.set(
-        "Lfunction",
-        "1.5e6[A/m]*((200*mf.normHeff)/((200*mf.normHeff)+1.5e6[A/m]))",
-    )
     ampere_air.set("mur", "1")
-    ampere_air.set("T", "293.15[K]")
     ampere_air.set("epsilonr", "1")
     ampere_air.set("epsilonr_mat", "userdef")
+    ampere_air.label("Linear air domain")
 
     for tag, selection_name, current in (
         ("coil_positive", "coil_positive", "1[A]"),
@@ -169,7 +169,7 @@ def replace_mesh_and_study(java_model: object, component: object, frequency_khz:
     for tag in list(java_model.study().tags()):
         java_model.study().remove(tag)
     study = java_model.study().create("std1")
-    step = study.feature().create("freq", "FrequencyDomain")
+    step = study.feature().create("freq", "Frequency")
     step.set("plist", f"{frequency_khz}[kHz]")
 
 
@@ -218,10 +218,7 @@ def main() -> None:
         java_model.save(str(output))
         print(f"Saved derived model: {output} (baseline SHA-256: {baseline_sha256})", flush=True)
     finally:
-        try:
-            model.remove()
-        finally:
-            client.disconnect()
+        client.remove(model)
 
     if sha256_file(baseline) != baseline_sha256:
         raise RuntimeError("baseline model changed while building the derived model")
